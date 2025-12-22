@@ -1,0 +1,113 @@
+﻿@page "/"
+
+<PageTitle>DocN - Document Management</PageTitle>
+
+<div class="hero-section">
+    <h1>🗂️ DocN</h1>
+    <p class="lead">Intelligent Document Management with AI-Powered Search</p>
+    <div class="features">
+        <div class="feature-card">
+            <h3>📤 Upload & Organize</h3>
+            <p>Automatic category suggestions with AI reasoning</p>
+        </div>
+        <div class="feature-card">
+            <h3>🔍 Semantic Search</h3>
+            <p>Find documents using natural language</p>
+        </div>
+        <div class="feature-card">
+            <h3>👥 Collaboration</h3>
+            <p>Share documents with visibility controls</p>
+        </div>
+        <div class="feature-card">
+            <h3>📊 Analytics</h3>
+            <p>Track usage and optimize storage</p>
+        </div>
+    </div>
+    <div class="cta-buttons">
+        <a href="/documents" class="btn btn-primary">View Documents</a>
+        <a href="/dashboard" class="btn btn-secondary">Dashboard</a>
+    </div>
+</div>
+
+<style>
+    .hero-section {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    
+    .hero-section h1 {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .lead {
+        font-size: 1.5rem;
+        color: #666;
+        margin-bottom: 3rem;
+    }
+    
+    .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 2rem;
+        margin: 3rem 0;
+        max-width: 1200px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    .feature-card {
+        padding: 2rem;
+        border-radius: 10px;
+        background: #f8f9fa;
+        transition: transform 0.3s ease;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    
+    .feature-card h3 {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .cta-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 3rem;
+    }
+    
+    .btn {
+        padding: 1rem 2rem;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        opacity: 0.9;
+        transform: scale(1.05);
+    }
+    
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background: #5a6268;
+        transform: scale(1.05);
+    }
+</style>

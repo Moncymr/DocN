@@ -1,0 +1,309 @@
+@page "/documents"
+@page "/documents/{Page:int}"
+@inject IDocumentService DocumentService
+@inject IDocumentStatisticsService StatisticsService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Documents - DocN</PageTitle>
+
+<div class="documents-container">
+    <div class="header">
+        <h2>📁 My Documents</h2>
+        <button class="btn btn-primary" @onclick="ShowUploadDialog">
+            <span>➕ Upload Document</span>
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading">Loading documents...</div>
+    }
+    else if (documents == null || !documents.Any())
+    {
+        <div class="empty-state">
+            <h3>No documents yet</h3>
+            <p>Upload your first document to get started!</p>
+        </div>
+    }
+    else
+    {
+        <div class="documents-grid">
+            @foreach (var doc in documents)
+            {
+                <div class="document-card">
+                    <div class="document-icon">📄</div>
+                    <div class="document-info">
+                        <h4>@doc.FileName</h4>
+                        <p class="category">
+                            Category: <strong>@(doc.ActualCategory ?? doc.SuggestedCategory ?? "Uncategorized")</strong>
+                        </p>
+                        @if (!string.IsNullOrEmpty(doc.CategoryReasoning))
+                        {
+                            <p class="reasoning" title="@doc.CategoryReasoning">
+                                💡 @(TruncateText(doc.CategoryReasoning, 100))
+                            </p>
+                        }
+                        <div class="document-meta">
+                            <span class="visibility-badge @GetVisibilityClass(doc.Visibility)">
+                                @doc.Visibility.ToString()
+                            </span>
+                            <span>📊 @doc.AccessCount views</span>
+                            <span>📅 @doc.UploadedAt.ToString("MMM dd, yyyy")</span>
+                        </div>
+                    </div>
+                    <div class="document-actions">
+                        <button class="btn-icon" @onclick="() => DownloadDocument(doc.Id)" title="Download">
+                            ⬇️
+                        </button>
+                        <button class="btn-icon" @onclick="() => ShareDocument(doc.Id)" title="Share">
+                            🔗
+                        </button>
+                        <button class="btn-icon" @onclick="() => ViewDocument(doc.Id)" title="View">
+                            👁️
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="pagination">
+                <button class="btn" disabled="@(currentPage == 1)" @onclick="PreviousPage">← Previous</button>
+                <span>Page @currentPage of @totalPages</span>
+                <button class="btn" disabled="@(currentPage == totalPages)" @onclick="NextPage">Next →</button>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .documents-container {
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .header h2 {
+        font-size: 2rem;
+        margin: 0;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .documents-grid {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .document-card {
+        display: flex;
+        align-items: start;
+        gap: 1rem;
+        padding: 1.5rem;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+
+    .document-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    .document-icon {
+        font-size: 2.5rem;
+    }
+
+    .document-info {
+        flex: 1;
+    }
+
+    .document-info h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.2rem;
+    }
+
+    .category {
+        color: #666;
+        margin: 0.5rem 0;
+    }
+
+    .reasoning {
+        font-size: 0.9rem;
+        color: #888;
+        font-style: italic;
+        margin: 0.5rem 0;
+    }
+
+    .document-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.85rem;
+        color: #666;
+        margin-top: 0.5rem;
+    }
+
+    .visibility-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .visibility-private {
+        background: #ffc107;
+        color: #000;
+    }
+
+    .visibility-shared {
+        background: #17a2b8;
+        color: white;
+    }
+
+    .visibility-organization {
+        background: #28a745;
+        color: white;
+    }
+
+    .visibility-public {
+        background: #6c757d;
+        color: white;
+    }
+
+    .document-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-icon {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 5px;
+        transition: background 0.2s;
+    }
+
+    .btn-icon:hover {
+        background: #f0f0f0;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+
+    .loading, .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int Page { get; set; } = 1;
+
+    private List<Document>? documents;
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int totalPages = 1;
+    private int pageSize = 20;
+    private string currentUserId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        
+        currentPage = Page > 0 ? Page : 1;
+        await LoadDocuments();
+    }
+
+    private async Task LoadDocuments()
+    {
+        isLoading = true;
+        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, currentPage, pageSize);
+        var totalCount = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
+        totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+        isLoading = false;
+    }
+
+    private string GetVisibilityClass(DocumentVisibility visibility)
+    {
+        return $"visibility-{visibility.ToString().ToLower()}";
+    }
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+        return text.Substring(0, maxLength) + "...";
+    }
+
+    private async Task DownloadDocument(int documentId)
+    {
+        // Download implementation would go here
+        // For now, just update access count
+        await StatisticsService.UpdateDocumentAccessAsync(documentId);
+    }
+
+    private void ShareDocument(int documentId)
+    {
+        // Navigate to share page
+        Navigation.NavigateTo($"/share/{documentId}");
+    }
+
+    private void ViewDocument(int documentId)
+    {
+        Navigation.NavigateTo($"/document/{documentId}");
+    }
+
+    private void ShowUploadDialog()
+    {
+        Navigation.NavigateTo("/upload");
+    }
+
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            Navigation.NavigateTo($"/documents/{currentPage}");
+            await LoadDocuments();
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            Navigation.NavigateTo($"/documents/{currentPage}");
+            await LoadDocuments();
+        }
+    }
+}
