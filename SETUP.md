@@ -4,6 +4,24 @@
 
 DocN è una soluzione web modulare basata su .NET 10 e Blazor, progettata per l'archiviazione intelligente e la consultazione di documenti, con ricerca semantica AI e integrazione Azure OpenAI.
 
+## 🎯 Novità - Sistema di Autenticazione e Vector Embeddings
+
+### Autenticazione Completa
+- ✅ **Login** con email/password
+- ✅ **Registrazione** utente con validazione
+- ✅ **Recupero password** via email
+- ✅ **Reset password** con token sicuro
+- ✅ **UI moderna e veloce** con design minimalista
+- ✅ **Mobile-friendly** e responsive
+
+### Vector Embeddings Nativi SQL Server 2025
+- ✅ **Tipo VECTOR(1536)** nativo per SQL Server 2025
+- ✅ **Float array** in C# invece di stringhe JSON
+- ✅ **Prestazioni ottimizzate** per ricerca semantica
+- ✅ **Compatibilità** con text-embedding-ada-002 di Azure OpenAI
+
+Per dettagli completi sull'API e configurazione embeddings, consulta [API_DOCUMENTATION.md](API_DOCUMENTATION.md).
+
 ## Prerequisiti
 
 Prima di iniziare, assicurati di avere installato:
@@ -148,6 +166,110 @@ dotnet run
 ```
 
 L'applicazione sarà disponibile su: `http://localhost:5000`
+
+## 🔐 Sistema di Autenticazione
+
+### Primo Accesso
+
+1. **Registrazione**: Vai su `/register` o clicca su "Register" nella homepage
+   - Inserisci nome, cognome, email e password
+   - La password deve contenere almeno 6 caratteri con maiuscole, minuscole e numeri
+   - Dopo la registrazione, verrai automaticamente autenticato
+
+2. **Login**: Vai su `/login` o clicca su "Login" 
+   - Usa l'email e la password con cui ti sei registrato
+   - Opzione "Remember me" per sessioni persistenti
+
+3. **Recupero Password**: In caso di password dimenticata
+   - Vai su `/forgot-password`
+   - Inserisci la tua email
+   - Segui le istruzioni per reimpostare la password (per ora il token viene stampato in console per testing)
+
+### Gestione Utenti e Ruoli
+
+Per estendere il sistema con ruoli personalizzati, modifica `Program.cs`:
+
+```csharp
+// Aggiungi ruoli personalizzati
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    // Configura policy password
+    options.Password.RequireDigit = true;
+    options.Password.RequiredLength = 8;  // Aumenta lunghezza minima
+    options.Password.RequireNonAlphanumeric = true;  // Richiedi caratteri speciali
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
+```
+
+Per creare ruoli:
+
+```csharp
+// In Program.cs dopo app.Build()
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    
+    string[] roles = { "Admin", "Editor", "Viewer" };
+    foreach (var role in roles)
+    {
+        if (!await roleManager.RoleExistsAsync(role))
+            await roleManager.CreateAsync(new IdentityRole(role));
+    }
+}
+```
+
+## 🔢 Configurazione Vector Embeddings
+
+### SQL Server 2025 - Supporto Vettoriale Nativo
+
+DocN utilizza il nuovo tipo `VECTOR` di SQL Server 2025 per prestazioni ottimali nella ricerca semantica.
+
+**Verifica Supporto Vettoriale:**
+```sql
+SELECT SERVERPROPERTY('IsVectorSupported') as VectorSupported;
+```
+
+**Configurazione Colonna Embedding:**
+```sql
+ALTER TABLE Documents 
+ADD EmbeddingVector VECTOR(1536) NULL;
+```
+
+### Modello C# Aggiornato
+
+Il campo `EmbeddingVector` è ora di tipo `float[]` invece di `string`:
+
+```csharp
+public class Document
+{
+    // ... altri campi
+    
+    // Vector embedding per ricerca semantica (1536 dimensioni per text-embedding-ada-002)
+    public float[]? EmbeddingVector { get; set; }
+}
+```
+
+### Generazione Embeddings
+
+Gli embeddings vengono generati automaticamente durante l'upload:
+
+```csharp
+var embeddingService = serviceProvider.GetRequiredService<IEmbeddingService>();
+float[]? embedding = await embeddingService.GenerateEmbeddingAsync(documentText);
+```
+
+### Ricerca Semantica
+
+Cerca documenti simili usando linguaggio naturale:
+
+```csharp
+var query = "contratti di licenza software";
+var queryEmbedding = await embeddingService.GenerateEmbeddingAsync(query);
+var results = await embeddingService.SearchSimilarDocumentsAsync(queryEmbedding, topK: 10);
+```
+
+**Dettagli completi nell'[API Documentation](API_DOCUMENTATION.md)**.
 
 ## Configurazione delle Funzionalità AI
 
