@@ -1,6 +1,7 @@
 @page "/upload"
 @using Microsoft.AspNetCore.Components.Forms
 @using System.IO
+@using DocN.Data.Services
 @inject IDocumentService DocumentService
 @inject IMultiProviderAIService AIService
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -55,7 +56,12 @@
             {
                 <div class="analyzing-section">
                     <div class="spinner"></div>
-                    <p>🤖 AI is analyzing the document and suggesting a category...</p>
+                    <p>🤖 AI is analyzing the document...</p>
+                    <p class="analyzing-details">
+                        ✓ Generating vector embeddings<br/>
+                        ✓ Searching for similar documents<br/>
+                        ✓ Analyzing content and suggesting category
+                    </p>
                 </div>
             }
 
@@ -76,6 +82,33 @@
                         }
                     </div>
                 </div>
+
+                @if (similarDocuments != null && similarDocuments.Any())
+                {
+                    <div class="similar-docs-section">
+                        <h3>🔍 Similar Documents Found</h3>
+                        <p class="similar-docs-intro">Vector similarity analysis found @similarDocuments.Count highly similar document(s) in your archive:</p>
+                        <div class="similar-docs-list">
+                            @foreach (var doc in similarDocuments)
+                            {
+                                <div class="similar-doc-card">
+                                    <div class="similar-doc-header">
+                                        <span class="similarity-icon">📄</span>
+                                        <div class="similar-doc-info">
+                                            <strong>@doc.FileName</strong>
+                                            <span class="category-tag">@doc.Category</span>
+                                        </div>
+                                    </div>
+                                    <div class="similarity-bar-container">
+                                        <div class="similarity-bar" style="width: @((doc.SimilarityScore * 100).ToString("F0"))%">
+                                            <span class="similarity-text">@((doc.SimilarityScore * 100).ToString("F0"))% similar</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
 
                 <div class="form-section">
                     <label>
@@ -193,6 +226,13 @@
         background: #f8f9fa;
         border-radius: 5px;
         margin-bottom: 2rem;
+    }
+
+    .analyzing-details {
+        margin-top: 1rem;
+        font-size: 0.9rem;
+        color: #666;
+        line-height: 1.8;
     }
 
     .spinner {
@@ -322,6 +362,97 @@
         color: #721c24;
         border: 1px solid #f5c6cb;
     }
+
+    .similar-docs-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 10px;
+        border: 2px solid #667eea;
+    }
+
+    .similar-docs-section h3 {
+        margin: 0 0 0.5rem 0;
+        color: #667eea;
+    }
+
+    .similar-docs-intro {
+        margin: 0 0 1rem 0;
+        color: #555;
+        font-size: 0.95rem;
+    }
+
+    .similar-docs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .similar-doc-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .similar-doc-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .similarity-icon {
+        font-size: 1.5rem;
+    }
+
+    .similar-doc-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .similar-doc-info strong {
+        color: #333;
+        font-size: 0.95rem;
+    }
+
+    .category-tag {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background: #667eea;
+        color: white;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .similarity-bar-container {
+        width: 100%;
+        height: 24px;
+        background: #e9ecef;
+        border-radius: 12px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .similarity-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 0.5rem;
+        transition: width 0.3s ease;
+    }
+
+    .similarity-text {
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
 </style>
 
 @code {
@@ -339,7 +470,16 @@
     private string? customCategory;
     private string? suggestedCategory;
     private string? categoryReasoning;
+    private List<SimilarDocInfo>? similarDocuments;
     private int selectedVisibility = 0;
+    
+    private class SimilarDocInfo
+    {
+        public int Id { get; set; }
+        public string FileName { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public double SimilarityScore { get; set; }
+    }
     private string? errorMessage;
     private string? successMessage;
     private string currentUserId = string.Empty;
@@ -349,17 +489,31 @@
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         
-        // Only set currentUserId if user is authenticated, otherwise leave it empty
-        currentUserId = userId ?? string.Empty;
+        if (string.IsNullOrEmpty(userId))
+        {
+            errorMessage = "⚠️ You must be logged in to upload documents. Please login first.";
+            return;
+        }
+        
+        currentUserId = userId;
     }
 
     private async Task HandleFileSelection(InputFileChangeEventArgs e)
     {
+        // Check if user is authenticated
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            errorMessage = "⚠️ You must be logged in to upload documents. Please login first.";
+            selectedFile = null;
+            return;
+        }
+        
         selectedFile = e.File;
         errorMessage = null;
         successMessage = null;
         suggestedCategory = null;
         categoryReasoning = null;
+        similarDocuments = null;
 
         // Validate file size
         var maxSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
@@ -396,15 +550,33 @@
             using var reader = new StreamReader(stream);
             var extractedText = await reader.ReadToEndAsync();
 
-            // Get AI category suggestion using MultiProviderAIService
-            var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
+            // Generate embedding first for vector similarity
+            float[]? embedding = null;
+            try
+            {
+                embedding = await AIService.GenerateEmbeddingAsync(extractedText.Length > 2000 ? extractedText.Substring(0, 2000) : extractedText);
+            }
+            catch { }
+
+            // Get AI category suggestion with vector similarity using MultiProviderAIService
+            var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText, embedding);
             suggestedCategory = result.Category;
             categoryReasoning = result.Reasoning;
+            
+            // Convert similar documents to our local format
+            similarDocuments = result.SimilarDocuments?.Select(d => new SimilarDocInfo
+            {
+                Id = d.Id,
+                FileName = d.FileName,
+                Category = d.Category,
+                SimilarityScore = d.SimilarityScore
+            }).ToList();
         }
         catch (Exception ex)
         {
             suggestedCategory = "Uncategorized";
             categoryReasoning = $"Unable to analyze: {ex.Message}";
+            similarDocuments = null;
         }
         finally
         {
@@ -414,6 +586,12 @@
 
     private async Task HandleUpload()
     {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            errorMessage = "⚠️ You must be logged in to upload documents. Please login first.";
+            return;
+        }
+        
         if (selectedFile == null)
         {
             errorMessage = "Please select a file to upload";
@@ -458,7 +636,7 @@
             }
             catch { }
 
-            // Create document record
+            // Create document record with authenticated user as owner
             var document = new Document
             {
                 FileName = selectedFile.Name,
@@ -471,7 +649,7 @@
                 ActualCategory = useCustomCategory ? customCategory : suggestedCategory,
                 Visibility = (DocumentVisibility)selectedVisibility,
                 EmbeddingVector = embedding != null ? System.Text.Json.JsonSerializer.Serialize(embedding) : null,
-                OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
+                OwnerId = currentUserId, // Always set - user must be authenticated
                 UploadedAt = DateTime.UtcNow
             };
 

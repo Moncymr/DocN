@@ -60,7 +60,7 @@ sqlcmd -S NTSPJ-060-02\SQL2025 -i Database\CreateDatabase.sql
 Lo script SQL include:
 - Creazione di tutte le tabelle necessarie
 - Creazione degli indici per le prestazioni
-- **Migrazione automatica** per database esistenti (rende OwnerId nullable per supportare l'upload senza autenticazione)
+- **Migrazione automatica** per database esistenti (rende OwnerId obbligatorio - l'autenticazione è necessaria per caricare documenti)
 - Configurazione AI di default
 
 **Opzione B: Usando Entity Framework Migrations**
@@ -179,8 +179,13 @@ L'applicazione sarà disponibile su: `http://localhost:5000`
 
 ### 2. 📤 Caricamento e Organizzazione Documenti
 
+- **Richiede autenticazione**: Gli utenti devono essere loggati per caricare documenti
 - Upload di documenti multipli
-- **Suggerimento automatico della categoria** con spiegazione AI del ragionamento
+- **Suggerimento automatico della categoria** con:
+  - Analisi AI del contenuto
+  - Ricerca di documenti simili tramite vettori embedding
+  - Visualizzazione dei documenti più simili trovati
+  - Spiegazione dettagliata del ragionamento AI
 - Estrazione automatica del testo
 - Tag e metadati personalizzabili
 

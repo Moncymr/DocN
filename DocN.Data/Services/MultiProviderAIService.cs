@@ -12,7 +12,15 @@ public interface IMultiProviderAIService
 {
     Task<float[]?> GenerateEmbeddingAsync(string text);
     Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt);
-    Task<(string Category, string Reasoning)> SuggestCategoryAsync(string fileName, string extractedText);
+    Task<(string Category, string Reasoning, List<SimilarDocument> SimilarDocuments)> SuggestCategoryAsync(string fileName, string extractedText, float[]? embedding = null);
+}
+
+public class SimilarDocument
+{
+    public int Id { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public double SimilarityScore { get; set; }
 }
 
 public class MultiProviderAIService : IMultiProviderAIService
@@ -213,10 +221,62 @@ public class MultiProviderAIService : IMultiProviderAIService
         return completion.Value.Content[0].Text;
     }
 
-    public async Task<(string Category, string Reasoning)> SuggestCategoryAsync(string fileName, string extractedText)
+    public async Task<(string Category, string Reasoning, List<SimilarDocument> SimilarDocuments)> SuggestCategoryAsync(string fileName, string extractedText, float[]? embedding = null)
     {
         try
         {
+            var similarDocuments = new List<SimilarDocument>();
+            
+            // Generate embedding for the new document if not provided
+            if (embedding == null)
+            {
+                embedding = await GenerateEmbeddingAsync(TruncateText(extractedText, 2000));
+            }
+            
+            // Find similar documents using vector similarity if embedding is available
+            if (embedding != null && embedding.Length > 0)
+            {
+                var documentsWithEmbeddings = await Task.Run(() =>
+                    _context.Documents
+                        .Where(d => d.EmbeddingVector != null && d.ActualCategory != null)
+                        .Select(d => new 
+                        { 
+                            d.Id, 
+                            d.FileName, 
+                            d.ActualCategory, 
+                            d.EmbeddingVector 
+                        })
+                        .ToList());
+
+                foreach (var doc in documentsWithEmbeddings)
+                {
+                    try
+                    {
+                        var docEmbedding = System.Text.Json.JsonSerializer.Deserialize<float[]>(doc.EmbeddingVector!);
+                        if (docEmbedding != null && docEmbedding.Length == embedding.Length)
+                        {
+                            var similarity = CalculateCosineSimilarity(embedding, docEmbedding);
+                            
+                            // Only include documents with similarity > 0.7 (highly similar)
+                            if (similarity > 0.7)
+                            {
+                                similarDocuments.Add(new SimilarDocument
+                                {
+                                    Id = doc.Id,
+                                    FileName = doc.FileName,
+                                    Category = doc.ActualCategory!,
+                                    SimilarityScore = similarity
+                                });
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                
+                // Sort by similarity score descending
+                similarDocuments = similarDocuments.OrderByDescending(d => d.SimilarityScore).Take(5).ToList();
+            }
+
             // Get existing categories from database
             var existingCategories = await Task.Run(() =>
                 _context.Documents
@@ -229,31 +289,82 @@ public class MultiProviderAIService : IMultiProviderAIService
                 ? $"Existing categories in the system: {string.Join(", ", existingCategories)}. You can suggest one of these or propose a new category if none fit."
                 : "This is a new system, suggest an appropriate category.";
 
-            var systemPrompt = "You are a document classification expert. Analyze documents and suggest appropriate categories with clear reasoning.";
+            // Add information about similar documents if found
+            var similarDocsHint = "";
+            if (similarDocuments.Any())
+            {
+                var categoryDistribution = similarDocuments
+                    .GroupBy(d => d.Category)
+                    .OrderByDescending(g => g.Count())
+                    .ThenByDescending(g => g.Average(d => d.SimilarityScore))
+                    .ToList();
+                
+                similarDocsHint = $@"
+
+IMPORTANT: Vector similarity analysis found {similarDocuments.Count} highly similar documents:
+{string.Join("\n", similarDocuments.Select(d => $"- {d.FileName} (Category: {d.Category}, Similarity: {d.SimilarityScore:P0})"))}
+
+Category frequency in similar documents:
+{string.Join("\n", categoryDistribution.Select(g => $"- {g.Key}: {g.Count()} documents (avg similarity: {g.Average(d => d.SimilarityScore):P0})"))}
+
+Strongly consider using the most frequent category from similar documents, especially if similarity scores are high.";
+            }
+
+            var systemPrompt = "You are a document classification expert. Analyze documents using both content analysis AND vector similarity results to suggest appropriate categories with clear reasoning.";
             
-            var userPrompt = $@"Analyze this document and suggest the best category for it. Also explain your reasoning.
+            var userPrompt = $@"Analyze this document and suggest the best category for it. Also explain your reasoning in detail.
 
 File name: {fileName}
 Content preview: {TruncateText(extractedText, 500)}
 
 {categoriesHint}
+{similarDocsHint}
 
 Respond in JSON format:
 {{
     ""category"": ""suggested category name"",
-    ""reasoning"": ""detailed explanation of why this category fits, mentioning specific keywords, content type, or patterns you identified""
+    ""reasoning"": ""detailed explanation including: 1) What you identified from content analysis, 2) How vector similarity results influenced your decision (if applicable), 3) Why this specific category was chosen""
 }}";
 
             var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
             
             // Parse JSON response
             var result = System.Text.Json.JsonSerializer.Deserialize<CategorySuggestion>(response);
-            return (result?.Category ?? "Uncategorized", result?.Reasoning ?? "No reasoning provided");
+            return (
+                result?.Category ?? "Uncategorized", 
+                result?.Reasoning ?? "No reasoning provided",
+                similarDocuments
+            );
         }
         catch (Exception ex)
         {
-            return ("Uncategorized", $"Error: {ex.Message}");
+            return ("Uncategorized", $"Error: {ex.Message}", new List<SimilarDocument>());
         }
+    }
+    
+    private double CalculateCosineSimilarity(float[] vectorA, float[] vectorB)
+    {
+        if (vectorA.Length != vectorB.Length)
+            return 0;
+        
+        double dotProduct = 0;
+        double magnitudeA = 0;
+        double magnitudeB = 0;
+        
+        for (int i = 0; i < vectorA.Length; i++)
+        {
+            dotProduct += vectorA[i] * vectorB[i];
+            magnitudeA += vectorA[i] * vectorA[i];
+            magnitudeB += vectorB[i] * vectorB[i];
+        }
+        
+        magnitudeA = Math.Sqrt(magnitudeA);
+        magnitudeB = Math.Sqrt(magnitudeB);
+        
+        if (magnitudeA == 0 || magnitudeB == 0)
+            return 0;
+        
+        return dotProduct / (magnitudeA * magnitudeB);
     }
 
     private string TruncateText(string text, int maxLength)

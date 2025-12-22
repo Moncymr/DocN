@@ -25,8 +25,8 @@ public class Document
     public DateTime? LastAccessedAt { get; set; }
     public int AccessCount { get; set; } = 0;
     
-    // Owner (nullable until authentication is fully implemented)
-    public string? OwnerId { get; set; }
+    // Owner (required - user must be authenticated to upload)
+    public string OwnerId { get; set; } = string.Empty;
     public virtual ApplicationUser? Owner { get; set; }
     
     // Document sharing

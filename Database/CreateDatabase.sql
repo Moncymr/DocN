@@ -177,8 +177,8 @@ BEGIN
         UploadedAt DATETIME2(7) NOT NULL DEFAULT GETUTCDATE(),
         LastAccessedAt DATETIME2(7) NULL,
         AccessCount INT NOT NULL DEFAULT 0,
-        OwnerId NVARCHAR(450) NULL,  -- Nullable to support documents without authentication
-        CONSTRAINT FK_Documents_AspNetUsers_OwnerId FOREIGN KEY (OwnerId) REFERENCES AspNetUsers(Id) ON DELETE SET NULL
+        OwnerId NVARCHAR(450) NOT NULL,  -- Required - user must be authenticated to upload
+        CONSTRAINT FK_Documents_AspNetUsers_OwnerId FOREIGN KEY (OwnerId) REFERENCES AspNetUsers(Id) ON DELETE CASCADE
     );
     
     -- Indexes for performance with large datasets
@@ -189,6 +189,47 @@ BEGIN
     CREATE INDEX IX_Documents_ActualCategory ON Documents(ActualCategory);
     
     PRINT 'Table Documents created.';
+END
+ELSE
+BEGIN
+    -- Migration: Update existing Documents table to make OwnerId NOT NULL
+    -- First, check if OwnerId column exists and is nullable
+    IF EXISTS (
+        SELECT * FROM sys.columns 
+        WHERE object_id = OBJECT_ID('Documents') 
+        AND name = 'OwnerId' 
+        AND is_nullable = 1
+    )
+    BEGIN
+        PRINT 'Migrating Documents table: Making OwnerId NOT NULL...';
+        
+        -- Delete any documents without an owner (if any exist)
+        DELETE FROM Documents WHERE OwnerId IS NULL;
+        PRINT 'Deleted documents without owners (if any).';
+        
+        -- Drop the foreign key constraint
+        IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Documents_AspNetUsers_OwnerId')
+        BEGIN
+            ALTER TABLE Documents DROP CONSTRAINT FK_Documents_AspNetUsers_OwnerId;
+            PRINT 'Dropped old FK constraint.';
+        END
+        
+        -- Make OwnerId NOT NULL
+        ALTER TABLE Documents ALTER COLUMN OwnerId NVARCHAR(450) NOT NULL;
+        PRINT 'OwnerId column is now NOT NULL.';
+        
+        -- Recreate the foreign key constraint with CASCADE
+        ALTER TABLE Documents 
+            ADD CONSTRAINT FK_Documents_AspNetUsers_OwnerId 
+            FOREIGN KEY (OwnerId) REFERENCES AspNetUsers(Id) ON DELETE CASCADE;
+        PRINT 'Recreated FK constraint with CASCADE.';
+        
+        PRINT 'Documents table migration completed successfully.';
+    END
+    ELSE
+    BEGIN
+        PRINT 'Documents table is already up to date.';
+    END
 END
 GO
 
