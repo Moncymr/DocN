@@ -29,6 +29,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.ExtractedText).HasMaxLength(int.MaxValue);
             entity.Property(e => e.CategoryReasoning).HasMaxLength(2000);
             
+            // Configure vector column for SQL Server 2025 native vector support
+            // Using VECTOR(1536, FLOAT32) for text-embedding-ada-002 embeddings
+            entity.Property(e => e.EmbeddingVector)
+                .HasColumnType("VECTOR(1536)")
+                .IsRequired(false);
+            
             // Index for performance with large number of documents
             entity.HasIndex(e => e.OwnerId);
             entity.HasIndex(e => e.UploadedAt);

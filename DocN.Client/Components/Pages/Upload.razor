@@ -475,7 +475,7 @@
                 CategoryReasoning = categoryReasoning,
                 ActualCategory = useCustomCategory ? customCategory : suggestedCategory,
                 Visibility = (DocumentVisibility)selectedVisibility,
-                EmbeddingVector = embedding != null ? System.Text.Json.JsonSerializer.Serialize(embedding) : null,
+                EmbeddingVector = embedding,
                 OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
                 UploadedAt = DateTime.UtcNow
             };

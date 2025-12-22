@@ -17,8 +17,8 @@ public class Document
     // Visibility management
     public DocumentVisibility Visibility { get; set; } = DocumentVisibility.Private;
     
-    // Vector embedding for semantic search
-    public string? EmbeddingVector { get; set; }
+    // Vector embedding for semantic search (1536 dimensions for text-embedding-ada-002)
+    public float[]? EmbeddingVector { get; set; }
     
     // Metadata
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;

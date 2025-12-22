@@ -55,11 +55,11 @@ public class EmbeddingService : IEmbeddingService
         var documents = await Task.Run(() => _context.Documents.ToList());
         
         var scoredDocuments = documents
-            .Where(d => !string.IsNullOrEmpty(d.EmbeddingVector))
+            .Where(d => d.EmbeddingVector != null && d.EmbeddingVector.Length > 0)
             .Select(d => new
             {
                 Document = d,
-                Score = CosineSimilarity(queryEmbedding, ParseEmbedding(d.EmbeddingVector!))
+                Score = CosineSimilarity(queryEmbedding, d.EmbeddingVector!)
             })
             .OrderByDescending(x => x.Score)
             .Take(topK)
@@ -67,11 +67,6 @@ public class EmbeddingService : IEmbeddingService
             .ToList();
 
         return scoredDocuments;
-    }
-
-    private float[] ParseEmbedding(string embeddingJson)
-    {
-        return System.Text.Json.JsonSerializer.Deserialize<float[]>(embeddingJson) ?? Array.Empty<float>();
     }
 
     private double CosineSimilarity(float[] a, float[] b)
