@@ -70,6 +70,13 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Add logout endpoint
+app.MapPost("/logout", async (SignInManager<ApplicationUser> signInManager, HttpContext context) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.Redirect("/");
+}).RequireAuthorization();
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
