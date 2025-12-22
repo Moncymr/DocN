@@ -12,6 +12,7 @@ public interface IDocumentService
     Task<byte[]?> DownloadDocumentAsync(int documentId, string userId);
     Task<bool> ShareDocumentAsync(int documentId, string shareWithUserId, DocumentPermission permission, string currentUserId);
     Task<bool> UpdateDocumentVisibilityAsync(int documentId, DocumentVisibility visibility, string userId);
+    Task<Document> CreateDocumentAsync(Document document);
 }
 
 public class DocumentService : IDocumentService
@@ -169,5 +170,12 @@ public class DocumentService : IDocumentService
         document.Visibility = visibility;
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<Document> CreateDocumentAsync(Document document)
+    {
+        _context.Documents.Add(document);
+        await _context.SaveChangesAsync();
+        return document;
     }
 }
