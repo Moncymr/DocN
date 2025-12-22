@@ -1,0 +1,523 @@
+@page "/upload"
+@using Microsoft.AspNetCore.Components.Forms
+@using System.IO
+@inject IDocumentService DocumentService
+@inject ICategoryService CategoryService
+@inject IEmbeddingService EmbeddingService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@rendermode InteractiveServer
+
+<PageTitle>Upload Document - DocN</PageTitle>
+
+<div class="upload-container">
+    <div class="upload-header">
+        <h2>📤 Upload Document</h2>
+        <button class="btn btn-secondary" @onclick="GoBack">
+            ← Back to Documents
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">
+            ❌ @errorMessage
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">
+            ✅ @successMessage
+        </div>
+    }
+
+    <div class="upload-card">
+        <EditForm Model="@uploadModel" OnValidSubmit="HandleUpload">
+            <div class="form-section">
+                <h3>Select File</h3>
+                <InputFile OnChange="HandleFileSelection" class="file-input" accept="@GetAcceptedExtensions()" />
+                
+                @if (selectedFile != null)
+                {
+                    <div class="file-info">
+                        <div class="file-icon">📄</div>
+                        <div class="file-details">
+                            <p><strong>@selectedFile.Name</strong></p>
+                            <p>Size: @FormatFileSize(selectedFile.Size)</p>
+                            <p>Type: @selectedFile.ContentType</p>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (isAnalyzing)
+            {
+                <div class="analyzing-section">
+                    <div class="spinner"></div>
+                    <p>🤖 AI is analyzing the document and suggesting a category...</p>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(suggestedCategory))
+            {
+                <div class="suggestion-section">
+                    <h3>AI Category Suggestion</h3>
+                    <div class="suggestion-card">
+                        <div class="suggestion-header">
+                            <span class="category-badge">@suggestedCategory</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(categoryReasoning))
+                        {
+                            <div class="reasoning-box">
+                                <h4>💡 Why this category?</h4>
+                                <p>@categoryReasoning</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <label>
+                        <input type="checkbox" @bind="useCustomCategory" />
+                        Use a different category
+                    </label>
+                    
+                    @if (useCustomCategory)
+                    {
+                        <input type="text" @bind="customCategory" class="form-control" placeholder="Enter custom category" />
+                    }
+                </div>
+            }
+
+            <div class="form-section">
+                <h3>Document Visibility</h3>
+                <select @bind="selectedVisibility" class="form-control">
+                    <option value="0">🔒 Private - Only you can see this document</option>
+                    <option value="1">👥 Shared - Share with specific users</option>
+                    <option value="2">🏢 Organization - All organization members</option>
+                    <option value="3">🌐 Public - Everyone can see</option>
+                </select>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null)">
+                    @if (isUploading)
+                    {
+                        <span>⏳ Uploading...</span>
+                    }
+                    else
+                    {
+                        <span>📤 Upload Document</span>
+                    }
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isUploading">
+                    Cancel
+                </button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+<style>
+    .upload-container {
+        padding: 2rem;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .upload-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .upload-header h2 {
+        font-size: 2rem;
+        margin: 0;
+    }
+
+    .upload-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .form-section {
+        margin-bottom: 2rem;
+    }
+
+    .form-section h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1.3rem;
+    }
+
+    .file-input {
+        display: block;
+        width: 100%;
+        padding: 1rem;
+        border: 2px dashed #667eea;
+        border-radius: 5px;
+        cursor: pointer;
+        background: #f8f9fa;
+    }
+
+    .file-input:hover {
+        background: #e9ecef;
+    }
+
+    .file-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 5px;
+    }
+
+    .file-icon {
+        font-size: 3rem;
+    }
+
+    .file-details p {
+        margin: 0.25rem 0;
+        color: #666;
+    }
+
+    .analyzing-section {
+        text-align: center;
+        padding: 2rem;
+        background: #f8f9fa;
+        border-radius: 5px;
+        margin-bottom: 2rem;
+    }
+
+    .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .suggestion-section {
+        margin-bottom: 2rem;
+    }
+
+    .suggestion-card {
+        background: #f0f7ff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+    }
+
+    .suggestion-header {
+        margin-bottom: 1rem;
+    }
+
+    .category-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 5px;
+        font-weight: 600;
+    }
+
+    .reasoning-box {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: white;
+        border-radius: 5px;
+    }
+
+    .reasoning-box h4 {
+        margin: 0 0 0.5rem 0;
+        color: #667eea;
+    }
+
+    .reasoning-box p {
+        margin: 0;
+        line-height: 1.6;
+        color: #333;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 1rem;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+        background: #5a6268;
+    }
+
+    .alert {
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 1rem;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+</style>
+
+@code {
+    private class UploadModel
+    {
+        public string? Category { get; set; }
+        public int Visibility { get; set; }
+    }
+
+    private UploadModel uploadModel = new();
+    private IBrowserFile? selectedFile;
+    private bool isUploading = false;
+    private bool isAnalyzing = false;
+    private bool useCustomCategory = false;
+    private string? customCategory;
+    private string? suggestedCategory;
+    private string? categoryReasoning;
+    private int selectedVisibility = 0;
+    private string? errorMessage;
+    private string? successMessage;
+    private string currentUserId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "demo-user";
+    }
+
+    private async Task HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        errorMessage = null;
+        successMessage = null;
+        suggestedCategory = null;
+        categoryReasoning = null;
+
+        // Validate file size
+        var maxSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
+        if (selectedFile.Size > maxSize)
+        {
+            errorMessage = $"File size exceeds maximum allowed size of {Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50)}MB";
+            selectedFile = null;
+            return;
+        }
+
+        // Validate file extension
+        var allowedExtensions = Configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>() ?? new[] { ".pdf", ".docx", ".txt" };
+        var extension = Path.GetExtension(selectedFile.Name).ToLowerInvariant();
+        if (!allowedExtensions.Contains(extension))
+        {
+            errorMessage = $"File type '{extension}' is not allowed. Allowed types: {string.Join(", ", allowedExtensions)}";
+            selectedFile = null;
+            return;
+        }
+
+        // Analyze document with AI
+        await AnalyzeDocument();
+    }
+
+    private async Task AnalyzeDocument()
+    {
+        if (selectedFile == null) return;
+
+        isAnalyzing = true;
+        try
+        {
+            // Extract text from file (simplified - in production use proper text extraction libraries)
+            using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var extractedText = await reader.ReadToEndAsync();
+
+            // Get AI category suggestion
+            var result = await CategoryService.SuggestCategoryAsync(selectedFile.Name, extractedText);
+            suggestedCategory = result.Category;
+            categoryReasoning = result.Reasoning;
+        }
+        catch (Exception ex)
+        {
+            suggestedCategory = "Uncategorized";
+            categoryReasoning = $"Unable to analyze: {ex.Message}";
+        }
+        finally
+        {
+            isAnalyzing = false;
+        }
+    }
+
+    private async Task HandleUpload()
+    {
+        if (selectedFile == null)
+        {
+            errorMessage = "Please select a file to upload";
+            return;
+        }
+
+        isUploading = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // Create upload directory if it doesn't exist
+            var uploadPath = Configuration.GetValue<string>("FileStorage:UploadPath") ?? "C:\\DocumentArchive\\Uploads";
+            Directory.CreateDirectory(uploadPath);
+
+            // Save file
+            var fileName = $"{Guid.NewGuid()}_{selectedFile.Name}";
+            var filePath = Path.Combine(uploadPath, fileName);
+
+            using (var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
+            {
+                using var fileStream = File.Create(filePath);
+                await stream.CopyToAsync(fileStream);
+            }
+
+            // Extract text for embedding (simplified)
+            string extractedText = "";
+            try
+            {
+                using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                extractedText = await reader.ReadToEndAsync();
+            }
+            catch { }
+
+            // Generate embedding
+            float[]? embedding = null;
+            try
+            {
+                embedding = await EmbeddingService.GenerateEmbeddingAsync(extractedText);
+            }
+            catch { }
+
+            // Create document record
+            var document = new Document
+            {
+                FileName = selectedFile.Name,
+                FilePath = filePath,
+                ContentType = selectedFile.ContentType,
+                FileSize = selectedFile.Size,
+                ExtractedText = extractedText,
+                SuggestedCategory = suggestedCategory,
+                CategoryReasoning = categoryReasoning,
+                ActualCategory = useCustomCategory ? customCategory : suggestedCategory,
+                Visibility = (DocumentVisibility)selectedVisibility,
+                EmbeddingVector = embedding != null ? System.Text.Json.JsonSerializer.Serialize(embedding) : null,
+                OwnerId = currentUserId,
+                UploadedAt = DateTime.UtcNow
+            };
+
+            // Save to database
+            await DocumentService.CreateDocumentAsync(document);
+            successMessage = $"Document '{selectedFile.Name}' uploaded successfully!";
+            
+            // Wait a moment then redirect
+            await Task.Delay(2000);
+            Navigation.NavigateTo("/documents");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error uploading document: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/documents");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/documents");
+    }
+
+    private string GetAcceptedExtensions()
+    {
+        var extensions = Configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>() 
+            ?? new[] { ".pdf", ".docx", ".xlsx", ".txt", ".xml", ".html", ".json", ".csv", ".png", ".jpg" };
+        return string.Join(",", extensions);
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+}
