@@ -48,7 +48,16 @@ dotnet restore
 
 ### 4. Creare il Database
 
-Eseguire le migrazioni Entity Framework per creare il database:
+**Opzione A: Usando lo script SQL (Raccomandato)**
+
+```bash
+# Eseguire lo script SQL sul server SQL Server
+# Aprire SQL Server Management Studio (SSMS) o usare sqlcmd
+
+sqlcmd -S NTSPJ-060-02\SQL2025 -i Database\CreateDatabase.sql
+```
+
+**Opzione B: Usando Entity Framework Migrations**
 
 ```bash
 # Installare gli strumenti EF Core se non già presenti
@@ -64,19 +73,62 @@ dotnet ef migrations add InitialCreate --project ../DocN.Data/DocN.Data.csproj
 dotnet ef database update --project ../DocN.Data/DocN.Data.csproj
 ```
 
-### 5. Creare la Cartella per i Documenti
+### 5. Configurare le API Keys
 
-Creare una cartella dove verranno salvati i file caricati:
+Le chiavi API sono sensibili e non devono essere committate nel repository. Configurarle in uno dei seguenti modi:
+
+**Opzione A: File appsettings.Development.json (Locale)**
+
+Creare o modificare `DocN.Client/appsettings.Development.json`:
+
+```json
+{
+  "OpenAI": {
+    "ApiKey": "sk-proj-YOUR_OPENAI_KEY"
+  },
+  "Gemini": {
+    "ApiKey": "AIzaSy-YOUR_GEMINI_KEY"
+  },
+  "Embeddings": {
+    "ApiKey": "YOUR_AZURE_OPENAI_KEY"
+  }
+}
+```
+
+**Opzione B: Variabili d'Ambiente**
+
+```bash
+# Windows PowerShell
+$env:OpenAI__ApiKey="sk-proj-YOUR_OPENAI_KEY"
+$env:Gemini__ApiKey="AIzaSy-YOUR_GEMINI_KEY"
+$env:Embeddings__ApiKey="YOUR_AZURE_OPENAI_KEY"
+
+# Windows CMD
+set OpenAI__ApiKey=sk-proj-YOUR_OPENAI_KEY
+set Gemini__ApiKey=AIzaSy-YOUR_GEMINI_KEY
+set Embeddings__ApiKey=YOUR_AZURE_OPENAI_KEY
+
+# Linux/Mac
+export OpenAI__ApiKey="sk-proj-YOUR_OPENAI_KEY"
+export Gemini__ApiKey="AIzaSy-YOUR_GEMINI_KEY"
+export Embeddings__ApiKey="YOUR_AZURE_OPENAI_KEY"
+```
+
+**Note:** Il file `appsettings.Development.json` è già in `.gitignore` per evitare il commit accidentale delle chiavi.
+
+### 6. Creare la Cartella per i Documenti
+
+Creare la cartella configurata per il salvataggio dei file caricati:
 
 ```bash
 # Windows
-mkdir C:\DocNFiles
+mkdir C:\DocumentArchive\Uploads
 
-# Linux/Mac
-mkdir ~/DocNFiles
+# Linux/Mac  
+mkdir -p ~/DocumentArchive/Uploads
 ```
 
-### 6. Eseguire l'Applicazione
+### 7. Eseguire l'Applicazione
 
 ```bash
 # Dalla cartella DocN.Client
