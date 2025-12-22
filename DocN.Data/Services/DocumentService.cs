@@ -51,9 +51,16 @@ public class DocumentService : IDocumentService
         if (document == null)
             return false;
 
-        // Owner always has access
-        if (document.OwnerId == userId)
+        // Owner always has access (if document has an owner)
+        if (!string.IsNullOrEmpty(document.OwnerId) && document.OwnerId == userId)
             return true;
+
+        // Documents without owner are accessible based on visibility
+        if (string.IsNullOrEmpty(document.OwnerId))
+        {
+            return document.Visibility == DocumentVisibility.Public || 
+                   document.Visibility == DocumentVisibility.Organization;
+        }
 
         // Check visibility settings
         if (document.Visibility == DocumentVisibility.Public)
@@ -138,8 +145,11 @@ public class DocumentService : IDocumentService
     {
         var document = await _context.Documents.FindAsync(documentId);
         
-        // Only owner can share
-        if (document == null || document.OwnerId != currentUserId)
+        if (document == null)
+            return false;
+
+        // Only owner can share (documents without owner cannot be shared)
+        if (string.IsNullOrEmpty(document.OwnerId) || document.OwnerId != currentUserId)
             return false;
 
         // Check if already shared
@@ -177,8 +187,11 @@ public class DocumentService : IDocumentService
     {
         var document = await _context.Documents.FindAsync(documentId);
         
-        // Only owner can change visibility
-        if (document == null || document.OwnerId != userId)
+        if (document == null)
+            return false;
+
+        // Only owner can change visibility (documents without owner cannot have visibility changed)
+        if (string.IsNullOrEmpty(document.OwnerId) || document.OwnerId != userId)
             return false;
 
         document.Visibility = visibility;
