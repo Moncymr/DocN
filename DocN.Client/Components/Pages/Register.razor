@@ -361,8 +361,9 @@
         }
         catch (Exception ex)
         {
-            errorMessage = "An error occurred while creating your account. Please try again.";
+            errorMessage = $"An error occurred while creating your account: {ex.Message}";
             Console.WriteLine($"Registration error: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
         }
         finally
         {

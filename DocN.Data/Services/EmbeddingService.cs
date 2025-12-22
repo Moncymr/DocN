@@ -16,25 +16,41 @@ public class EmbeddingService : IEmbeddingService
 {
     private readonly ApplicationDbContext _context;
     private EmbeddingClient? _client;
+    private bool _initialized = false;
 
     public EmbeddingService(ApplicationDbContext context)
     {
         _context = context;
-        InitializeClient();
     }
 
-    private void InitializeClient()
+    private void EnsureInitialized()
     {
-        var config = _context.AIConfigurations.FirstOrDefault(c => c.IsActive);
-        if (config != null && !string.IsNullOrEmpty(config.AzureOpenAIEndpoint) && !string.IsNullOrEmpty(config.AzureOpenAIKey))
+        if (_initialized) return;
+        
+        try
         {
-            var azureClient = new AzureOpenAIClient(new Uri(config.AzureOpenAIEndpoint), new AzureKeyCredential(config.AzureOpenAIKey));
-            _client = azureClient.GetEmbeddingClient(config.EmbeddingDeploymentName ?? "text-embedding-ada-002");
+            var config = _context.AIConfigurations.FirstOrDefault(c => c.IsActive);
+            if (config != null && !string.IsNullOrEmpty(config.AzureOpenAIEndpoint) && !string.IsNullOrEmpty(config.AzureOpenAIKey))
+            {
+                var azureClient = new AzureOpenAIClient(new Uri(config.AzureOpenAIEndpoint), new AzureKeyCredential(config.AzureOpenAIKey));
+                _client = azureClient.GetEmbeddingClient(config.EmbeddingDeploymentName ?? "text-embedding-ada-002");
+            }
+        }
+        catch
+        {
+            // Initialization can fail if database doesn't exist yet or AIConfigurations table is empty
+            // This is OK - the service will work without AI features
+        }
+        finally
+        {
+            _initialized = true;
         }
     }
 
     public async Task<float[]?> GenerateEmbeddingAsync(string text)
     {
+        EnsureInitialized();
+        
         if (_client == null)
             return null;
 
