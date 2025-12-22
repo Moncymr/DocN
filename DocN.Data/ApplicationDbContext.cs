@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using DocN.Data.Models;
 
 namespace DocN.Data;
@@ -31,8 +32,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             
             // Configure vector column for SQL Server 2025 native vector support
             // Using VECTOR(1536, FLOAT32) for text-embedding-ada-002 embeddings
+            // Note: We use a value converter to handle float[] <-> string conversion
+            // until EF Core has native VECTOR type support
+            var converter = new ValueConverter<float[]?, string?>(
+                v => v == null ? null : string.Join(",", v),
+                v => v == null ? null : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(float.Parse)
+                    .ToArray()
+            );
+            
             entity.Property(e => e.EmbeddingVector)
-                .HasColumnType("VECTOR(1536)")
+                .HasColumnType("nvarchar(max)")  // Temporarily use nvarchar(max) until database supports VECTOR
+                .HasConversion(converter)
                 .IsRequired(false);
             
             // Index for performance with large number of documents

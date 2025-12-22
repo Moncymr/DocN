@@ -221,9 +221,53 @@ using (var scope = app.Services.CreateScope())
 
 ## 🔢 Configurazione Vector Embeddings
 
-### SQL Server 2025 - Supporto Vettoriale Nativo
+### Implementazione Corrente
 
-DocN utilizza il nuovo tipo `VECTOR` di SQL Server 2025 per prestazioni ottimali nella ricerca semantica.
+**Nota Importante:** DocN attualmente utilizza un convertitore di valori per memorizzare gli embeddings come stringhe CSV in colonne `nvarchar(max)`. Questa è una soluzione temporanea fino a quando il tipo VECTOR di SQL Server 2025 non sarà completamente supportato da Entity Framework Core.
+
+**Modello C# Aggiornato:**
+
+Il campo `EmbeddingVector` è di tipo `float[]`:
+
+```csharp
+public class Document
+{
+    // ... altri campi
+    
+    // Vector embedding per ricerca semantica (1536 dimensioni per text-embedding-ada-002)
+    public float[]? EmbeddingVector { get; set; }
+}
+```
+
+**Configurazione Database:**
+
+```sql
+-- Colonna attuale
+ALTER TABLE Documents 
+ADD EmbeddingVector NVARCHAR(MAX) NULL;
+```
+
+**Conversione Automatica:**
+
+Entity Framework gestisce automaticamente la conversione tra `float[]` in C# e stringhe CSV nel database:
+
+```csharp
+// Nel codice
+document.EmbeddingVector = new float[] { 0.1f, 0.2f, 0.3f, ... };
+
+// Nel database viene memorizzato come
+// "0.1,0.2,0.3,..."
+```
+
+### SQL Server 2025 - Supporto Vettoriale Nativo (Futuro)
+
+Quando Entity Framework Core supporterà nativamente il tipo VECTOR di SQL Server 2025, si potrà migrare a:
+
+**Configurazione Futura:**
+```sql
+ALTER TABLE Documents 
+ALTER COLUMN EmbeddingVector VECTOR(1536) NULL;
+```
 
 **Verifica Supporto Vettoriale:**
 ```sql
@@ -236,9 +280,7 @@ ALTER TABLE Documents
 ADD EmbeddingVector VECTOR(1536) NULL;
 ```
 
-### Modello C# Aggiornato
-
-Il campo `EmbeddingVector` è ora di tipo `float[]` invece di `string`:
+**Il modello C# rimane invariato** - continua ad utilizzare `float[]`:
 
 ```csharp
 public class Document

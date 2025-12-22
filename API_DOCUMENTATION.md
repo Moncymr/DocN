@@ -15,8 +15,35 @@ DocN uses Azure OpenAI's text-embedding-ada-002 model to generate 1536-dimension
 
 ### Configuration
 
-#### SQL Server 2025 Vector Support
-Starting with SQL Server 2025, native vector data type is supported. DocN leverages this for optimal performance.
+#### Current Implementation (Value Converter Approach)
+
+**Important Note:** Currently, DocN uses a value converter to store embeddings as CSV strings in `nvarchar(max)` columns. This is a temporary solution until SQL Server 2025's VECTOR type is fully supported by Entity Framework Core.
+
+**Entity Framework Configuration:**
+```csharp
+// Value converter for float[] to string
+var converter = new ValueConverter<float[]?, string?>(
+    v => v == null ? null : string.Join(",", v),
+    v => v == null ? null : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
+        .Select(float.Parse)
+        .ToArray()
+);
+
+entity.Property(e => e.EmbeddingVector)
+    .HasColumnType("nvarchar(max)")
+    .HasConversion(converter)
+    .IsRequired(false);
+```
+
+**Database Column:**
+```sql
+ALTER TABLE Documents 
+ADD EmbeddingVector NVARCHAR(MAX) NULL;
+```
+
+#### Future: SQL Server 2025 Vector Support (When Available)
+
+Once EF Core adds native support for SQL Server 2025's VECTOR type, the configuration will be:
 
 **Database Column Configuration:**
 ```sql

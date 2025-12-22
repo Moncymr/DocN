@@ -204,10 +204,10 @@ namespace DocN.Data.Migrations
                     CategoryReasoning = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     ActualCategory = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Visibility = table.Column<int>(type: "int", nullable: false),
-                    // Note: VECTOR(1536) is SQL Server 2025's native vector type
-                    // EF Core will handle the conversion from float[] in C# to VECTOR in SQL
-                    // This uses a custom value converter configured in ApplicationDbContext
-                    EmbeddingVector = table.Column<string>(type: "VECTOR(1536)", nullable: true),
+                    // Note: Using nvarchar(max) temporarily to store float[] as CSV string
+                    // EF Core value converter handles the conversion from float[] to string
+                    // TODO: Migrate to VECTOR(1536) when SQL Server 2025 VECTOR support is stable
+                    EmbeddingVector = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     UploadedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     LastAccessedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     AccessCount = table.Column<int>(type: "int", nullable: false),
