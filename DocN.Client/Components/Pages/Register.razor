@@ -1,4 +1,5 @@
 @page "/register"
+@rendermode InteractiveServer
 @using Microsoft.AspNetCore.Identity
 @using DocN.Data.Models
 @using System.ComponentModel.DataAnnotations
@@ -301,10 +302,17 @@
 </style>
 
 @code {
-    private RegisterModel registerModel = new();
+    [SupplyParameterFromForm]
+    private RegisterModel registerModel { get; set; } = default!;
+    
     private string? errorMessage;
     private string? successMessage;
     private bool isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        registerModel ??= new();
+    }
 
     private async Task HandleRegister()
     {
