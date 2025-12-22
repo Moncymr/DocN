@@ -419,6 +419,11 @@
             errorMessage = "Please select a file to upload";
             return;
         }
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            errorMessage = "You must be logged in to upload documents.";
+            return;
+        }
 
         isUploading = true;
         errorMessage = null;
