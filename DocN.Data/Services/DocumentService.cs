@@ -74,14 +74,22 @@ public class DocumentService : IDocumentService
     public async Task<List<Document>> GetUserDocumentsAsync(string userId, int page = 1, int pageSize = 20)
     {
         // Get documents owned by user or shared with user - optimized for large datasets
-        var ownedDocs = _context.Documents
-            .Where(d => d.OwnerId == userId);
+        var query = _context.Documents.AsQueryable();
+        
+        if (string.IsNullOrEmpty(userId))
+        {
+            // If no user ID, return all public documents
+            query = query.Where(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
+        }
+        else
+        {
+            // Get documents owned by user or shared with user
+            var ownedDocs = _context.Documents.Where(d => d.OwnerId == userId);
+            var sharedDocs = _context.Documents.Where(d => d.Shares.Any(s => s.SharedWithUserId == userId));
+            query = ownedDocs.Union(sharedDocs);
+        }
 
-        var sharedDocs = _context.Documents
-            .Where(d => d.Shares.Any(s => s.SharedWithUserId == userId));
-
-        var allDocs = await ownedDocs
-            .Union(sharedDocs)
+        var allDocs = await query
             .OrderByDescending(d => d.UploadedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -94,6 +102,12 @@ public class DocumentService : IDocumentService
 
     public async Task<int> GetTotalDocumentCountAsync(string userId)
     {
+        if (string.IsNullOrEmpty(userId))
+        {
+            // If no user ID, count all public documents and documents without owner
+            return await _context.Documents.CountAsync(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
+        }
+        
         var ownedCount = await _context.Documents.CountAsync(d => d.OwnerId == userId);
         var sharedCount = await _context.Documents.CountAsync(d => d.Shares.Any(s => s.SharedWithUserId == userId));
         

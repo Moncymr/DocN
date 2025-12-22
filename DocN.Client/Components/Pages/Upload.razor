@@ -347,7 +347,10 @@
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "demo-user";
+        var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        
+        // Only set currentUserId if user is authenticated, otherwise leave it empty
+        currentUserId = userId ?? string.Empty;
     }
 
     private async Task HandleFileSelection(InputFileChangeEventArgs e)
@@ -468,7 +471,7 @@
                 ActualCategory = useCustomCategory ? customCategory : suggestedCategory,
                 Visibility = (DocumentVisibility)selectedVisibility,
                 EmbeddingVector = embedding != null ? System.Text.Json.JsonSerializer.Serialize(embedding) : null,
-                OwnerId = currentUserId,
+                OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
                 UploadedAt = DateTime.UtcNow
             };
 
