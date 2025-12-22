@@ -2,8 +2,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using System.IO
 @inject IDocumentService DocumentService
-@inject ICategoryService CategoryService
-@inject IEmbeddingService EmbeddingService
+@inject IMultiProviderAIService AIService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
@@ -348,7 +347,10 @@
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "demo-user";
+        var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        
+        // Only set currentUserId if user is authenticated, otherwise leave it empty
+        currentUserId = userId ?? string.Empty;
     }
 
     private async Task HandleFileSelection(InputFileChangeEventArgs e)
@@ -394,8 +396,8 @@
             using var reader = new StreamReader(stream);
             var extractedText = await reader.ReadToEndAsync();
 
-            // Get AI category suggestion
-            var result = await CategoryService.SuggestCategoryAsync(selectedFile.Name, extractedText);
+            // Get AI category suggestion using MultiProviderAIService
+            var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
             suggestedCategory = result.Category;
             categoryReasoning = result.Reasoning;
         }
@@ -448,11 +450,11 @@
             }
             catch { }
 
-            // Generate embedding
+            // Generate embedding using MultiProviderAIService
             float[]? embedding = null;
             try
             {
-                embedding = await EmbeddingService.GenerateEmbeddingAsync(extractedText);
+                embedding = await AIService.GenerateEmbeddingAsync(extractedText);
             }
             catch { }
 
@@ -469,7 +471,7 @@
                 ActualCategory = useCustomCategory ? customCategory : suggestedCategory,
                 Visibility = (DocumentVisibility)selectedVisibility,
                 EmbeddingVector = embedding != null ? System.Text.Json.JsonSerializer.Serialize(embedding) : null,
-                OwnerId = currentUserId,
+                OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
                 UploadedAt = DateTime.UtcNow
             };
 

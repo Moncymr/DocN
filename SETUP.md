@@ -57,6 +57,12 @@ dotnet restore
 sqlcmd -S NTSPJ-060-02\SQL2025 -i Database\CreateDatabase.sql
 ```
 
+Lo script SQL include:
+- Creazione di tutte le tabelle necessarie
+- Creazione degli indici per le prestazioni
+- **Migrazione automatica** per database esistenti (rende OwnerId nullable per supportare l'upload senza autenticazione)
+- Configurazione AI di default
+
 **Opzione B: Usando Entity Framework Migrations**
 
 ```bash
@@ -72,6 +78,12 @@ dotnet ef migrations add InitialCreate --project ../DocN.Data/DocN.Data.csproj
 # Applicare la migrazione al database
 dotnet ef database update --project ../DocN.Data/DocN.Data.csproj
 ```
+
+**Nota per Database Esistenti:**
+Se hai già creato il database con una versione precedente, lo script SQL include una sezione di migrazione che:
+- Rende il campo `OwnerId` nullable nella tabella `Documents`
+- Aggiorna il vincolo di chiave esterna per permettere upload senza autenticazione
+- Mantiene tutti i dati esistenti intatti
 
 ### 5. Configurare le API Keys
 

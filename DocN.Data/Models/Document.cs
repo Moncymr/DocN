@@ -25,9 +25,9 @@ public class Document
     public DateTime? LastAccessedAt { get; set; }
     public int AccessCount { get; set; } = 0;
     
-    // Owner
-    public string OwnerId { get; set; } = string.Empty;
-    public virtual ApplicationUser Owner { get; set; } = null!;
+    // Owner (nullable until authentication is fully implemented)
+    public string? OwnerId { get; set; }
+    public virtual ApplicationUser? Owner { get; set; }
     
     // Document sharing
     public virtual ICollection<DocumentShare> Shares { get; set; } = new List<DocumentShare>();

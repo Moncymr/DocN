@@ -177,8 +177,8 @@ BEGIN
         UploadedAt DATETIME2(7) NOT NULL DEFAULT GETUTCDATE(),
         LastAccessedAt DATETIME2(7) NULL,
         AccessCount INT NOT NULL DEFAULT 0,
-        OwnerId NVARCHAR(450) NOT NULL,
-        CONSTRAINT FK_Documents_AspNetUsers_OwnerId FOREIGN KEY (OwnerId) REFERENCES AspNetUsers(Id) ON DELETE CASCADE
+        OwnerId NVARCHAR(450) NULL,  -- Nullable to support documents without authentication
+        CONSTRAINT FK_Documents_AspNetUsers_OwnerId FOREIGN KEY (OwnerId) REFERENCES AspNetUsers(Id) ON DELETE SET NULL
     );
     
     -- Indexes for performance with large datasets
@@ -286,6 +286,45 @@ BEGIN
     );
     
     PRINT 'Default AI configuration inserted.';
+END
+GO
+
+-- ================================================
+-- Migration Script: Make OwnerId Nullable
+-- Run this if you already have the Documents table created
+-- ================================================
+
+-- Check if Documents table exists and OwnerId is NOT NULL
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'Documents') AND type in (N'U'))
+BEGIN
+    -- Check if OwnerId column is NOT NULL
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'Documents') AND name = 'OwnerId' AND is_nullable = 0)
+    BEGIN
+        PRINT 'Migrating Documents table to make OwnerId nullable...';
+        
+        -- Drop the foreign key constraint
+        IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Documents_AspNetUsers_OwnerId')
+        BEGIN
+            ALTER TABLE Documents DROP CONSTRAINT FK_Documents_AspNetUsers_OwnerId;
+            PRINT 'Dropped FK constraint FK_Documents_AspNetUsers_OwnerId';
+        END
+        
+        -- Alter column to be nullable
+        ALTER TABLE Documents ALTER COLUMN OwnerId NVARCHAR(450) NULL;
+        PRINT 'OwnerId column is now nullable';
+        
+        -- Recreate foreign key with SET NULL on delete
+        ALTER TABLE Documents 
+        ADD CONSTRAINT FK_Documents_AspNetUsers_OwnerId 
+        FOREIGN KEY (OwnerId) REFERENCES AspNetUsers(Id) ON DELETE SET NULL;
+        PRINT 'Recreated FK constraint with ON DELETE SET NULL';
+        
+        PRINT 'Migration completed successfully!';
+    END
+    ELSE
+    BEGIN
+        PRINT 'OwnerId is already nullable, no migration needed.';
+    END
 END
 GO
 
