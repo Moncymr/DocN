@@ -2,15 +2,15 @@
 
 ## Panoramica
 
-DocN è una soluzione web modulare basata su .NET 9 e Blazor, progettata per l'archiviazione intelligente e la consultazione di documenti, con ricerca semantica AI e integrazione Azure OpenAI.
+DocN è una soluzione web modulare basata su .NET 10 e Blazor, progettata per l'archiviazione intelligente e la consultazione di documenti, con ricerca semantica AI e integrazione Azure OpenAI.
 
 ## Prerequisiti
 
 Prima di iniziare, assicurati di avere installato:
 
-- **.NET 9.0 SDK** o versione successiva
+- **.NET 10.0 SDK** o versione successiva
 - **SQL Server 2019** o versione successiva (oppure SQL Server LocalDB per lo sviluppo)
-- **Visual Studio 2022** (v17.8+) o **Visual Studio Code** con C# Dev Kit
+- **Visual Studio 2022** (v17.12+) o **Visual Studio Code** con C# Dev Kit
 - **Azure OpenAI Service** (opzionale, per funzionalità AI)
 
 ## Passi per l'Installazione
