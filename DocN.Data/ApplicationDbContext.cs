@@ -16,6 +16,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<DocumentShare> DocumentShares { get; set; }
     public DbSet<DocumentTag> DocumentTags { get; set; }
     public DbSet<AIConfiguration> AIConfigurations { get; set; }
+    
+    // Conversazioni e messaggi per RAG
+    public DbSet<Conversation> Conversations { get; set; }
+    public DbSet<Message> Messages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -101,6 +105,51 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.ConfigurationName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.AzureOpenAIKey).HasMaxLength(500);
             entity.Property(e => e.SystemPrompt).HasMaxLength(2000);
+        });
+
+        // Conversation configuration
+        modelBuilder.Entity<Conversation>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+            entity.Property(e => e.Tags).HasMaxLength(500);
+            
+            // Relazione con User
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Indici per performance
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.LastMessageAt);
+            entity.HasIndex(e => new { e.UserId, e.IsArchived, e.LastMessageAt });
+        });
+
+        // Message configuration
+        modelBuilder.Entity<Message>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Role).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Content).IsRequired();
+            
+            // Relazione con Conversation
+            entity.HasOne(e => e.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(e => e.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Configura ReferencedDocumentIds come JSON
+            entity.Property(e => e.ReferencedDocumentIds)
+                .HasConversion(
+                    v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                    v => System.Text.Json.JsonSerializer.Deserialize<List<int>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<int>())
+                .HasColumnType("nvarchar(max)");
+            
+            // Indici per performance
+            entity.HasIndex(e => e.ConversationId);
+            entity.HasIndex(e => e.Timestamp);
         });
     }
 }
