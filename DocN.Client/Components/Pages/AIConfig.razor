@@ -1,0 +1,376 @@
+@page "/config"
+@using DocN.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>AI Configuration - DocN</PageTitle>
+
+<div class="config-container">
+    <h2>⚙️ AI Configuration</h2>
+    <p class="description">Configure embedding and RAG services for intelligent document processing</p>
+
+    @if (config == null)
+    {
+        <div class="loading">Loading configuration...</div>
+    }
+    else
+    {
+        <EditForm Model="config" OnValidSubmit="SaveConfiguration">
+            <div class="config-section">
+                <h3>🔗 Azure OpenAI Connection</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Configuration Name</label>
+                        <InputText @bind-Value="config.ConfigurationName" class="form-control" placeholder="Production Config" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Azure OpenAI Endpoint</label>
+                        <InputText @bind-Value="config.AzureOpenAIEndpoint" class="form-control" placeholder="https://your-resource.openai.azure.com/" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Azure OpenAI API Key</label>
+                        <InputText type="password" @bind-Value="config.AzureOpenAIKey" class="form-control" placeholder="Your API key" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Chat Deployment Name</label>
+                        <InputText @bind-Value="config.ChatDeploymentName" class="form-control" placeholder="gpt-4" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Embedding Deployment Name</label>
+                        <InputText @bind-Value="config.EmbeddingDeploymentName" class="form-control" placeholder="text-embedding-ada-002" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h3>🧠 Embedding Settings</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Embedding Model</label>
+                        <InputText @bind-Value="config.EmbeddingModel" class="form-control" placeholder="text-embedding-ada-002" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Embedding Dimensions</label>
+                        <InputNumber @bind-Value="config.EmbeddingDimensions" class="form-control" />
+                        <small>Typically 1536 for Ada-002</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h3>🔍 RAG Configuration</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Max Documents to Retrieve</label>
+                        <InputNumber @bind-Value="config.MaxDocumentsToRetrieve" class="form-control" />
+                        <small>Number of relevant documents to use for context</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Similarity Threshold</label>
+                        <InputNumber @bind-Value="config.SimilarityThreshold" class="form-control" step="0.1" />
+                        <small>0.0 - 1.0 (higher = more similar)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max Tokens for Context</label>
+                        <InputNumber @bind-Value="config.MaxTokensForContext" class="form-control" />
+                        <small>Maximum tokens for generated responses</small>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label>System Prompt</label>
+                        <InputTextArea @bind-Value="config.SystemPrompt" class="form-control" rows="4" 
+                            placeholder="You are a helpful assistant that answers questions based on provided documents..." />
+                        <small>Instructions for the AI when generating responses</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <InputCheckbox @bind-Value="config.IsActive" />
+                        <span>Set as active configuration</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">💾 Save Configuration</button>
+                <button type="button" class="btn btn-secondary" @onclick="TestConnection">🔌 Test Connection</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <div class="alert @(isError ? "alert-error" : "alert-success")">
+                    @message
+                </div>
+            }
+        </EditForm>
+
+        <div class="info-section">
+            <h3>ℹ️ How It Works</h3>
+            <div class="info-cards">
+                <div class="info-card">
+                    <h4>🔤 Embeddings</h4>
+                    <p>Convert document text into numerical vectors for semantic search. Documents with similar content will have similar embeddings.</p>
+                </div>
+                <div class="info-card">
+                    <h4>🤖 RAG (Retrieval Augmented Generation)</h4>
+                    <p>Retrieve relevant documents based on a query, then use AI to generate accurate answers grounded in your document content.</p>
+                </div>
+                <div class="info-card">
+                    <h4>🏷️ Category Suggestion</h4>
+                    <p>AI analyzes document content and suggests appropriate categories with detailed reasoning explaining the classification.</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .config-container {
+        padding: 2rem;
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    .config-container h2 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .description {
+        color: #666;
+        margin-bottom: 2rem;
+    }
+
+    .config-section {
+        background: white;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+
+    .config-section h3 {
+        margin: 0 0 1.5rem 0;
+        font-size: 1.3rem;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .form-group.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .form-group label {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .form-group small {
+        color: #666;
+        font-size: 0.85rem;
+    }
+
+    .form-control {
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 1rem;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        opacity: 0.9;
+        transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #5a6268;
+    }
+
+    .alert {
+        padding: 1rem;
+        border-radius: 5px;
+        margin-top: 1rem;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+
+    .info-section {
+        background: #f8f9fa;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-top: 2rem;
+    }
+
+    .info-section h3 {
+        margin: 0 0 1.5rem 0;
+    }
+
+    .info-cards {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .info-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+    }
+
+    .info-card h4 {
+        margin: 0 0 0.5rem 0;
+        color: #667eea;
+    }
+
+    .info-card p {
+        margin: 0;
+        color: #666;
+        line-height: 1.6;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+    }
+</style>
+
+@code {
+    private AIConfiguration? config;
+    private string message = string.Empty;
+    private bool isError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Try to load existing active configuration
+        config = await Task.Run(() => DbContext.AIConfigurations.FirstOrDefault(c => c.IsActive));
+        
+        // If none exists, create a new one with defaults
+        if (config == null)
+        {
+            config = new AIConfiguration
+            {
+                ConfigurationName = "Default Configuration",
+                MaxDocumentsToRetrieve = 5,
+                SimilarityThreshold = 0.7,
+                MaxTokensForContext = 4000,
+                EmbeddingDimensions = 1536,
+                EmbeddingModel = "text-embedding-ada-002",
+                SystemPrompt = "You are a helpful assistant that answers questions based on provided documents. Always cite the source documents when providing information.",
+                IsActive = true
+            };
+        }
+    }
+
+    private async Task SaveConfiguration()
+    {
+        try
+        {
+            // If setting this as active, deactivate all others
+            if (config!.IsActive)
+            {
+                var otherConfigs = DbContext.AIConfigurations.Where(c => c.Id != config.Id);
+                foreach (var other in otherConfigs)
+                {
+                    other.IsActive = false;
+                }
+            }
+
+            if (config.Id == 0)
+            {
+                config.CreatedAt = DateTime.UtcNow;
+                DbContext.AIConfigurations.Add(config);
+            }
+            else
+            {
+                config.UpdatedAt = DateTime.UtcNow;
+                DbContext.AIConfigurations.Update(config);
+            }
+
+            await DbContext.SaveChangesAsync();
+            
+            message = "✅ Configuration saved successfully!";
+            isError = false;
+        }
+        catch (Exception ex)
+        {
+            message = $"❌ Error saving configuration: {ex.Message}";
+            isError = true;
+        }
+    }
+
+    private void TestConnection()
+    {
+        // In a real implementation, this would test the Azure OpenAI connection
+        message = "🔌 Connection test would verify Azure OpenAI connectivity here";
+        isError = false;
+    }
+}
