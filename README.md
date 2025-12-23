@@ -20,6 +20,7 @@ DocN è una soluzione web modulare basata su .NET e Blazor, progettata per l’a
 
 ## 📚 Documentazione
 
+- **🚀 [Riferimento Rapido API Keys](QUICK_REFERENCE_API_KEYS.md)** - Guida rapida (5 minuti) per configurare le chiavi API
 - **🔑 [Configurazione Chiavi API](CONFIGURAZIONE_API_KEYS.md)** - Guida completa su dove configurare le chiavi API per embedding, chat e RAG
 - **⚙️ [Setup e Configurazione](SETUP.md)** - Installazione e configurazione generale
 - **📖 [Guida Installazione](GUIDA_INSTALLAZIONE.md)** - Guida passo-passo per l'installazione
