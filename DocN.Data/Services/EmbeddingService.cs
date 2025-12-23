@@ -67,11 +67,17 @@ public class EmbeddingService : IEmbeddingService
 
     public async Task<List<Document>> SearchSimilarDocumentsAsync(float[] queryEmbedding, int topK = 5)
     {
-        // This is a simplified version - in production you'd use vector database or SQL Server vector search
-        var documents = await Task.Run(() => _context.Documents.ToList());
+        // WARNING: This is a simplified version for demonstration purposes only
+        // In production, you should use:
+        // 1. SQL Server 2025 native vector search with VECTOR data type
+        // 2. Azure Cognitive Search with vector search
+        // 3. A dedicated vector database like Pinecone, Weaviate, or Qdrant
+        // Loading all documents into memory is NOT scalable for large datasets
+        var documents = await Task.Run(() => _context.Documents
+            .Where(d => d.EmbeddingVector != null && d.EmbeddingVector.Length > 0)
+            .ToList());
         
         var scoredDocuments = documents
-            .Where(d => d.EmbeddingVector != null && d.EmbeddingVector.Length > 0)
             .Select(d => new
             {
                 Document = d,

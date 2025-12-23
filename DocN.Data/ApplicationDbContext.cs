@@ -39,9 +39,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // Note: We use a value converter to handle float[] <-> string conversion
             // until EF Core has native VECTOR type support
             var converter = new ValueConverter<float[]?, string?>(
-                v => v == null ? null : string.Join(",", v),
+                v => v == null ? null : string.Join(",", v.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))),
                 v => v == null ? null : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(float.Parse)
+                    .Select(s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture))
                     .ToArray()
             );
             
