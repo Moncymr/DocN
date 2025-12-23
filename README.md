@@ -163,6 +163,8 @@ var embedding3 = await openaiProvider.GenerateEmbeddingAsync(text);
 - Mscc.GenerativeAI 2.1.0 (per Google Gemini)
 - Microsoft.Extensions.* (Dependency Injection, Configuration, Logging)
 
+**Nota Database**: L'integrazione con SQL Server 2025 per l'archiviazione documenti è prevista nelle prossime fasi. Attualmente, il progetto si concentra sulla gestione multi-provider AI. Se si verifica un errore relativo al database durante l'esecuzione, è normale - l'implementazione del database è in fase di sviluppo.
+
 ## Prossimi Passi
 
 - [ ] Implementazione database SQL Server 2025 per archiviazione documenti
