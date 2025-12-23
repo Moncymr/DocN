@@ -11,8 +11,20 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // Database configuration
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Server=(localdb)\\mssqllocaldb;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true";
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Use a fallback connection string only in development
+if (string.IsNullOrEmpty(connectionString))
+{
+    if (builder.Environment.IsDevelopment())
+    {
+        connectionString = "Server=(localdb)\\mssqllocaldb;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true";
+    }
+    else
+    {
+        throw new InvalidOperationException("Database connection string 'DefaultConnection' is not configured. Please set it in appsettings.json or environment variables.");
+    }
+}
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
