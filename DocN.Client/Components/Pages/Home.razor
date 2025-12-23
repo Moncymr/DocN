@@ -1,0 +1,376 @@
+﻿@page "/"
+
+<PageTitle>DocN - Document Management</PageTitle>
+
+<div class="hero-section">
+    <div class="hero-content">
+        <div class="hero-badge">✨ AI-Powered Document Management</div>
+        <h1 class="hero-title">
+            <span class="gradient-text">DocN</span>
+        </h1>
+        <p class="hero-subtitle">Gestione Intelligente dei Documenti con Ricerca Semantica AI</p>
+        <p class="hero-description">
+            Organizza, analizza e trova i tuoi documenti con l'aiuto dell'intelligenza artificiale. 
+            Supporto per Gemini, OpenAI e Azure OpenAI.
+        </p>
+        <div class="cta-buttons">
+            <a href="/documents" class="btn btn-primary btn-large">
+                <span>📁 I Miei Documenti</span>
+            </a>
+            <a href="/upload" class="btn btn-secondary btn-large">
+                <span>📤 Carica Documento</span>
+            </a>
+        </div>
+    </div>
+    
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">📤</div>
+            <h3>Upload & Organizza</h3>
+            <p>Carica documenti e ricevi suggerimenti di categoria automatici con spiegazione del ragionamento AI</p>
+            <div class="feature-highlight">AI-Powered</div>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">🔍</div>
+            <h3>Ricerca Semantica</h3>
+            <p>Trova documenti usando linguaggio naturale grazie agli embeddings vettoriali</p>
+            <div class="feature-highlight">Smart Search</div>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">👥</div>
+            <h3>Collaborazione</h3>
+            <p>Condividi documenti con controlli di visibilità e permessi granulari</p>
+            <div class="feature-highlight">Team Ready</div>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Analytics</h3>
+            <p>Monitora l'utilizzo, visualizza statistiche e ricevi suggerimenti di ottimizzazione</p>
+            <div class="feature-highlight">Insights</div>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <h3>Multi-Provider AI</h3>
+            <p>Supporto per Gemini, OpenAI e Azure OpenAI con fallback automatico</p>
+            <div class="feature-highlight">Flexible</div>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <h3>Sicurezza</h3>
+            <p>Gestione identità ASP.NET Core con controlli di accesso basati su ruoli</p>
+            <div class="feature-highlight">Enterprise</div>
+        </div>
+    </div>
+
+    <div class="tech-stack">
+        <h3>Tecnologie</h3>
+        <div class="tech-badges">
+            <span class="tech-badge">.NET 10.0</span>
+            <span class="tech-badge">Blazor Server</span>
+            <span class="tech-badge">Entity Framework Core</span>
+            <span class="tech-badge">SQL Server</span>
+            <span class="tech-badge">Azure OpenAI</span>
+            <span class="tech-badge">Gemini AI</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hero-section {
+        padding: 4rem 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .hero-content {
+        text-align: center;
+        margin-bottom: 4rem;
+    }
+
+    .hero-badge {
+        display: inline-block;
+        padding: 0.5rem 1.5rem;
+        background: rgba(102, 126, 234, 0.1);
+        border: 2px solid rgba(102, 126, 234, 0.3);
+        border-radius: 50px;
+        color: #667eea;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 2rem;
+        animation: fadeInDown 0.6s ease-out;
+    }
+    
+    .hero-title {
+        font-size: 5rem;
+        font-weight: 800;
+        margin: 1rem 0;
+        animation: fadeInUp 0.8s ease-out;
+    }
+    
+    .gradient-text {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: gradientShift 3s ease infinite;
+        background-size: 200% 200%;
+    }
+
+    @@keyframes gradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+    
+    .hero-subtitle {
+        font-size: 1.8rem;
+        color: #333;
+        margin: 1rem 0;
+        font-weight: 600;
+        animation: fadeInUp 1s ease-out;
+    }
+
+    .hero-description {
+        font-size: 1.1rem;
+        color: #666;
+        max-width: 700px;
+        margin: 1.5rem auto;
+        line-height: 1.8;
+        animation: fadeInUp 1.2s ease-out;
+    }
+    
+    .cta-buttons {
+        display: flex;
+        gap: 1.5rem;
+        justify-content: center;
+        margin-top: 3rem;
+        animation: fadeInUp 1.4s ease-out;
+    }
+    
+    .btn {
+        padding: 1rem 2rem;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 1.1rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .btn-large {
+        padding: 1.25rem 2.5rem;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-secondary {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+    }
+    
+    .btn-secondary:hover {
+        background: #667eea;
+        color: white;
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    }
+    
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 2rem;
+        margin: 4rem 0;
+    }
+    
+    .feature-card {
+        position: relative;
+        padding: 2.5rem;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(102, 126, 234, 0.1);
+        animation: fadeIn 0.6s ease-out;
+        animation-fill-mode: both;
+    }
+
+    .feature-card:nth-child(1) { animation-delay: 0.1s; }
+    .feature-card:nth-child(2) { animation-delay: 0.2s; }
+    .feature-card:nth-child(3) { animation-delay: 0.3s; }
+    .feature-card:nth-child(4) { animation-delay: 0.4s; }
+    .feature-card:nth-child(5) { animation-delay: 0.5s; }
+    .feature-card:nth-child(6) { animation-delay: 0.6s; }
+    
+    .feature-card:hover {
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 0 12px 40px rgba(102, 126, 234, 0.2);
+        border-color: #667eea;
+    }
+
+    .feature-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+        border-radius: 20px 20px 0 0;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .feature-card:hover::before {
+        opacity: 1;
+    }
+    
+    .feature-icon {
+        font-size: 3.5rem;
+        margin-bottom: 1.5rem;
+        animation: bounce 2s infinite;
+    }
+
+    @@keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+
+    .feature-card:hover .feature-icon {
+        animation: none;
+        transform: scale(1.1) rotate(5deg);
+        transition: transform 0.3s;
+    }
+    
+    .feature-card h3 {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+        color: #333;
+        font-weight: 700;
+    }
+    
+    .feature-card p {
+        color: #666;
+        line-height: 1.7;
+        font-size: 1rem;
+    }
+
+    .feature-highlight {
+        display: inline-block;
+        margin-top: 1rem;
+        padding: 0.4rem 1rem;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #667eea;
+    }
+
+    .tech-stack {
+        text-align: center;
+        margin-top: 5rem;
+        padding: 3rem;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(240, 147, 251, 0.05));
+        border-radius: 20px;
+        animation: fadeIn 1s ease-out;
+    }
+
+    .tech-stack h3 {
+        font-size: 1.8rem;
+        margin-bottom: 2rem;
+        color: #333;
+        font-weight: 700;
+    }
+
+    .tech-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        justify-content: center;
+    }
+
+    .tech-badge {
+        padding: 0.75rem 1.5rem;
+        background: white;
+        border-radius: 30px;
+        font-weight: 600;
+        color: #667eea;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s;
+        border: 2px solid transparent;
+    }
+
+    .tech-badge:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+        border-color: #667eea;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .hero-title {
+            font-size: 3rem;
+        }
+
+        .hero-subtitle {
+            font-size: 1.3rem;
+        }
+
+        .cta-buttons {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .features-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
