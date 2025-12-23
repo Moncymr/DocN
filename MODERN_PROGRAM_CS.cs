@@ -204,6 +204,7 @@ try
     builder.Services.AddScoped<IEmbeddingService, EmbeddingService>();
     builder.Services.AddScoped<ICategoryService, CategoryService>();
     builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService>();
+    builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
     builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 
     // Servizi moderni con Semantic Kernel
