@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using DocN.Data;
+using DocN.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +34,17 @@ builder.Services.AddDbContext<DocArcContext>(options =>
     }
 });
 
+// Register DatabaseSeeder
+builder.Services.AddScoped<DatabaseSeeder>();
+
 var app = builder.Build();
+
+// Seed the database
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+    await seeder.SeedAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
