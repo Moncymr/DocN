@@ -92,7 +92,7 @@
         </div>
     }
     <!-- Empty State -->
-    else if (filteredDocuments == null || !filteredDocuments.Any())
+    else if (!filteredDocuments.Any())
     {
         <div class="empty-state">
             <div class="empty-icon">📭</div>
@@ -1085,7 +1085,7 @@
     public int Page { get; set; } = 1;
 
     private List<Document>? documents;
-    private List<Document>? filteredDocuments;
+    private List<Document> filteredDocuments = new();
     private List<string> categories = new();
     private bool isLoading = true;
     private int currentPage = 1;
