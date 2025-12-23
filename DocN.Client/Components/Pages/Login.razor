@@ -323,8 +323,16 @@
             if (result.Succeeded)
             {
                 // Update last login time
-                user.LastLoginAt = DateTime.UtcNow;
-                await UserManager.UpdateAsync(user);
+                try
+                {
+                    user.LastLoginAt = DateTime.UtcNow;
+                    await UserManager.UpdateAsync(user);
+                }
+                catch (Exception updateEx)
+                {
+                    // Log the error but don't prevent login
+                    Console.WriteLine($"Failed to update last login time: {updateEx.Message}");
+                }
                 
                 Navigation.NavigateTo("/", forceLoad: true);
             }
