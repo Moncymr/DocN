@@ -2,8 +2,12 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Memory;
+using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using DocN.Data.Models;
 using System.Text;
+
+#pragma warning disable SKEXP0001 // ISemanticTextMemory is experimental
 
 namespace DocN.Data.Services;
 
@@ -308,9 +312,9 @@ public class ModernRAGService : IModernRAGService
     /// </summary>
     /// <param name="conversationId">ID della conversazione</param>
     /// <returns>Lista di messaggi della conversazione</returns>
-    private async Task<List<ChatMessage>> LoadConversationHistoryAsync(int? conversationId)
+    private async Task<List<ConversationMessage>> LoadConversationHistoryAsync(int? conversationId)
     {
-        var history = new List<ChatMessage>();
+        var history = new List<ConversationMessage>();
 
         if (!conversationId.HasValue)
             return history;
@@ -327,10 +331,10 @@ public class ModernRAGService : IModernRAGService
 
             foreach (var msg in messages)
             {
-                // Converte in ChatMessage di Semantic Kernel
+                // Converte in ConversationMessage
                 history.Add(msg.Role == "user"
-                    ? new ChatMessage(AuthorRole.User, msg.Content)
-                    : new ChatMessage(AuthorRole.Assistant, msg.Content));
+                    ? new ConversationMessage(MessageRole.User, msg.Content)
+                    : new ConversationMessage(MessageRole.Assistant, msg.Content));
             }
 
             _logger.LogDebug(
@@ -432,7 +436,7 @@ I dipendenti devono richiedere l'approvazione al proprio manager con 48 ore di a
     private async Task<string> GenerateAnswerWithKernelAsync(
         string systemPrompt,
         string documentContext,
-        List<ChatMessage> conversationHistory,
+        List<ConversationMessage> conversationHistory,
         string userQuery)
     {
         try
@@ -446,7 +450,18 @@ I dipendenti devono richiedere l'approvazione al proprio manager con 48 ore di a
             // Aggiungi la storia conversazione (se esiste)
             foreach (var msg in conversationHistory)
             {
-                chatHistory.Add(msg);
+                if (msg.Role == MessageRole.User)
+                {
+                    chatHistory.AddUserMessage(msg.Content);
+                }
+                else if (msg.Role == MessageRole.Assistant)
+                {
+                    chatHistory.AddAssistantMessage(msg.Content);
+                }
+                else if (msg.Role == MessageRole.System)
+                {
+                    chatHistory.AddSystemMessage(msg.Content);
+                }
             }
 
             // Aggiungi la query corrente dell'utente
@@ -596,4 +611,29 @@ I dipendenti devono richiedere l'approvazione al proprio manager con 48 ore di a
 
         return text.Substring(0, maxLength - 3) + "...";
     }
+}
+
+/// <summary>
+/// Messaggio di chat semplice per la cronologia conversazionale in ModernRAGService
+/// </summary>
+public class ConversationMessage
+{
+    public MessageRole Role { get; set; }
+    public string Content { get; set; }
+
+    public ConversationMessage(MessageRole role, string content)
+    {
+        Role = role;
+        Content = content;
+    }
+}
+
+/// <summary>
+/// Ruolo del messaggio nella conversazione
+/// </summary>
+public enum MessageRole
+{
+    User,
+    Assistant,
+    System
 }
