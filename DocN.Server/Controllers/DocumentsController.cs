@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DocN.Data;
-using DocN.Data.Entities;
+using DocN.Data.Models;
 
 namespace DocN.Server.Controllers;
 

@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using DocN.Data.Entities;
+using DocN.Data.Models;
 
 namespace DocN.Data;
 
@@ -21,8 +21,9 @@ public class DocArcContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.FileName).IsRequired().HasMaxLength(500);
             entity.Property(e => e.FilePath).HasMaxLength(1000);
-            entity.Property(e => e.Category).HasMaxLength(200);
-            entity.Property(e => e.Vector).IsRequired(false); // Vector is optional
+            entity.Property(e => e.SuggestedCategory).HasMaxLength(200);
+            entity.Property(e => e.ActualCategory).HasMaxLength(200);
+            entity.Property(e => e.EmbeddingVector).IsRequired(false); // Vector is optional
             entity.Property(e => e.UploadedAt).IsRequired();
         });
     }

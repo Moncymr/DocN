@@ -1,7 +1,7 @@
 using Xunit;
 using Microsoft.EntityFrameworkCore;
 using DocN.Data;
-using DocN.Data.Entities;
+using DocN.Data.Models;
 using DocN.Server.Controllers;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -32,19 +32,19 @@ public class DocumentsControllerTests
             new Document
             {
                 FileName = "doc_with_vector.pdf",
-                Vector = new byte[] { 1, 2, 3 },
+                EmbeddingVector = new float[] { 1, 2, 3 },
                 UploadedAt = DateTime.UtcNow.AddDays(-1)
             },
             new Document
             {
                 FileName = "doc_without_vector_1.pdf",
-                Vector = null, // NO VECTOR
+                EmbeddingVector = null, // NO VECTOR
                 UploadedAt = DateTime.UtcNow.AddDays(-2)
             },
             new Document
             {
                 FileName = "doc_without_vector_2.pdf",
-                Vector = null, // NO VECTOR
+                EmbeddingVector = null, // NO VECTOR
                 UploadedAt = DateTime.UtcNow.AddDays(-3)
             }
         );
@@ -64,11 +64,11 @@ public class DocumentsControllerTests
         Assert.Equal(3, documentList.Count);
         
         // Verify that documents without vectors are included
-        var docsWithoutVectors = documentList.Where(d => d.Vector == null).ToList();
+        var docsWithoutVectors = documentList.Where(d => d.EmbeddingVector == null).ToList();
         Assert.Equal(2, docsWithoutVectors.Count);
         
         // Verify that documents with vectors are included
-        var docsWithVectors = documentList.Where(d => d.Vector != null).ToList();
+        var docsWithVectors = documentList.Where(d => d.EmbeddingVector != null).ToList();
         Assert.Equal(1, docsWithVectors.Count);
     }
 
@@ -99,7 +99,7 @@ public class DocumentsControllerTests
         var testDocument = new Document
         {
             FileName = "test_document.pdf",
-            Vector = null, // NO VECTOR
+            EmbeddingVector = null, // NO VECTOR
             UploadedAt = DateTime.UtcNow
         };
         context.Documents.Add(testDocument);
@@ -115,6 +115,6 @@ public class DocumentsControllerTests
         var document = Assert.IsType<Document>(okResult.Value);
         Assert.Equal(testDocument.Id, document.Id);
         Assert.Equal("test_document.pdf", document.FileName);
-        Assert.Null(document.Vector); // Confirm vector is null
+        Assert.Null(document.EmbeddingVector); // Confirm vector is null
     }
 }
