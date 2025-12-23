@@ -43,6 +43,7 @@ builder.Services.AddScoped<IEmbeddingService, EmbeddingService>();
 builder.Services.AddScoped<IRAGService, RAGService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService>();
+builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
 
 // Add multi-provider AI service (supports Gemini, OpenAI, Azure OpenAI)
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
