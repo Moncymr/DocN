@@ -90,3 +90,6 @@ $RECYCLE.BIN/
 
 # Mac files
 .DS_Store
+
+# Backup files
+*.bak
