@@ -83,17 +83,17 @@
         }
     </div>
 
-    <!-- Loading State -->
     @if (isLoading)
     {
+        <!-- Loading State -->
         <div class="loading-state">
             <div class="spinner-large"></div>
             <p>Loading your documents...</p>
         </div>
     }
-    <!-- Empty State -->
     else if (!filteredDocuments.Any())
     {
+        <!-- Empty State -->
         <div class="empty-state">
             <div class="empty-icon">📭</div>
             <h3>No documents found</h3>
@@ -111,9 +111,9 @@
             }
         </div>
     }
-    <!-- Document Display -->
     else
     {
+        <!-- Document Display -->
         @if (viewMode == "list")
         {
             <!-- LIST VIEW -->
