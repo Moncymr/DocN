@@ -2,7 +2,7 @@ namespace DocN.Data.Models;
 
 public class FileStorageSettings
 {
-    public string UploadPath { get; set; } = "C:\\DocumentArchive\\Uploads";
+    public string UploadPath { get; set; } = "Uploads";
     public int MaxFileSizeMB { get; set; } = 50;
     public List<string> AllowedExtensions { get; set; } = new();
 }

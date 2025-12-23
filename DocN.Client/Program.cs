@@ -81,7 +81,9 @@ var app = builder.Build();
 var fileStorageSettings = builder.Configuration.GetSection("FileStorage").Get<FileStorageSettings>();
 if (fileStorageSettings != null && !string.IsNullOrEmpty(fileStorageSettings.UploadPath))
 {
-    Directory.CreateDirectory(fileStorageSettings.UploadPath);
+    // Ensure the path is safe and create directory
+    var uploadPath = Path.GetFullPath(fileStorageSettings.UploadPath);
+    Directory.CreateDirectory(uploadPath);
 }
 
 // Configure the HTTP request pipeline.
