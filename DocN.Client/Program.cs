@@ -1,6 +1,7 @@
 using DocN.Client.Components;
 using DocN.Data;
 using DocN.Data.Models;
+using DocN.Data.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -59,7 +60,29 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 builder.Services.AddCascadingAuthenticationState();
 
+// Application Settings
+builder.Services.Configure<FileStorageSettings>(builder.Configuration.GetSection("FileStorage"));
+builder.Services.Configure<AISettings>(builder.Configuration.GetSection("AI"));
+builder.Services.Configure<OpenAISettings>(builder.Configuration.GetSection("OpenAI"));
+builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("Gemini"));
+builder.Services.Configure<EmbeddingsSettings>(builder.Configuration.GetSection("Embeddings"));
+
+// Application Services
+builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<IEmbeddingService, EmbeddingService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService>();
+builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
+builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
+
 var app = builder.Build();
+
+// Ensure upload directory exists
+var fileStorageSettings = builder.Configuration.GetSection("FileStorage").Get<FileStorageSettings>();
+if (fileStorageSettings != null && !string.IsNullOrEmpty(fileStorageSettings.UploadPath))
+{
+    Directory.CreateDirectory(fileStorageSettings.UploadPath);
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
