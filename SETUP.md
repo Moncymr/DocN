@@ -105,7 +105,12 @@ Se hai già creato il database con una versione precedente, lo script SQL includ
 
 ### 5. Configurare le API Keys
 
-Le chiavi API sono sensibili e non devono essere committate nel repository. Configurarle in uno dei seguenti modi:
+Le chiavi API sono sensibili e non devono essere committate nel repository.
+
+**📖 Per una guida completa e dettagliata sulla configurazione delle chiavi API, consulta:**
+**[CONFIGURAZIONE_API_KEYS.md](CONFIGURAZIONE_API_KEYS.md)**
+
+**Configurazione rapida:**
 
 **Opzione A: File appsettings.Development.json (Locale)**
 

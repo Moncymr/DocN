@@ -18,6 +18,13 @@ DocN è una soluzione web modulare basata su .NET e Blazor, progettata per l’a
   - Interfacce AI (.cs dedicati)
 - Integrazione chatbot AI.
 
+## 📚 Documentazione
+
+- **🔑 [Configurazione Chiavi API](CONFIGURAZIONE_API_KEYS.md)** - Guida completa su dove configurare le chiavi API per embedding, chat e RAG
+- **⚙️ [Setup e Configurazione](SETUP.md)** - Installazione e configurazione generale
+- **📖 [Guida Installazione](GUIDA_INSTALLAZIONE.md)** - Guida passo-passo per l'installazione
+- **🔧 [Dettagli Implementazione](IMPLEMENTATION.md)** - Dettagli tecnici completi
+
 ## Note iniziali
 Il sistema è ora completamente implementato e funzionante. Per dettagli tecnici completi, vedere [IMPLEMENTATION.md](IMPLEMENTATION.md).
 
