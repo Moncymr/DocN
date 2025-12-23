@@ -87,6 +87,13 @@ sqlcmd -S <server> -d <database> -i 03_ConfigureFullTextSearch.sql
 3. Modificare la prima riga `USE [DocN]` con il nome del database desiderato
 4. Eseguire lo script (F5)
 
+### ⚠️ Nota sulla Sicurezza
+Quando si utilizzano gli script helper PowerShell o Bash con autenticazione SQL, la password viene passata come parametro da riga di comando. In ambienti di produzione, considerare l'uso di:
+- Windows Authentication (opzione `-w` o `-UseWindowsAuth`)
+- Variabili d'ambiente per le credenziali
+- File di configurazione sicuri
+- Azure AD Authentication
+
 ## ⚙️ Prerequisiti
 
 1. **SQL Server 2019 o superiore** (raccomandato SQL Server 2022/2025)

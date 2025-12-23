@@ -1,9 +1,11 @@
 -- =============================================
 -- Script: SetupDatabase.sql
 -- Description: Script master per creare tutte le tabelle e configurare il database DocN
+-- Note: Modificare il nome del database nella riga USE sottostante prima di eseguire
 -- =============================================
 
-USE [DocN]; -- Cambia con il nome del tuo database
+-- IMPORTANTE: Modificare 'DocN' con il nome del database desiderato
+USE [DocN]; -- <<<< MODIFICARE QUI IL NOME DEL DATABASE
 GO
 
 PRINT '========================================';

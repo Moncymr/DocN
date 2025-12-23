@@ -5,7 +5,7 @@
 # Description: Script Bash per eseguire il setup del database DocN
 # =============================================
 
-set -e
+set -euo pipefail
 
 # Colori per output
 RED='\033[0;31m'
