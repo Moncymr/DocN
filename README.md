@@ -19,4 +19,19 @@ DocN è una soluzione web modulare basata su .NET e Blazor, progettata per l’a
 - Integrazione chatbot AI.
 
 ## Note iniziali
-Effettuare il primo commit con questo file. Successivamente saranno aggiunti progetti, logica, database e documentazione tecnica dettagliata.
+Il sistema è ora completamente implementato e funzionante. Per dettagli tecnici completi, vedere [IMPLEMENTATION.md](IMPLEMENTATION.md).
+
+### ✅ Problema Risolto
+L'endpoint `/documents` ora visualizza **tutti i documenti** indipendentemente dallo stato del campo vettore, risolvendo il problema dove documenti senza embedding vettoriali non venivano mostrati.
+
+### Avvio Rapido
+```bash
+# Build del progetto
+dotnet build
+
+# Eseguire il server API (http://localhost:5210)
+cd DocN.Server && dotnet run
+
+# Eseguire i test
+dotnet test
+```
