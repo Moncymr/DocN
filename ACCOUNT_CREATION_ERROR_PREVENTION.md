@@ -425,9 +425,10 @@ app.UseAuthorization();
 
 2. **Verify Async Patterns**: Ensure all async methods are properly awaited
 
-3. **Check for Response Buffering**: In some cases, enabling response buffering can help:
+3. **Check for Response Buffering**: In rare cases where you need to read/modify the response body, enabling response buffering can help. **Note**: This approach should be used sparingly as it can impact performance and increase memory usage, especially for large responses. Only enable buffering when absolutely necessary:
 ```csharp
-// For specific scenarios only
+// For specific scenarios only - NOT recommended for general use
+// Only use if you need to read/modify response after it's written
 app.Use(async (context, next) =>
 {
     context.Response.EnableBuffering();
@@ -441,9 +442,10 @@ app.Use(async (context, next) =>
 
 ## Additional Resources
 
-- [ASP.NET Core Identity Documentation](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity)
-- [Common ASP.NET Core Identity Errors](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity-troubleshooting)
-- [Response has already started error](https://stackoverflow.com/questions/tagged/asp.net-core+response-already-started)
+- [ASP.NET Core Identity Documentation](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity) - Official Microsoft documentation for implementing authentication and authorization
+- [ASP.NET Core Identity Configuration](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity-configuration) - Guide for configuring Identity options and requirements
+- [ASP.NET Core Blazor Authentication](https://learn.microsoft.com/en-us/aspnet/core/blazor/security/) - Blazor-specific authentication patterns and best practices
+- Stack Overflow: [asp.net-core + response-already-started](https://stackoverflow.com/questions/tagged/asp.net-core+response-already-started) - Community discussions and solutions for response header errors
 
 ## Summary
 
