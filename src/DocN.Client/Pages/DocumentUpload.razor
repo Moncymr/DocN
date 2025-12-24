@@ -13,11 +13,13 @@
                 <MudItem xs="12">
                     <MudFileUpload T="IBrowserFile" FilesChanged="OnFilesChanged" Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
                         <ActivatorContent>
-                            <MudPaper Height="200px" Outlined="true" Class="d-flex align-center justify-center pa-4 cursor-pointer mud-width-full">
-                                <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
-                                    <MudText Typo="Typo.h6">Trascina qui il file o clicca per selezionare</MudText>
-                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Formati supportati: PDF, Word, Excel, PowerPoint</MudText>
+                            <MudPaper Height="250px" Elevation="0" Class="d-flex align-center justify-center pa-6 cursor-pointer mud-width-full" 
+                                      Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; transition: all 0.3s ease;">
+                                <MudStack AlignItems="AlignItems.Center" Spacing="3">
+                                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Style="font-size: 4rem; color: white;" />
+                                    <MudText Typo="Typo.h4" Style="color: white; font-weight: 700;">Scegli un file da caricare</MudText>
+                                    <MudText Typo="Typo.h6" Style="color: rgba(255,255,255,0.9);">Clicca qui o trascina il file</MudText>
+                                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.8);">Formati supportati: PDF, Word, Excel, PowerPoint</MudText>
                                 </MudStack>
                             </MudPaper>
                         </ActivatorContent>
@@ -76,12 +78,52 @@
                 
                 <!-- AI Processing Options -->
                 <MudItem xs="12">
-                    <MudText Typo="Typo.h6" Class="mb-2">⚙️ Opzioni Elaborazione AI</MudText>
-                    <MudStack Row="true" Spacing="3">
-                        <MudSwitch @bind-Value="autoExtractText" Color="Color.Primary" Label="Estrazione testo automatica" />
-                        <MudSwitch @bind-Value="suggestCategory" Color="Color.Primary" Label="Suggerisci categoria con AI" />
-                        <MudSwitch @bind-Value="generateEmbeddings" Color="Color.Primary" Label="Genera embeddings (Gemini)" />
-                    </MudStack>
+                    <MudPaper Elevation="1" Class="pa-4" Style="border-left: 4px solid #667eea; background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);">
+                        <MudText Typo="Typo.h5" Class="mb-3" Style="color: #667eea; font-weight: 600;">
+                            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Medium" Style="vertical-align: middle; margin-right: 8px;" />
+                            Opzioni Elaborazione AI
+                        </MudText>
+                        <MudStack Spacing="2">
+                            <MudPaper Elevation="0" Class="pa-3" Style="background: white; border-radius: 8px; border: 2px solid #e9ecef; transition: all 0.3s ease;">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600; color: #2c3e50;">
+                                            <MudIcon Icon="@Icons.Material.Filled.TextFields" Size="Size.Small" Style="vertical-align: middle; margin-right: 4px;" />
+                                            📝 Estrazione testo automatica
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #6c757d;">Estrae il contenuto testuale dal documento</MudText>
+                                    </MudStack>
+                                    <MudSwitch @bind-Value="autoExtractText" Color="Color.Primary" Size="Size.Large" />
+                                </MudStack>
+                            </MudPaper>
+                            
+                            <MudPaper Elevation="0" Class="pa-3" Style="background: white; border-radius: 8px; border: 2px solid #e9ecef; transition: all 0.3s ease;">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600; color: #2c3e50;">
+                                            <MudIcon Icon="@Icons.Material.Filled.Psychology" Size="Size.Small" Style="vertical-align: middle; margin-right: 4px;" />
+                                            🤖 Suggerisci categoria con AI
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #6c757d;">L'AI analizza e suggerisce una categoria appropriata</MudText>
+                                    </MudStack>
+                                    <MudSwitch @bind-Value="suggestCategory" Color="Color.Primary" Size="Size.Large" />
+                                </MudStack>
+                            </MudPaper>
+                            
+                            <MudPaper Elevation="0" Class="pa-3" Style="background: white; border-radius: 8px; border: 2px solid #e9ecef; transition: all 0.3s ease;">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600; color: #2c3e50;">
+                                            <MudIcon Icon="@Icons.Material.Filled.Memory" Size="Size.Small" Style="vertical-align: middle; margin-right: 4px;" />
+                                            🧠 Genera embeddings (Gemini)
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #6c757d;">Genera embeddings vettoriali per ricerca semantica</MudText>
+                                    </MudStack>
+                                    <MudSwitch @bind-Value="generateEmbeddings" Color="Color.Primary" Size="Size.Large" />
+                                </MudStack>
+                            </MudPaper>
+                        </MudStack>
+                    </MudPaper>
                 </MudItem>
                 
                 <!-- Upload Progress -->

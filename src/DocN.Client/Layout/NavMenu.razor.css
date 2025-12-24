@@ -8,15 +8,16 @@
 }
 
 .navbar-brand {
-    font-size: 1.1rem;
+    font-size: 1.5rem;
+    font-weight: 700;
 }
 
 .bi {
     display: inline-block;
     position: relative;
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-right: 0.75rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-right: 1rem;
     top: -1px;
     background-size: cover;
 }
@@ -34,8 +35,8 @@
 }
 
 .nav-item {
-    font-size: 0.9rem;
-    padding-bottom: 0.5rem;
+    font-size: 1.1rem;
+    padding-bottom: 0.75rem;
 }
 
     .nav-item:first-of-type {
@@ -47,22 +48,28 @@
     }
 
     .nav-item ::deep a {
-        color: #d7d7d7;
-        border-radius: 4px;
-        height: 3rem;
+        color: #2c3e50;
+        border-radius: 8px;
+        height: 3.5rem;
         display: flex;
         align-items: center;
-        line-height: 3rem;
+        line-height: 3.5rem;
+        padding: 0 1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
     }
 
 .nav-item ::deep a.active {
-    background-color: rgba(255,255,255,0.37);
-    color: white;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    color: #667eea;
+    font-weight: 700;
+    border-left: 4px solid #667eea;
 }
 
 .nav-item ::deep a:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
+    background-color: rgba(102, 126, 234, 0.08);
+    color: #667eea;
+    transform: translateX(5px);
 }
 
 @media (min-width: 641px) {
