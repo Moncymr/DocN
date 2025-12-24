@@ -1,0 +1,167 @@
+@page "/carica-documento"
+@rendermode InteractiveServer
+@using System.IO
+@inject IWebHostEnvironment Environment
+
+<PageTitle>Carica Documento - DocN</PageTitle>
+
+<div class="upload-container">
+    <h1 class="mb-4">📄 Carica Documento</h1>
+    
+    <div class="upload-area">
+        @if (!string.IsNullOrEmpty(uploadMessage))
+        {
+            <div class="alert @(isSuccess ? "alert-success" : "alert-danger")" role="alert">
+                @uploadMessage
+            </div>
+        }
+
+        <div class="upload-section">
+            <InputFile OnChange="HandleFileSelected" class="file-input" id="fileInput" multiple />
+            
+            <label for="fileInput" class="file-label">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">
+                    <strong>Seleziona file da caricare</strong>
+                    <p class="mb-0 text-muted">Oppure trascina i file qui</p>
+                </div>
+            </label>
+
+            @if (selectedFiles.Any())
+            {
+                <div class="selected-files mt-3">
+                    <h5>File selezionati:</h5>
+                    <ul class="list-group">
+                        @foreach (var file in selectedFiles)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>📄 @file.Name</span>
+                                <span class="badge bg-primary rounded-pill">@FormatBytes(file.Size)</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (selectedFiles.Any())
+            {
+                <button class="btn-upload-large" @onclick="UploadFiles" disabled="@isUploading">
+                    @if (isUploading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span>Caricamento in corso...</span>
+                    }
+                    else
+                    {
+                        <span class="upload-button-icon">⬆️</span>
+                        <span>CARICA DOCUMENTI</span>
+                    }
+                </button>
+            }
+        </div>
+
+        @if (uploadedFiles.Any())
+        {
+            <div class="uploaded-files mt-4">
+                <h5>📋 Documenti caricati:</h5>
+                <div class="list-group">
+                    @foreach (var file in uploadedFiles)
+                    {
+                        <div class="list-group-item list-group-item-success">
+                            ✅ @file
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<IBrowserFile> selectedFiles = new();
+    private List<string> uploadedFiles = new();
+    private bool isUploading = false;
+    private string uploadMessage = string.Empty;
+    private bool isSuccess = false;
+    private long maxFileSize = 1024 * 1024 * 50; // 50 MB
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFiles.Clear();
+        selectedFiles.AddRange(e.GetMultipleFiles(10));
+        uploadMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task UploadFiles()
+    {
+        if (!selectedFiles.Any())
+        {
+            uploadMessage = "Nessun file selezionato.";
+            isSuccess = false;
+            return;
+        }
+
+        isUploading = true;
+        uploadMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var uploadPath = Path.Combine(Environment.ContentRootPath, "uploads");
+            
+            if (!Directory.Exists(uploadPath))
+            {
+                Directory.CreateDirectory(uploadPath);
+            }
+
+            foreach (var file in selectedFiles)
+            {
+                try
+                {
+                    var filePath = Path.Combine(uploadPath, file.Name);
+                    
+                    await using var fileStream = new FileStream(filePath, FileMode.Create);
+                    await file.OpenReadStream(maxFileSize).CopyToAsync(fileStream);
+                    
+                    uploadedFiles.Add(file.Name);
+                }
+                catch (Exception ex)
+                {
+                    uploadMessage = $"Errore durante il caricamento di {file.Name}: {ex.Message}";
+                    isSuccess = false;
+                    isUploading = false;
+                    StateHasChanged();
+                    return;
+                }
+            }
+
+            uploadMessage = $"✅ {selectedFiles.Count} documento(i) caricato(i) con successo!";
+            isSuccess = true;
+            selectedFiles.Clear();
+        }
+        catch (Exception ex)
+        {
+            uploadMessage = $"Errore durante il caricamento: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+}
