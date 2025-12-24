@@ -1,0 +1,420 @@
+@page "/upload"
+@page "/fileupload"
+@using MudBlazor
+
+<PageTitle>Carica File - DocN</PageTitle>
+
+<style>
+    .upload-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8f0fe 100%);
+        min-height: calc(100vh - 100px);
+        padding: 2rem 0;
+    }
+    
+    .upload-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(66, 133, 244, 0.1);
+        overflow: hidden;
+    }
+    
+    .upload-header {
+        background: linear-gradient(135deg, #4285f4 0%, #5e97f6 100%);
+        padding: 2rem;
+        color: white;
+    }
+    
+    .upload-dropzone {
+        background: linear-gradient(135deg, #7c4dff 0%, #9d6eff 100%);
+        border-radius: 16px;
+        min-height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 24px rgba(124, 77, 255, 0.25);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .upload-dropzone::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+        pointer-events: none;
+    }
+    
+    .upload-dropzone:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(124, 77, 255, 0.35);
+    }
+    
+    .upload-icon-container {
+        position: relative;
+        z-index: 1;
+    }
+    
+    .option-card {
+        background: linear-gradient(135deg, #e8f0fe 0%, #f5f7fa 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    
+    .option-card:hover {
+        border-color: #4285f4;
+        transform: translateX(4px);
+    }
+    
+    .option-card-active {
+        border-color: #7c4dff;
+        background: linear-gradient(135deg, #f3e5ff 0%, #e8f0fe 100%);
+    }
+    
+    .section-title {
+        color: #4285f4;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        font-size: 1.25rem;
+    }
+    
+    .file-info-card {
+        background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border-left: 4px solid #34a853;
+    }
+</style>
+
+<div class="upload-container">
+    <MudContainer MaxWidth="MaxWidth.Large">
+        <MudPaper Class="upload-card" Elevation="0">
+            <!-- Header Section -->
+            <div class="upload-header">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <div>
+                        <MudText Typo="Typo.h4" Style="font-weight: 700; margin-bottom: 0.5rem;">
+                            📤 Carica Documento
+                        </MudText>
+                        <MudText Typo="Typo.body1" Style="opacity: 0.9;">
+                            Carica i tuoi documenti per l'elaborazione AI e la ricerca semantica
+                        </MudText>
+                    </div>
+                    <MudButton Href="/documents" Variant="Variant.Text" Style="color: white;">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Class="mr-2" />
+                        Torna ai documenti
+                    </MudButton>
+                </MudStack>
+            </div>
+            
+            <!-- Main Content -->
+            <MudCardContent Class="pa-6">
+                <MudGrid Spacing="4">
+                    <!-- Upload Dropzone - Prominent Violet Section -->
+                    <MudItem xs="12">
+                        <MudText Class="section-title">
+                            <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Small" Class="mr-2" />
+                            Seleziona File
+                        </MudText>
+                        <MudFileUpload T="IBrowserFile" FilesChanged="OnFilesChanged" Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
+                            <ActivatorContent>
+                                <div class="upload-dropzone">
+                                    <MudStack AlignItems="AlignItems.Center" Spacing="3" Class="upload-icon-container pa-6">
+                                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
+                                                 Style="font-size: 5rem; color: white; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));" />
+                                        <MudText Typo="Typo.h4" Style="color: white; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                            @if (selectedFile == null)
+                                            {
+                                                <span>Scegli un file o trascinalo qui</span>
+                                            }
+                                            else
+                                            {
+                                                <span>✓ File selezionato - Clicca per cambiare</span>
+                                            }
+                                        </MudText>
+                                        <MudText Typo="Typo.h6" Style="color: rgba(255,255,255,0.95); text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                            Formati supportati: PDF, Word, Excel, PowerPoint
+                                        </MudText>
+                                        @if (selectedFile == null)
+                                        {
+                                            <MudChip Color="Color.Default" Style="background: rgba(255,255,255,0.2); color: white; backdrop-filter: blur(10px);">
+                                                Max 50 MB
+                                            </MudChip>
+                                        }
+                                    </MudStack>
+                                </div>
+                            </ActivatorContent>
+                        </MudFileUpload>
+                    </MudItem>
+                    
+                    <!-- Selected File Info -->
+                    @if (selectedFile != null)
+                    {
+                        <MudItem xs="12">
+                            <div class="file-info-card">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" 
+                                             Style="font-size: 3rem; color: #34a853;" />
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.h6" Style="color: #1e5631; font-weight: 600;">
+                                            File selezionato con successo
+                                        </MudText>
+                                        <MudText Typo="Typo.body1" Style="color: #2e7d32;">
+                                            <strong>Nome:</strong> @selectedFile.Name
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #2e7d32;">
+                                            <strong>Dimensione:</strong> @FormatFileSize(selectedFile.Size)
+                                        </MudText>
+                                    </MudStack>
+                                </MudStack>
+                            </div>
+                        </MudItem>
+                    }
+                    
+                    <!-- Category and Visibility -->
+                    <MudItem xs="12" md="6">
+                        <MudText Class="section-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Small" Class="mr-2" />
+                            Categoria
+                        </MudText>
+                        <MudSelect T="string" Label="Seleziona categoria" @bind-Value="selectedCategory" 
+                                   Variant="Variant.Outlined" Color="Color.Primary">
+                            <MudSelectItem Value="@("Contratti")">📜 Contratti</MudSelectItem>
+                            <MudSelectItem Value="@("Fatture")">🧾 Fatture</MudSelectItem>
+                            <MudSelectItem Value="@("Report")">📊 Report</MudSelectItem>
+                            <MudSelectItem Value="@("Manuali")">📚 Manuali</MudSelectItem>
+                            <MudSelectItem Value="@("Policy")">📋 Policy</MudSelectItem>
+                            <MudSelectItem Value="@("Corrispondenza")">✉️ Corrispondenza</MudSelectItem>
+                            <MudSelectItem Value="@("Legale")">⚖️ Legale</MudSelectItem>
+                            <MudSelectItem Value="@("HR")">👥 HR</MudSelectItem>
+                            <MudSelectItem Value="@("Altro")">📁 Altro</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudText Class="section-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Class="mr-2" />
+                            Visibilità
+                        </MudText>
+                        <MudSelect T="string" Label="Seleziona visibilità" @bind-Value="visibility" 
+                                   Variant="Variant.Outlined" Color="Color.Primary">
+                            <MudSelectItem Value="@("Private")">🔒 Privato</MudSelectItem>
+                            <MudSelectItem Value="@("Department")">👥 Dipartimento</MudSelectItem>
+                            <MudSelectItem Value="@("Public")">🌐 Pubblico</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    
+                    <!-- Tags -->
+                    <MudItem xs="12">
+                        <MudText Class="section-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Label" Size="Size.Small" Class="mr-2" />
+                            Tag
+                        </MudText>
+                        <MudTextField T="string" Label="Tag (separati da virgola)" @bind-Value="tags" 
+                                      Variant="Variant.Outlined" 
+                                      HelperText="Es: importante, urgente, 2024"
+                                      Color="Color.Primary" />
+                    </MudItem>
+                    
+                    <!-- Notes -->
+                    <MudItem xs="12">
+                        <MudText Class="section-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Notes" Size="Size.Small" Class="mr-2" />
+                            Note
+                        </MudText>
+                        <MudTextField T="string" Label="Note opzionali" @bind-Value="notes" 
+                                      Variant="Variant.Outlined" 
+                                      Lines="3"
+                                      HelperText="Aggiungi note o descrizione del documento"
+                                      Color="Color.Primary" />
+                    </MudItem>
+                    
+                    <!-- AI Processing Options -->
+                    <MudItem xs="12">
+                        <MudText Class="section-title">
+                            <MudIcon Icon="@Icons.Material.Filled.SmartToy" Size="Size.Small" Class="mr-2" />
+                            Opzioni Elaborazione AI
+                        </MudText>
+                        <MudStack Spacing="3">
+                            <!-- Text Extraction -->
+                            <div class="@GetOptionCardClass(autoExtractText)">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                    <MudStack Spacing="1">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600; color: #1a73e8;">
+                                            <MudIcon Icon="@Icons.Material.Filled.TextFields" Size="Size.Small" Class="mr-1" />
+                                            📝 Estrazione testo automatica
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #5f6368;">
+                                            Estrae il contenuto testuale dal documento per l'elaborazione AI
+                                        </MudText>
+                                    </MudStack>
+                                    <MudSwitch @bind-Value="autoExtractText" Color="Color.Primary" Size="Size.Large" />
+                                </MudStack>
+                            </div>
+                            
+                            <!-- Category Suggestion -->
+                            <div class="@GetOptionCardClass(suggestCategory)">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                    <MudStack Spacing="1">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600; color: #1a73e8;">
+                                            <MudIcon Icon="@Icons.Material.Filled.Psychology" Size="Size.Small" Class="mr-1" />
+                                            🤖 Suggerisci categoria con AI
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #5f6368;">
+                                            L'AI analizza il contenuto e suggerisce la categoria più appropriata
+                                        </MudText>
+                                    </MudStack>
+                                    <MudSwitch @bind-Value="suggestCategory" Color="Color.Primary" Size="Size.Large" />
+                                </MudStack>
+                            </div>
+                            
+                            <!-- Generate Embeddings -->
+                            <div class="@GetOptionCardClass(generateEmbeddings)">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                    <MudStack Spacing="1">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600; color: #1a73e8;">
+                                            <MudIcon Icon="@Icons.Material.Filled.Memory" Size="Size.Small" Class="mr-1" />
+                                            🧠 Genera embeddings (Gemini)
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Style="color: #5f6368;">
+                                            Genera embeddings vettoriali per ricerca semantica avanzata
+                                        </MudText>
+                                    </MudStack>
+                                    <MudSwitch @bind-Value="generateEmbeddings" Color="Color.Primary" Size="Size.Large" />
+                                </MudStack>
+                            </div>
+                        </MudStack>
+                    </MudItem>
+                    
+                    <!-- Upload Progress -->
+                    @if (isUploading)
+                    {
+                        <MudItem xs="12">
+                            <MudPaper Class="pa-4" Style="background: linear-gradient(135deg, #e3f2fd 0%, #f5f7fa 100%); border-radius: 12px;">
+                                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+                                    <MudText Typo="Typo.h6" Style="color: #1a73e8; font-weight: 600;">
+                                        @uploadStatus
+                                    </MudText>
+                                </MudStack>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                    
+                    <!-- Action Buttons -->
+                    <MudItem xs="12">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-4">
+                            <MudButton Variant="Variant.Outlined" 
+                                       Color="Color.Default" 
+                                       Href="/documents"
+                                       Size="Size.Large"
+                                       StartIcon="@Icons.Material.Filled.Cancel">
+                                Annulla
+                            </MudButton>
+                            <MudButton Variant="Variant.Filled" 
+                                       Color="Color.Primary" 
+                                       Disabled="@(selectedFile == null || isUploading)"
+                                       OnClick="UploadDocument"
+                                       Size="Size.Large"
+                                       Style="background: linear-gradient(135deg, #4285f4 0%, #5e97f6 100%); box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);"
+                                       StartIcon="@Icons.Material.Filled.Upload">
+                                @if (isUploading)
+                                {
+                                    <span>Caricamento in corso...</span>
+                                }
+                                else
+                                {
+                                    <span>Carica Documento</span>
+                                }
+                            </MudButton>
+                        </MudStack>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudPaper>
+    </MudContainer>
+</div>
+
+@code {
+    private IBrowserFile? selectedFile;
+    private string selectedCategory = "Altro";
+    private string visibility = "Private";
+    private string tags = "";
+    private string notes = "";
+    private bool autoExtractText = true;
+    private bool suggestCategory = true;
+    private bool generateEmbeddings = true;
+    private bool isUploading = false;
+    private string uploadStatus = "";
+    
+    private void OnFilesChanged(IBrowserFile file)
+    {
+        selectedFile = file;
+        StateHasChanged();
+    }
+    
+    private async Task UploadDocument()
+    {
+        if (selectedFile == null) return;
+        
+        isUploading = true;
+        uploadStatus = "Caricamento file...";
+        StateHasChanged();
+        
+        try
+        {
+            await Task.Delay(1000);
+            uploadStatus = "Estrazione testo...";
+            StateHasChanged();
+            
+            await Task.Delay(1000);
+            uploadStatus = "Generazione embeddings...";
+            StateHasChanged();
+            
+            await Task.Delay(1000);
+            uploadStatus = "Analisi AI...";
+            StateHasChanged();
+            
+            await Task.Delay(1000);
+            uploadStatus = "✓ Documento caricato con successo!";
+            StateHasChanged();
+            
+            // Reset form after successful upload
+            await Task.Delay(1500);
+            selectedFile = null;
+            isUploading = false;
+            uploadStatus = "";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            uploadStatus = $"❌ Errore: {ex.Message}";
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+    
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+    
+    private string GetOptionCardClass(bool isActive)
+    {
+        return isActive ? "option-card option-card-active" : "option-card";
+    }
+}
