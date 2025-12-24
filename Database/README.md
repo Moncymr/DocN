@@ -1,216 +1,275 @@
-# Database Setup per DocN
+# DocN Database Configuration
 
-Questo directory contiene gli script SQL per creare e configurare il database DocN con supporto per Full-Text Search.
+## Impostazione Connessione Database
 
-## 🔧 Soluzione al Problema Full-Text Index
+### 1. **File di Configurazione: `appsettings.json`**
 
-### Problema Originale
-L'errore SQL Server 7653 si verificava perché la chiave primaria utilizzata per l'indice full-text non soddisfaceva i requisiti:
+La stringa di connessione al database si trova in `/src/DocN.Server/appsettings.json`:
 
-```
-Messaggio 7653, livello 16, stato 1, riga 240
-'PK__Document__3214EC074A8DB6ED' non è un indice valido per l'applicazione di una chiave di ricerca full-text.
-```
-
-### Requisiti Chiave Full-Text
-Una chiave primaria per full-text search deve essere:
-1. ✅ Un indice **univoco** (UNIQUE)
-2. ✅ **Non ammette valori NULL** (NOT NULL)
-3. ✅ Costituita da una **singola colonna**
-4. ✅ Non definita su colonna **calcolata non deterministica** o **non persistente imprecisa**
-5. ✅ Avere dimensioni massime di **900 byte**
-
-### Soluzione Implementata
-La tabella `Documents` ora utilizza una chiave primaria corretta:
-
-```sql
-[DocumentId] INT IDENTITY(1,1) NOT NULL
-CONSTRAINT [PK_Documents] PRIMARY KEY CLUSTERED ([DocumentId] ASC)
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=YOUR_SERVER;Database=DocN;User Id=YOUR_USER;Password=YOUR_PASSWORD;TrustServerCertificate=True;"
+  }
+}
 ```
 
-Questa chiave soddisfa tutti i requisiti:
-- ✅ `INT` occupa solo **4 bytes** (molto meno di 900 bytes)
-- ✅ È **UNIQUE** per definizione (PRIMARY KEY)
-- ✅ È **NOT NULL** (IDENTITY implica NOT NULL)
-- ✅ È una **colonna singola**
-- ✅ Non è una **colonna calcolata**
+### 2. **Configurazione per SQL Server 2025**
 
-## 📁 Script Disponibili
+Modifica la sezione `ConnectionStrings` in `appsettings.json`:
 
-### 1. `01_CreateIdentityTables.sql`
-Crea tutte le tabelle necessarie per ASP.NET Core Identity:
-- AspNetRoles
-- AspNetUsers
-- AspNetUserClaims
-- AspNetUserLogins
-- AspNetUserTokens
-- AspNetUserRoles
-- AspNetRoleClaims
+**Autenticazione Windows:**
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Server=localhost;Database=DocN;Integrated Security=True;TrustServerCertificate=True;"
+}
+```
 
-### 2. `02_CreateDocumentTables.sql`
-Crea le tabelle per la gestione dei documenti:
-- **Documents**: Tabella principale con la chiave primaria corretta per full-text
-  - `DocumentId` (INT IDENTITY): Chiave primaria ottimizzata per full-text
-  - Campi per metadati, contenuto estratto, embedding vettoriali
-  - Foreign keys verso AspNetUsers
-- **DocumentShares**: Condivisione documenti tra utenti
-- **DocumentTags**: Tag per categorizzazione documenti
+**Autenticazione SQL Server:**
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Server=localhost;Database=DocN;User Id=sa;Password=YourPassword123!;TrustServerCertificate=True;"
+}
+```
 
-### 3. `03_ConfigureFullTextSearch.sql`
-Configura il Full-Text Search:
-- Crea il catalogo `DocumentCatalog`
-- Crea l'indice full-text sulla tabella `Documents`
-- Indicizza le colonne: ExtractedText, Title, Description, Keywords, FileName
-- Utilizza la lingua italiana (LCID 1040)
-- Verifica la configurazione
+**Azure SQL Database:**
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Server=tcp:yourserver.database.windows.net,1433;Database=DocN;User ID=yourusername;Password=yourpassword;Encrypt=True;"
+}
+```
 
-### 4. `SetupDatabase.sql`
-Script master che esegue tutti gli script nell'ordine corretto.
+### 3. **Aggiornare Program.cs**
 
-## 🚀 Come Eseguire
+Il file `/src/DocN.Server/Program.cs` deve essere modificato per usare SQL Server invece di SQLite:
 
-### Opzione 1: Script Master (Raccomandato)
+**Cambiare da:**
+```csharp
+options.UseSqlite(connectionString);
+```
+
+**A:**
+```csharp
+options.UseSqlServer(connectionString, sqlOptions => 
+{
+    sqlOptions.EnableRetryOnFailure(
+        maxRetryCount: 5,
+        maxRetryDelay: TimeSpan.FromSeconds(30),
+        errorNumbersToAdd: null);
+});
+```
+
+## Script Database SQL Server 2025
+
+### Creazione Database
+
+Esegui lo script completo: `SqlServer2025_Schema.sql`
+
 ```bash
-sqlcmd -S <server> -d <database> -i SetupDatabase.sql
+sqlcmd -S localhost -U sa -P YourPassword -i database/SqlServer2025_Schema.sql
 ```
 
-### Opzione 2: Script Individuali
+O tramite SQL Server Management Studio (SSMS):
+1. Apri SSMS e connettiti al server
+2. Apri il file `SqlServer2025_Schema.sql`
+3. Esegui lo script (F5)
+
+### Caratteristiche dello Schema
+
+#### Tabelle Principali
+
+1. **Categories** - Categorie gerarchiche per documenti
+2. **Documents** - Documenti con embeddings vettoriali (VECTOR(768))
+3. **DocumentChunks** - Chunks con embeddings per ricerca granulare
+4. **Conversations** - Cronologia conversazioni RAG
+5. **Messages** - Messaggi con riferimenti a documenti
+6. **AuditLogs** - Log di audit per compliance
+
+#### Supporto VECTOR (SQL Server 2025)
+
+Lo schema utilizza il tipo `VECTOR(768)` per:
+- **Document.Embedding**: Embedding dell'intero documento (Gemini text-embedding-004)
+- **DocumentChunk.Embedding**: Embedding di ogni chunk per ricerca precisa
+
+#### Stored Procedures
+
+1. **sp_HybridDocumentSearch** - Ricerca ibrida con Reciprocal Rank Fusion
+   - Vector search (cosine similarity)
+   - Full-text search
+   - Combina risultati con RRF algorithm
+
+2. **sp_FindSimilarDocuments** - Trova documenti simili
+   - Basato su similarity vettoriale
+   - Esclude il documento sorgente
+
+3. **sp_SemanticChunkSearch** - Ricerca semantica a livello di chunk
+   - Precision retrieval per RAG
+   - Restituisce chunks più rilevanti
+
+#### Indici
+
+- **Full-text indexes** su Documents e DocumentChunks
+- **Vector indexes** per performance (commentati, da abilitare in produzione)
+- **B-tree indexes** su foreign keys e colonne di ricerca
+
+## Migrazione da SQLite a SQL Server
+
+### Step 1: Aggiornare Package References
+
+In `/src/DocN.Data/DocN.Data.csproj`, assicurati che sia presente:
+
+```xml
+<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
+```
+
+### Step 2: Modificare Program.cs
+
+```csharp
+// Prima (SQLite):
+builder.Services.AddDbContext<DocNDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+        ?? "Data Source=docn.db";
+    options.UseSqlite(connectionString);
+});
+
+// Dopo (SQL Server 2025):
+builder.Services.AddDbContext<DocNDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    
+    options.UseSqlServer(connectionString, sqlOptions => 
+    {
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null);
+        sqlOptions.CommandTimeout(120); // 2 minuti timeout per operazioni vettoriali
+    });
+});
+```
+
+### Step 3: Creare il Database
+
 ```bash
-sqlcmd -S <server> -d <database> -i 01_CreateIdentityTables.sql
-sqlcmd -S <server> -d <database> -i 02_CreateDocumentTables.sql
-sqlcmd -S <server> -d <database> -i 03_ConfigureFullTextSearch.sql
+# Opzione 1: Eseguire lo script SQL
+sqlcmd -S localhost -U sa -P YourPassword -i database/SqlServer2025_Schema.sql
+
+# Opzione 2: Usare EF Core Migrations (se configurato)
+dotnet ef database update --project src/DocN.Data --startup-project src/DocN.Server
 ```
 
-### Opzione 3: Da SQL Server Management Studio (SSMS)
-1. Aprire SSMS e connettersi al server
-2. Aprire lo script `SetupDatabase.sql`
-3. Modificare la prima riga `USE [DocN]` con il nome del database desiderato
-4. Eseguire lo script (F5)
+### Step 4: Verificare la Connessione
 
-### ⚠️ Nota sulla Sicurezza
-Quando si utilizzano gli script helper PowerShell o Bash con autenticazione SQL, la password viene passata come parametro da riga di comando. In ambienti di produzione, considerare l'uso di:
-- Windows Authentication (opzione `-w` o `-UseWindowsAuth`)
-- Variabili d'ambiente per le credenziali
-- File di configurazione sicuri
-- Azure AD Authentication
+```bash
+cd src/DocN.Server
+dotnet run
+```
 
-## ⚙️ Prerequisiti
+Controlla i log per confermare la connessione al database.
 
-1. **SQL Server 2019 o superiore** (raccomandato SQL Server 2022/2025)
-2. **Full-Text Search** deve essere installato:
-   - Durante l'installazione di SQL Server, selezionare la funzionalità
-   - "Full-Text and Semantic Extractions for Search"
-3. **Database esistente** dove eseguire gli script
-4. **Permessi appropriati**:
-   - CREATE TABLE
-   - CREATE FULLTEXT CATALOG
-   - CREATE FULLTEXT INDEX
+## Esempi di Utilizzo
 
-## 🔍 Verifica Installazione Full-Text
-
-Per verificare se Full-Text Search è installato:
+### Ricerca Ibrida
 
 ```sql
-SELECT FULLTEXTSERVICEPROPERTY('IsFullTextInstalled');
--- Risultato: 1 = Installato, 0 = Non installato
+DECLARE @QueryVector VECTOR(768) = ... -- Vector from embedding service
+
+EXEC [dbo].[sp_HybridDocumentSearch]
+    @QueryEmbedding = @QueryVector,
+    @QueryText = N'contratti di vendita',
+    @CategoryId = 1, -- Contratti
+    @TopN = 10,
+    @MinSimilarity = 0.7,
+    @UseVectorSearch = 1,
+    @UseFullTextSearch = 1;
 ```
 
-## 📊 Query di Esempio
+### Trova Documenti Simili
 
-### Ricerca Full-Text nei Documenti
 ```sql
--- Ricerca semplice
-SELECT DocumentId, Title, FileName
-FROM Documents
-WHERE CONTAINS(ExtractedText, 'parola chiave');
-
--- Ricerca con ranking
-SELECT DocumentId, Title, RANK
-FROM Documents
-INNER JOIN CONTAINSTABLE(Documents, ExtractedText, 'parola chiave') AS FT
-    ON Documents.DocumentId = FT.[KEY]
-ORDER BY RANK DESC;
-
--- Ricerca su più colonne
-SELECT DocumentId, Title, FileName, Description
-FROM Documents
-WHERE CONTAINS((Title, ExtractedText, Description), 'parola chiave');
+EXEC [dbo].[sp_FindSimilarDocuments]
+    @DocumentId = 42,
+    @TopN = 5,
+    @MinSimilarity = 0.75;
 ```
 
-### Verifica Stato Indice Full-Text
+### Ricerca Chunk Semantica (per RAG)
+
 ```sql
--- Verifica popolamento indice
-SELECT 
-    OBJECT_NAME(object_id) AS TableName,
-    FULLTEXTCATALOGPROPERTY('DocumentCatalog', 'PopulateStatus') AS PopulateStatus,
-    FULLTEXTCATALOGPROPERTY('DocumentCatalog', 'ItemCount') AS ItemCount
-FROM sys.fulltext_indexes
-WHERE object_id = OBJECT_ID('Documents');
+DECLARE @QueryVector VECTOR(768) = ... -- Vector della query utente
 
--- 0 = Inattivo, 1 = Popolamento in corso, altri valori = Completo
+EXEC [dbo].[sp_SemanticChunkSearch]
+    @QueryEmbedding = @QueryVector,
+    @CategoryId = NULL, -- Tutte le categorie
+    @TopN = 20,
+    @MinSimilarity = 0.7;
 ```
 
-## 🏗️ Struttura Tabella Documents
+### Statistiche Dashboard
 
-### Campi Principali
-- **DocumentId**: Chiave primaria (INT IDENTITY) - ottimizzata per full-text
-- **FileName**: Nome file sul server
-- **OriginalFileName**: Nome file originale dell'utente
-- **FilePath**: Percorso file sul server
-- **FileSize**: Dimensione in bytes
-- **MimeType**: Tipo MIME del file
-- **FileHash**: Hash SHA-256 per rilevamento duplicati
+```sql
+SELECT * FROM [dbo].[fn_GetDocumentStatistics]();
+```
 
-### Campi per Ricerca
-- **ExtractedText**: Testo estratto dal documento (NVARCHAR(MAX))
-- **Title**: Titolo documento (NVARCHAR(500))
-- **Description**: Descrizione (NVARCHAR(MAX))
-- **Category**: Categoria suggerita da AI (NVARCHAR(100))
-- **Keywords**: Parole chiave (NVARCHAR(500))
+## Performance Tips
 
-### Campi AI/Embedding
-- **TextEmbedding**: Vettore embedding (VARBINARY(MAX))
-- **EmbeddingModel**: Modello utilizzato (es. "text-embedding-ada-002")
+1. **Indexes Vettoriali**: In produzione, abilita gli indici vettoriali commentati nello script
+2. **Full-Text Catalog**: Pianifica rebuild periodici per mantenere performance
+3. **Partition**: Considera partizionamento per tabelle con milioni di documenti
+4. **Memory**: Assicura memoria sufficiente per operazioni vettoriali (almeno 16GB RAM)
+5. **Connection Pooling**: Già abilitato di default in EF Core
 
-### Metadati
-- **UploadedBy**: ID utente che ha caricato
-- **UploadedDate**: Data caricamento
-- **ModifiedBy**: ID utente ultima modifica
-- **ModifiedDate**: Data ultima modifica
-- **IsActive**: Flag attivo/disattivo
-- **IsPublic**: Flag pubblico/privato
+## Backup e Manutenzione
 
-## 🔒 Sicurezza
+```sql
+-- Backup completo
+BACKUP DATABASE [DocN] TO DISK = N'C:\Backup\DocN_Full.bak' WITH INIT;
 
-- Tutte le tabelle utilizzano **foreign keys** con integrità referenziale
-- Le cancellazioni utilizzano **CASCADE** dove appropriato
-- Gli indici sono ottimizzati per le query più comuni
-- I campi sensibili utilizzano **NVARCHAR(MAX)** per supportare Unicode
+-- Rebuild Full-Text Index
+ALTER FULLTEXT CATALOG [DocNFullTextCatalog] REBUILD;
 
-## 📝 Note
+-- Update Statistics
+EXEC sp_updatestats;
 
-1. Gli script sono **idempotenti**: possono essere eseguiti più volte senza errori
-2. Se una tabella esiste già, viene saltata (non sovrascritta)
-3. L'indice full-text viene ricreato se esiste già (per riconfigurazione)
-4. Tutti i messaggi di output utilizzano caratteri Unicode (✓, ✗, ⏳, 📋, etc.)
+-- Check Vector Index Health (se abilitato)
+-- DBCC SHOW_STATISTICS('Documents', 'IX_Documents_Embedding_Vector');
+```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Errore: Full-Text Search non installato
-**Soluzione**: Installare Full-Text Search tramite SQL Server Setup
+### Problema: VECTOR type non riconosciuto
+**Soluzione**: Assicurati di usare SQL Server 2025 o versione superiore
 
-### Errore: Chiave primaria non valida per full-text
-**Soluzione**: Verificare che la chiave primaria sia INT, BIGINT o UNIQUEIDENTIFIER (non NVARCHAR)
+### Problema: Timeout durante ricerca vettoriale
+**Soluzione**: Aumenta CommandTimeout in Program.cs e ottimizza query
 
-### Errore: Permessi insufficienti
-**Soluzione**: Eseguire come utente con privilegi `db_owner` o `sysadmin`
+### Problema: Full-text search non funziona
+**Soluzione**: Verifica che il Full-Text Service sia installato e avviato
 
-## 📚 Riferimenti
+```sql
+-- Verifica Full-Text Service
+SELECT SERVERPROPERTY('IsFullTextInstalled');
+```
 
-- [SQL Server Full-Text Search](https://learn.microsoft.com/en-us/sql/relational-databases/search/full-text-search)
-- [CREATE FULLTEXT INDEX](https://learn.microsoft.com/en-us/sql/t-sql/statements/create-fulltext-index-transact-sql)
-- [ASP.NET Core Identity](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity)
+### Problema: Connessione fallita
+**Soluzione**: Controlla:
+- SQL Server è in esecuzione
+- Porta 1433 è aperta
+- Credenziali sono corrette
+- TrustServerCertificate=True per certificati self-signed
 
-## 📧 Supporto
+## Security Best Practices
 
-Per problemi o domande, aprire un issue nel repository GitHub.
+1. **Mai mettere password in appsettings.json** - Usa User Secrets o Azure Key Vault
+2. **Usa sempre SSL/TLS** per connessioni di produzione
+3. **Limita permessi** - Crea un utente database specifico con privilegi minimi
+4. **Enable auditing** - Usa la tabella AuditLogs per tracciare accessi
+
+```bash
+# Setup User Secrets (development)
+cd src/DocN.Server
+dotnet user-secrets init
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=...;Database=DocN;..."
+```
