@@ -1,0 +1,170 @@
+@page "/"
+@using MudBlazor
+
+<PageTitle>Dashboard - DocN</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h3" Class="mb-4">📊 Dashboard</MudText>
+    
+    <MudGrid>
+        <!-- Statistics Cards -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6" Color="Color.Primary">Documenti Totali</MudText>
+                    <MudText Typo="Typo.h3">@totalDocuments</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6" Color="Color.Success">Caricati Oggi</MudText>
+                    <MudText Typo="Typo.h3">@uploadedToday</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6" Color="Color.Info">Conversazioni</MudText>
+                    <MudText Typo="Typo.h3">@totalConversations</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6" Color="Color.Warning">Categorie</MudText>
+                    <MudText Typo="Typo.h3">@totalCategories</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <!-- Quick Actions -->
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">🚀 Azioni Rapide</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudStack Spacing="2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" 
+                                   StartIcon="@Icons.Material.Filled.Upload" Href="/documents/upload">
+                            Carica Documento
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" FullWidth="true" 
+                                   StartIcon="@Icons.Material.Filled.Search" Href="/search">
+                            Ricerca Avanzata
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Info" FullWidth="true" 
+                                   StartIcon="@Icons.Material.Filled.Chat" Href="/chat">
+                            Nuova Conversazione
+                        </MudButton>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <!-- Recent Documents -->
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">📄 Documenti Recenti</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList Dense="true">
+                        @foreach (var doc in recentDocuments)
+                        {
+                            <MudListItem Icon="@Icons.Material.Filled.Description" 
+                                         Href="@($"/documents/{doc.Id}")">
+                                <MudText Typo="Typo.body2">@doc.Name</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@doc.UploadedAt</MudText>
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <!-- Categories Distribution -->
+        <MudItem xs="12">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">📊 Distribuzione per Categoria</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudGrid>
+                        @foreach (var category in categoryStats)
+                        {
+                            <MudItem xs="12" sm="6" md="4" lg="3">
+                                <MudPaper Elevation="1" Class="pa-3">
+                                    <MudText Typo="Typo.body1">@category.Name</MudText>
+                                    <MudText Typo="Typo.h5" Color="Color.Primary">@category.Count</MudText>
+                                    <MudProgressLinear Color="Color.Primary" Value="@category.Percentage" />
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private int totalDocuments = 0;
+    private int uploadedToday = 0;
+    private int totalConversations = 0;
+    private int totalCategories = 9;
+    
+    private List<RecentDocument> recentDocuments = new();
+    private List<CategoryStat> categoryStats = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        // TODO: Load data from API
+        // Placeholder data for now
+        totalDocuments = 0;
+        uploadedToday = 0;
+        totalConversations = 0;
+        
+        recentDocuments = new List<RecentDocument>();
+        
+        categoryStats = new List<CategoryStat>
+        {
+            new CategoryStat { Name = "Contratti", Count = 0, Percentage = 0 },
+            new CategoryStat { Name = "Fatture", Count = 0, Percentage = 0 },
+            new CategoryStat { Name = "Report", Count = 0, Percentage = 0 },
+            new CategoryStat { Name = "Manuali", Count = 0, Percentage = 0 },
+            new CategoryStat { Name = "Policy", Count = 0, Percentage = 0 },
+            new CategoryStat { Name = "Corrispondenza", Count = 0, Percentage = 0 },
+            new CategoryStat { Name = "Legale", Count = 0, Percentage = 0 },
+            new CategoryStat { Name = "HR", Count = 0, Percentage = 0 },
+            new CategoryStat { Name = "Altro", Count = 0, Percentage = 0 }
+        };
+    }
+    
+    private class RecentDocument
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string UploadedAt { get; set; } = "";
+    }
+    
+    private class CategoryStat
+    {
+        public string Name { get; set; } = "";
+        public int Count { get; set; }
+        public double Percentage { get; set; }
+    }
+}
