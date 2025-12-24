@@ -330,7 +330,6 @@ try
     }).RequireAuthorization();
 
     // Map Razor components
-    app.MapStaticAssets();
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();
 
