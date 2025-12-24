@@ -13,6 +13,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<Document> Documents { get; set; }
+    public DbSet<DocumentChunk> DocumentChunks { get; set; }
     public DbSet<DocumentShare> DocumentShares { get; set; }
     public DbSet<DocumentTag> DocumentTags { get; set; }
     public DbSet<AIConfiguration> AIConfigurations { get; set; }
@@ -150,6 +151,36 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // Indici per performance
             entity.HasIndex(e => e.ConversationId);
             entity.HasIndex(e => e.Timestamp);
+        });
+
+        // DocumentChunk configuration
+        modelBuilder.Entity<DocumentChunk>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ChunkText).IsRequired();
+            
+            // Configure vector column for chunk embeddings
+            var converter = new ValueConverter<float[]?, string?>(
+                v => v == null ? null : string.Join(",", v.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))),
+                v => v == null ? null : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture))
+                    .ToArray()
+            );
+            
+            entity.Property(e => e.ChunkEmbedding)
+                .HasColumnType("nvarchar(max)")  // Temporarily use nvarchar(max) until database supports VECTOR
+                .HasConversion(converter)
+                .IsRequired(false);
+            
+            // Relationship with Document
+            entity.HasOne(e => e.Document)
+                .WithMany()
+                .HasForeignKey(e => e.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.DocumentId);
+            entity.HasIndex(e => new { e.DocumentId, e.ChunkIndex });
         });
     }
 }

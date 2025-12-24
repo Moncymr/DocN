@@ -15,12 +15,14 @@ public interface IEmbeddingService
 public class EmbeddingService : IEmbeddingService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICacheService? _cacheService;
     private EmbeddingClient? _client;
     private bool _initialized = false;
 
-    public EmbeddingService(ApplicationDbContext context)
+    public EmbeddingService(ApplicationDbContext context, ICacheService? cacheService = null)
     {
         _context = context;
+        _cacheService = cacheService;
     }
 
     private void EnsureInitialized()
@@ -54,10 +56,26 @@ public class EmbeddingService : IEmbeddingService
         if (_client == null)
             return null;
 
+        // Check cache first if available
+        if (_cacheService != null)
+        {
+            var cachedEmbedding = await _cacheService.GetCachedEmbeddingAsync(text);
+            if (cachedEmbedding != null)
+                return cachedEmbedding;
+        }
+
         try
         {
             var response = await _client.GenerateEmbeddingAsync(text);
-            return response.Value.ToFloats().ToArray();
+            var embedding = response.Value.ToFloats().ToArray();
+            
+            // Cache the result if caching is available
+            if (_cacheService != null && embedding != null)
+            {
+                await _cacheService.SetCachedEmbeddingAsync(text, embedding);
+            }
+            
+            return embedding;
         }
         catch
         {
