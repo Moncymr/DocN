@@ -123,7 +123,9 @@
                             <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Small" Class="mr-2" />
                             Seleziona File
                         </MudText>
-                        <MudFileUpload T="IBrowserFile" OnFilesChanged="OnFilesChanged" Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
+                        <MudFileUpload T="IBrowserFile" OnFilesChanged="OnFilesChanged" 
+                                       Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                                       MaximumFileCount="1">
                             <ButtonTemplate>
                                 <MudPaper Elevation="0" Class="d-flex align-center justify-center pa-6 cursor-pointer mud-width-full"
                                           Style="background: linear-gradient(135deg, #7c4dff 0%, #9d6eff 100%); border-radius: 16px; min-height: 300px; box-shadow: 0 8px 24px rgba(124, 77, 255, 0.25); transition: all 0.3s ease; position: relative; overflow: hidden;">
@@ -358,6 +360,19 @@
     private void OnFilesChanged(InputFileChangeEventArgs e)
     {
         selectedFile = e.File;
+        
+        // Validate file size (50 MB limit)
+        const long maxFileSize = 50 * 1024 * 1024; // 50 MB in bytes
+        if (selectedFile != null && selectedFile.Size > maxFileSize)
+        {
+            uploadStatus = $"❌ File troppo grande. Dimensione massima: 50 MB";
+            selectedFile = null;
+        }
+        else
+        {
+            uploadStatus = "";
+        }
+        
         StateHasChanged();
     }
     
@@ -371,6 +386,8 @@
         
         try
         {
+            // TODO: Implement actual upload logic with backend API
+            // This is placeholder logic for demonstration purposes
             await Task.Delay(1000);
             uploadStatus = "Estrazione testo...";
             StateHasChanged();
