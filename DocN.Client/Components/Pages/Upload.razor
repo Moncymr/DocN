@@ -36,7 +36,22 @@
         <EditForm Model="@uploadModel" OnValidSubmit="HandleUpload">
             <div class="form-section">
                 <h3>Select File</h3>
-                <InputFile OnChange="HandleFileSelection" class="file-input" accept="@GetAcceptedExtensions()" />
+                <div class="file-upload-wrapper">
+                    <label for="fileInput" class="file-upload-label">
+                        <span class="upload-icon">📁</span>
+                        <span class="upload-text">
+                            @if (selectedFile == null)
+                            {
+                                <span>Click here to select a file</span>
+                            }
+                            else
+                            {
+                                <span>Click to change file</span>
+                            }
+                        </span>
+                    </label>
+                    <InputFile id="fileInput" OnChange="HandleFileSelection" class="file-input-hidden" accept="@GetAcceptedExtensions()" />
+                </div>
                 
                 @if (selectedFile != null)
                 {
@@ -154,18 +169,48 @@
         font-size: 1.3rem;
     }
 
-    .file-input {
-        display: block;
+    .file-upload-wrapper {
+        position: relative;
+        margin-bottom: 1rem;
+    }
+
+    .file-input-hidden {
+        position: absolute;
+        width: 0.1px;
+        height: 0.1px;
+        opacity: 0;
+        overflow: hidden;
+        z-index: -1;
+    }
+
+    .file-upload-label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
         width: 100%;
-        padding: 1rem;
+        padding: 2rem;
         border: 2px dashed #667eea;
         border-radius: 5px;
         cursor: pointer;
         background: #f8f9fa;
+        transition: all 0.3s ease;
     }
 
-    .file-input:hover {
+    .file-upload-label:hover {
         background: #e9ecef;
+        border-color: #764ba2;
+        transform: translateY(-2px);
+    }
+
+    .upload-icon {
+        font-size: 2rem;
+    }
+
+    .upload-text {
+        font-size: 1.1rem;
+        color: #667eea;
+        font-weight: 600;
     }
 
     .file-info {
