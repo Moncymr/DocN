@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using System.IO
 @inject IWebHostEnvironment Environment
+@inject IConfiguration Configuration
 
 <PageTitle>Carica Documento - DocN</PageTitle>
 
@@ -83,7 +84,14 @@
     private bool isUploading = false;
     private string uploadMessage = string.Empty;
     private bool isSuccess = false;
-    private long maxFileSize = 1024 * 1024 * 50; // 50 MB
+    private long maxFileSize;
+
+    protected override void OnInitialized()
+    {
+        // Load max file size from configuration (default: 50 MB)
+        var maxFileSizeMB = Configuration.GetValue<int>("FileUpload:MaxFileSizeInMB", 50);
+        maxFileSize = maxFileSizeMB * 1024 * 1024;
+    }
 
     private void HandleFileSelected(InputFileChangeEventArgs e)
     {
@@ -108,7 +116,8 @@
 
         try
         {
-            var uploadPath = Path.Combine(Environment.ContentRootPath, "uploads");
+            var uploadFolder = Configuration.GetValue<string>("FileUpload:UploadPath") ?? "uploads";
+            var uploadPath = Path.Combine(Environment.ContentRootPath, uploadFolder);
             
             if (!Directory.Exists(uploadPath))
             {
@@ -131,8 +140,9 @@
                     }
 
                     // Generate unique filename to prevent overwriting
-                    var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-                    var uniqueFileName = $"{timestamp}_{sanitizedFileName}";
+                    var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+                    var uniqueId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                    var uniqueFileName = $"{timestamp}_{uniqueId}_{sanitizedFileName}";
                     var filePath = Path.Combine(uploadPath, uniqueFileName);
                     
                     await using var fileStream = new FileStream(filePath, FileMode.Create);
