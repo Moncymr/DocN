@@ -117,6 +117,35 @@
                 </select>
             </div>
 
+            <div class="form-section">
+                <h3>⚙️ Processing Options</h3>
+                <div class="processing-options">
+                    <label class="option-checkbox">
+                        <input type="checkbox" @bind="enableTextExtraction" />
+                        <span class="option-label">
+                            <span class="option-title">📝 Estrazione testo automatica</span>
+                            <span class="option-description">Extract text content from the document</span>
+                        </span>
+                    </label>
+                    
+                    <label class="option-checkbox">
+                        <input type="checkbox" @bind="enableAICategory" />
+                        <span class="option-label">
+                            <span class="option-title">🤖 Suggerisci categoria con AI</span>
+                            <span class="option-description">Let AI analyze and suggest a category</span>
+                        </span>
+                    </label>
+                    
+                    <label class="option-checkbox">
+                        <input type="checkbox" @bind="enableEmbeddings" />
+                        <span class="option-label">
+                            <span class="option-title">🧠 Genera embeddings (Gemini)</span>
+                            <span class="option-description">Generate vector embeddings for semantic search</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null)">
                     @if (isUploading)
@@ -411,6 +440,65 @@
         color: #721c24;
         border: 1px solid #f5c6cb;
     }
+
+    .processing-options {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .option-checkbox {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    .option-checkbox:hover {
+        border-color: #667eea;
+        background: #f8f9ff;
+        transform: translateX(4px);
+    }
+
+    .option-checkbox input[type="checkbox"] {
+        margin-top: 0.25rem;
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        accent-color: #667eea;
+    }
+
+    .option-label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        flex: 1;
+    }
+
+    .option-title {
+        font-weight: 600;
+        font-size: 1rem;
+        color: #333;
+    }
+
+    .option-description {
+        font-size: 0.875rem;
+        color: #666;
+    }
+
+    .option-checkbox:has(input:checked) {
+        border-color: #667eea;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+    }
+
+    .option-checkbox:has(input:checked) .option-title {
+        color: #667eea;
+    }
 </style>
 
 @code {
@@ -432,6 +520,11 @@
     private string? errorMessage;
     private string? successMessage;
     private string currentUserId = string.Empty;
+    
+    // Processing options
+    private bool enableTextExtraction = true;
+    private bool enableAICategory = true;
+    private bool enableEmbeddings = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -469,8 +562,11 @@
             return;
         }
 
-        // Analyze document with AI
-        await AnalyzeDocument();
+        // Analyze document with AI only if enabled
+        if (enableAICategory)
+        {
+            await AnalyzeDocument();
+        }
     }
 
     private async Task AnalyzeDocument()
@@ -535,23 +631,29 @@
                 await stream.CopyToAsync(fileStream);
             }
 
-            // Extract text for embedding (simplified)
+            // Extract text for embedding (only if enabled)
             string extractedText = "";
-            try
+            if (enableTextExtraction)
             {
-                using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-                using var reader = new StreamReader(stream);
-                extractedText = await reader.ReadToEndAsync();
+                try
+                {
+                    using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                    using var reader = new StreamReader(stream);
+                    extractedText = await reader.ReadToEndAsync();
+                }
+                catch { }
             }
-            catch { }
 
-            // Generate embedding using MultiProviderAIService
+            // Generate embedding using MultiProviderAIService (only if enabled)
             float[]? embedding = null;
-            try
+            if (enableEmbeddings && !string.IsNullOrEmpty(extractedText))
             {
-                embedding = await AIService.GenerateEmbeddingAsync(extractedText);
+                try
+                {
+                    embedding = await AIService.GenerateEmbeddingAsync(extractedText);
+                }
+                catch { }
             }
-            catch { }
 
             // Create document record
             var document = new Document
