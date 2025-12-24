@@ -140,8 +140,8 @@
                     }
 
                     // Generate unique filename to prevent overwriting
-                    var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
-                    var uniqueId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                    var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssffffff");
+                    var uniqueId = Guid.NewGuid().ToString("N")[..8];
                     var uniqueFileName = $"{timestamp}_{uniqueId}_{sanitizedFileName}";
                     var filePath = Path.Combine(uploadPath, uniqueFileName);
                     
