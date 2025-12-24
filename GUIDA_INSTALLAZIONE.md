@@ -129,6 +129,11 @@ Crea il file `DocN.Client/appsettings.json`:
 
 #### 🔑 Ottenere le Credenziali Azure OpenAI
 
+**📖 Per una guida completa e dettagliata sulla configurazione delle chiavi API, consulta:**
+**[CONFIGURAZIONE_API_KEYS.md](CONFIGURAZIONE_API_KEYS.md)**
+
+**Guida rapida:**
+
 1. Vai su [Azure Portal](https://portal.azure.com)
 2. Crea una risorsa "Azure OpenAI"
 3. Vai su "Keys and Endpoint"

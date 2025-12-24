@@ -18,24 +18,13 @@ DocN è una soluzione web modulare basata su .NET e Blazor, progettata per l’a
   - Interfacce AI (.cs dedicati)
 - Integrazione chatbot AI.
 
-## Setup Database
+## 📚 Documentazione
 
-Gli script SQL per creare il database con supporto Full-Text Search sono disponibili nella directory `Database/`.
-
-Per informazioni dettagliate sulla configurazione e sulla risoluzione dell'errore Full-Text Index, consultare:
-- [Database/README.md](Database/README.md) - Documentazione completa degli script
-- [Database/SOLUTION_EXPLAINED.md](Database/SOLUTION_EXPLAINED.md) - Spiegazione dettagliata della soluzione al problema Full-Text Index
-
-### Esecuzione rapida
-```bash
-# Windows PowerShell
-cd Database
-.\RunSetup.ps1 -ServerName "localhost" -DatabaseName "DocN" -UseWindowsAuth
-
-# Linux/macOS
-cd Database
-./run_setup.sh -s localhost -d DocN -u sa -p 'YourPassword'
-```
+- **🚀 [Riferimento Rapido API Keys](QUICK_REFERENCE_API_KEYS.md)** - Guida rapida (5 minuti) per configurare le chiavi API
+- **🔑 [Configurazione Chiavi API](CONFIGURAZIONE_API_KEYS.md)** - Guida completa su dove configurare le chiavi API per embedding, chat e RAG
+- **⚙️ [Setup e Configurazione](SETUP.md)** - Installazione e configurazione generale
+- **📖 [Guida Installazione](GUIDA_INSTALLAZIONE.md)** - Guida passo-passo per l'installazione
+- **🔧 [Dettagli Implementazione](IMPLEMENTATION.md)** - Dettagli tecnici completi
 
 ## Note iniziali
 Il sistema è ora completamente implementato e funzionante. Per dettagli tecnici completi, vedere [IMPLEMENTATION.md](IMPLEMENTATION.md).
