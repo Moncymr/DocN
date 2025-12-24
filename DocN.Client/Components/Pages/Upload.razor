@@ -37,16 +37,18 @@
             <div class="form-section">
                 <h3>Select File</h3>
                 <div class="file-upload-wrapper">
-                    <label for="fileInput" class="file-upload-label">
-                        <span class="upload-icon">📁</span>
-                        <span class="upload-text">
+                    <label for="fileInput" class="file-upload-button">
+                        <span class="upload-icon-large">📤</span>
+                        <span class="upload-content">
                             @if (selectedFile == null)
                             {
-                                <span>Click here to select a file</span>
+                                <span class="upload-title">Choose a file to upload</span>
+                                <span class="upload-subtitle">Click here or drag and drop</span>
                             }
                             else
                             {
-                                <span>Click to change file</span>
+                                <span class="upload-title">File selected - Click to change</span>
+                                <span class="upload-subtitle">@selectedFile.Name</span>
                             }
                         </span>
                     </label>
@@ -184,34 +186,75 @@
         clip-path: inset(50%);
     }
 
-    .file-upload-label {
+    .file-upload-button {
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         gap: 1rem;
         width: 100%;
+        min-height: 200px;
         padding: 2rem;
-        border: 2px dashed #667eea;
-        border-radius: 5px;
+        border: 3px solid #667eea;
+        border-radius: 12px;
         cursor: pointer;
-        background: #f8f9fa;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
     }
 
-    .file-upload-label:hover {
-        background: #e9ecef;
+    .file-upload-button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+        pointer-events: none;
+    }
+
+    .file-upload-button:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
         border-color: #764ba2;
+    }
+
+    .file-upload-button:active {
         transform: translateY(-2px);
     }
 
-    .upload-icon {
-        font-size: 2rem;
+    .upload-icon-large {
+        font-size: 4rem;
+        animation: float 3s ease-in-out infinite;
     }
 
-    .upload-text {
-        font-size: 1.1rem;
-        color: #667eea;
-        font-weight: 600;
+    @@keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+
+    .upload-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        z-index: 1;
+    }
+
+    .upload-title {
+        font-size: 1.5rem;
+        color: white;
+        font-weight: 700;
+        text-align: center;
+    }
+
+    .upload-subtitle {
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.9);
+        text-align: center;
     }
 
     .file-info {
