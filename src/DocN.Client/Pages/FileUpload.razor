@@ -1,6 +1,7 @@
 @page "/upload"
 @page "/fileupload"
 @using MudBlazor
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>Carica File - DocN</PageTitle>
 
@@ -122,10 +123,11 @@
                             <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Small" Class="mr-2" />
                             Seleziona File
                         </MudText>
-                        <MudFileUpload T="IBrowserFile" FilesChanged="OnFilesChanged" Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
-                            <ActivatorContent>
-                                <div class="upload-dropzone">
-                                    <MudStack AlignItems="AlignItems.Center" Spacing="3" Class="upload-icon-container pa-6">
+                        <MudFileUpload T="IBrowserFile" OnFilesChanged="OnFilesChanged" Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
+                            <ButtonTemplate>
+                                <MudPaper Elevation="0" Class="d-flex align-center justify-center pa-6 cursor-pointer mud-width-full"
+                                          Style="background: linear-gradient(135deg, #7c4dff 0%, #9d6eff 100%); border-radius: 16px; min-height: 300px; box-shadow: 0 8px 24px rgba(124, 77, 255, 0.25); transition: all 0.3s ease; position: relative; overflow: hidden;">
+                                    <MudStack AlignItems="AlignItems.Center" Spacing="3" Class="upload-icon-container">
                                         <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
                                                  Style="font-size: 5rem; color: white; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));" />
                                         <MudText Typo="Typo.h4" Style="color: white; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -148,8 +150,8 @@
                                             </MudChip>
                                         }
                                     </MudStack>
-                                </div>
-                            </ActivatorContent>
+                                </MudPaper>
+                            </ButtonTemplate>
                         </MudFileUpload>
                     </MudItem>
                     
@@ -353,9 +355,9 @@
     private bool isUploading = false;
     private string uploadStatus = "";
     
-    private void OnFilesChanged(IBrowserFile file)
+    private void OnFilesChanged(InputFileChangeEventArgs e)
     {
-        selectedFile = file;
+        selectedFile = e.File;
         StateHasChanged();
     }
     
