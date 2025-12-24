@@ -119,12 +119,26 @@
             {
                 try
                 {
-                    var filePath = Path.Combine(uploadPath, file.Name);
+                    // Sanitize filename to prevent path traversal attacks
+                    var sanitizedFileName = Path.GetFileName(file.Name);
+                    if (string.IsNullOrWhiteSpace(sanitizedFileName))
+                    {
+                        uploadMessage = $"Nome file non valido: {file.Name}";
+                        isSuccess = false;
+                        isUploading = false;
+                        StateHasChanged();
+                        return;
+                    }
+
+                    // Generate unique filename to prevent overwriting
+                    var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                    var uniqueFileName = $"{timestamp}_{sanitizedFileName}";
+                    var filePath = Path.Combine(uploadPath, uniqueFileName);
                     
                     await using var fileStream = new FileStream(filePath, FileMode.Create);
                     await file.OpenReadStream(maxFileSize).CopyToAsync(fileStream);
                     
-                    uploadedFiles.Add(file.Name);
+                    uploadedFiles.Add(sanitizedFileName);
                 }
                 catch (Exception ex)
                 {
