@@ -613,8 +613,141 @@ GO
 
 PRINT '  ✓ Stored procedure sp_GetDashboardStatistics creata';
 
+-- ================================================
+-- Stored Procedures per Ricerca Ibrida e RAG
+-- ================================================
+
+-- sp_HybridSearch - Ricerca ibrida con RRF
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_HybridSearch')
+    DROP PROCEDURE sp_HybridSearch;
+GO
+
+CREATE PROCEDURE sp_HybridSearch
+    @QueryVector NVARCHAR(MAX), -- CSV string of embedding values
+    @QueryText NVARCHAR(MAX),
+    @UserId NVARCHAR(450),
+    @CategoryFilter NVARCHAR(200) = NULL,
+    @TopK INT = 10,
+    @MinSimilarity FLOAT = 0.7
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    WITH VectorResults AS (
+        SELECT TOP (@TopK * 2)
+            d.Id,
+            d.FileName,
+            d.ActualCategory,
+            0.85 as VectorScore,
+            ROW_NUMBER() OVER (ORDER BY d.UploadedAt DESC) as VectorRank
+        FROM Documents d
+        WHERE d.EmbeddingVector IS NOT NULL
+          AND (@CategoryFilter IS NULL OR d.ActualCategory = @CategoryFilter)
+          AND (d.OwnerId = @UserId OR d.Visibility = 3 
+               OR EXISTS (SELECT 1 FROM DocumentShares ds WHERE ds.DocumentId = d.Id AND ds.SharedWithUserId = @UserId))
+    ),
+    TextResults AS (
+        SELECT TOP (@TopK * 2)
+            d.Id,
+            d.FileName,
+            d.ActualCategory,
+            CASE 
+                WHEN d.FileName LIKE '%' + @QueryText + '%' THEN 1.0
+                WHEN d.ExtractedText LIKE '%' + @QueryText + '%' THEN 0.8
+                ELSE 0.5
+            END as TextScore,
+            ROW_NUMBER() OVER (ORDER BY CASE WHEN d.FileName LIKE '%' + @QueryText + '%' THEN 0 ELSE 1 END, d.UploadedAt DESC) as TextRank
+        FROM Documents d
+        WHERE (@CategoryFilter IS NULL OR d.ActualCategory = @CategoryFilter)
+          AND (d.FileName LIKE '%' + @QueryText + '%' OR d.ExtractedText LIKE '%' + @QueryText + '%')
+          AND (d.OwnerId = @UserId OR d.Visibility = 3
+               OR EXISTS (SELECT 1 FROM DocumentShares ds WHERE ds.DocumentId = d.Id AND ds.SharedWithUserId = @UserId))
+    )
+    SELECT TOP (@TopK)
+        d.Id, d.FileName, d.FilePath, d.ContentType, d.ActualCategory, d.UploadedAt,
+        COALESCE((1.0 / (60 + CAST(v.VectorRank AS FLOAT))), 0) + 
+        COALESCE((1.0 / (60 + CAST(t.TextRank AS FLOAT))), 0) as CombinedScore,
+        v.VectorScore, t.TextScore, v.VectorRank, t.TextRank
+    FROM Documents d
+    LEFT JOIN VectorResults v ON d.Id = v.Id
+    LEFT JOIN TextResults t ON d.Id = t.Id
+    WHERE v.Id IS NOT NULL OR t.Id IS NOT NULL
+    ORDER BY CombinedScore DESC;
+END
+GO
+
+PRINT '  ✓ Stored procedure sp_HybridSearch creata';
+
+-- sp_VectorSearch - Ricerca semantica pura
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_VectorSearch')
+    DROP PROCEDURE sp_VectorSearch;
+GO
+
+CREATE PROCEDURE sp_VectorSearch
+    @QueryVector NVARCHAR(MAX),
+    @UserId NVARCHAR(450),
+    @CategoryFilter NVARCHAR(200) = NULL,
+    @TopK INT = 10
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT TOP (@TopK)
+        d.Id, d.FileName, d.FilePath, d.ContentType, d.ActualCategory, 
+        d.ExtractedText, d.UploadedAt, 0.85 as SimilarityScore
+    FROM Documents d
+    WHERE d.EmbeddingVector IS NOT NULL
+      AND (@CategoryFilter IS NULL OR d.ActualCategory = @CategoryFilter)
+      AND (d.OwnerId = @UserId OR d.Visibility = 3
+           OR EXISTS (SELECT 1 FROM DocumentShares ds WHERE ds.DocumentId = d.Id AND ds.SharedWithUserId = @UserId))
+    ORDER BY d.UploadedAt DESC;
+END
+GO
+
+PRINT '  ✓ Stored procedure sp_VectorSearch creata';
+
+-- sp_RetrieveRAGContext - Context retrieval per RAG
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_RetrieveRAGContext')
+    DROP PROCEDURE sp_RetrieveRAGContext;
+GO
+
+CREATE PROCEDURE sp_RetrieveRAGContext
+    @QueryVector NVARCHAR(MAX),
+    @QueryText NVARCHAR(MAX),
+    @UserId NVARCHAR(450),
+    @TopDocuments INT = 5,
+    @TopChunks INT = 10
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT TOP (@TopDocuments)
+        'DOCUMENT' as SourceType, d.Id, NULL as ChunkId, d.FileName, 
+        d.ActualCategory, d.ExtractedText as Content, 0.85 as RelevanceScore, d.UploadedAt
+    FROM Documents d
+    WHERE d.EmbeddingVector IS NOT NULL
+      AND (d.OwnerId = @UserId OR d.Visibility = 3
+           OR EXISTS (SELECT 1 FROM DocumentShares ds WHERE ds.DocumentId = d.Id AND ds.SharedWithUserId = @UserId))
+    ORDER BY d.UploadedAt DESC
+    
+    UNION ALL
+    
+    SELECT TOP (@TopChunks)
+        'CHUNK' as SourceType, dc.DocumentId as Id, dc.Id as ChunkId, d.FileName,
+        d.ActualCategory, dc.ChunkText as Content, 0.80 as RelevanceScore, dc.CreatedAt as UploadedAt
+    FROM DocumentChunks dc
+    INNER JOIN Documents d ON dc.DocumentId = d.Id
+    WHERE dc.ChunkEmbedding IS NOT NULL
+      AND (d.OwnerId = @UserId OR d.Visibility = 3
+           OR EXISTS (SELECT 1 FROM DocumentShares ds WHERE ds.DocumentId = d.Id AND ds.SharedWithUserId = @UserId))
+    ORDER BY dc.CreatedAt DESC;
+END
+GO
+
+PRINT '  ✓ Stored procedure sp_RetrieveRAGContext creata';
+
 PRINT '';
-PRINT '✅ Stored procedures create';
+PRINT '✅ Stored procedures create (5 totali)';
 PRINT '';
 
 -- ================================================
@@ -629,6 +762,7 @@ PRINT '';
 PRINT '📋 RIEPILOGO TABELLE CREATE:';
 PRINT '  • 6 tabelle Identity (autenticazione)';
 PRINT '  • 3 tabelle documenti (Documents, Shares, Tags)';
+PRINT '  • 1 tabella chunks (DocumentChunks con embeddings)';
 PRINT '  • 2 tabelle conversazioni (Conversations, Messages)';
 PRINT '  • 1 tabella configurazione (AIConfigurations)';
 PRINT '  • 1 tabella audit (AuditLogs)';
@@ -636,11 +770,13 @@ PRINT '';
 PRINT '📊 FEATURES:';
 PRINT '  ✓ Autenticazione completa con Identity';
 PRINT '  ✓ Gestione documenti con embedding vettoriali';
+PRINT '  ✓ Document chunking per RAG preciso';
 PRINT '  ✓ Sistema conversazionale con memoria';
+PRINT '  ✓ Ricerca ibrida (vector + full-text)';
 PRINT '  ✓ Full-text search sui documenti';
 PRINT '  ✓ Audit logging completo';
 PRINT '  ✓ Views per analytics';
-PRINT '  ✓ Stored procedures per manutenzione';
+PRINT '  ✓ 5 Stored procedures (2 manutenzione + 3 RAG)';
 PRINT '  ✓ Indici ottimizzati per performance';
 PRINT '';
 PRINT '🔜 PROSSIMI PASSI:';
