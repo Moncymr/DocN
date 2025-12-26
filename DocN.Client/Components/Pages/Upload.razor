@@ -734,10 +734,10 @@
                 StateHasChanged();
                 await Task.Delay(UI_UPDATE_DELAY_MS);
 
-                using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-                
                 try
                 {
+                    using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                    
                     // Use FileProcessingService for proper multi-format text extraction
                     var processingResult = await FileProcessingService.ProcessFileAsync(
                         stream, 
@@ -751,17 +751,35 @@
                     else
                     {
                         // Fallback to simple text reading if processing fails
-                        stream.Position = 0;
-                        using var reader = new StreamReader(stream);
-                        extractedText = await reader.ReadToEndAsync();
+                        if (stream.CanSeek)
+                        {
+                            stream.Position = 0;
+                            using var reader = new StreamReader(stream);
+                            extractedText = await reader.ReadToEndAsync();
+                        }
+                        else
+                        {
+                            // If stream is not seekable, reopen it
+                            using var fallbackStream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                            using var fallbackReader = new StreamReader(fallbackStream);
+                            extractedText = await fallbackReader.ReadToEndAsync();
+                        }
                     }
                 }
                 catch (Exception)
                 {
-                    // Fallback to simple text reading
-                    stream.Position = 0;
-                    using var reader = new StreamReader(stream);
-                    extractedText = await reader.ReadToEndAsync();
+                    // Fallback to simple text reading on any error
+                    try
+                    {
+                        using var fallbackStream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                        using var fallbackReader = new StreamReader(fallbackStream);
+                        extractedText = await fallbackReader.ReadToEndAsync();
+                    }
+                    catch
+                    {
+                        // If all else fails, set empty string
+                        extractedText = string.Empty;
+                    }
                 }
             }
 
