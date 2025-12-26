@@ -1,6 +1,7 @@
 # 📋 Cosa Devi Impostare per il Corretto Funzionamento di DocN
 
-Questa è la risposta completa alla domanda: **"scrivi tutto quello che devo impostare per vere il correto funzionamanetoo"**
+Questa è la risposta completa alla domanda: **"scrivi tutto quello che devo impostare per vere il correto funzionamanetoo"**  
+*(tradotto: "scrivi tutto quello che devo impostare per avere il corretto funzionamento")*
 
 ---
 
