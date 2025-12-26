@@ -124,13 +124,11 @@
                             <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Small" Class="mr-2" />
                             Seleziona File
                         </MudText>
-                        <MudFileUpload T="IBrowserFile" 
-                                       OnFilesChanged="OnFilesChanged"
-                                       Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                                       MaximumFileCount="1"
-                                       Id="fileUploadInput"
-                                       Hidden="true">
-                        </MudFileUpload>
+                        <!-- Standard Blazor InputFile for direct control -->
+                        <InputFile @ref="fileInputElement"
+                                   OnChange="OnFilesChanged"
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                                   style="display: none;" />
                         <MudPaper Elevation="0" 
                                   Class="d-flex align-center justify-center pa-6 cursor-pointer mud-width-full"
                                   @onclick="TriggerFileInput"
@@ -360,13 +358,17 @@
     private bool generateEmbeddings = true;
     private bool isUploading = false;
     private string uploadStatus = "";
+    private InputFile? fileInputElement;
     
     private async Task TriggerFileInput()
     {
         try
         {
-            // Use dedicated JavaScript function instead of eval for security
-            await JSRuntime.InvokeVoidAsync("DocNFileUpload.triggerFileInput", "fileUploadInput");
+            // Use JavaScript to trigger the file input element
+            if (fileInputElement?.Element != null)
+            {
+                await JSRuntime.InvokeVoidAsync("DocNFileUpload.triggerFileInputElement", fileInputElement.Element);
+            }
         }
         catch (Exception ex)
         {

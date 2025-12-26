@@ -1,5 +1,6 @@
 // File upload helper functions
 window.DocNFileUpload = {
+    // Original function for ID-based lookup (kept for backwards compatibility)
     triggerFileInput: function (elementId) {
         try {
             // Validate elementId to prevent CSS injection
@@ -17,6 +18,22 @@ window.DocNFileUpload = {
             return false;
         } catch (error) {
             console.error('Error triggering file input:', error);
+            return false;
+        }
+    },
+    
+    // New function that accepts the element directly
+    triggerFileInputElement: function (element) {
+        try {
+            if (element && element.tagName === 'INPUT' && element.type === 'file') {
+                console.log('Triggering file input click');
+                element.click();
+                return true;
+            }
+            console.error('Invalid element provided - must be an input[type="file"]');
+            return false;
+        } catch (error) {
+            console.error('Error triggering file input element:', error);
             return false;
         }
     }
