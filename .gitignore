@@ -77,3 +77,27 @@ bld/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+
+# Configuration files with sensitive data
+appsettings.Development.json
+appsettings.Production.json
+appsettings.*.json
+!appsettings.json
+!appsettings.example.json
+!appsettings.Development.example.json
+!appsettings.semantic-kernel.json
+
+# Local database files
+*.db
+*.db-shm
+*.db-wal
+
+# Document uploads and storage
+**/Uploads/*
+**/DocumentArchive/*
+C:/DocNData/
+C:/ESEMPIO/
+
+# Logs
+logs/
+*.log

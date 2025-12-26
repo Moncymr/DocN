@@ -2,6 +2,15 @@
 
 DocN è una soluzione web modulare basata su .NET e Blazor, progettata per l'archiviazione intelligente e la consultazione di documenti, con ricerca semantica AI e integrazione multi-provider (Azure OpenAI, OpenAI, Google Gemini).
 
+## 🚀 Inizia Subito
+
+**📖 [Guida Configurazione Completa](CONFIGURAZIONE_COMPLETA.md)** - Tutto quello che devi impostare per il corretto funzionamento
+
+### Guide Rapide
+- 📘 [Setup Base](SETUP.md) - Installazione e configurazione generale
+- 🔑 [Configurazione API Keys](CONFIGURAZIONE_API_KEYS.md) - Setup chiavi API dettagliato
+- ⚡ [Quick Reference](QUICK_REFERENCE_API_KEYS.md) - Riferimento rapido configurazione
+
 ## Funzionalità principali
 - Archiviazione documenti e metadati in SQL Server 2025.
 - Estrazione automatica testo/metadati dai documenti caricati.
