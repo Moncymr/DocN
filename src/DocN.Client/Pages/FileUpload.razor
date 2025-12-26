@@ -128,7 +128,7 @@
                                        OnFilesChanged="OnFilesChanged"
                                        Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                                        MaximumFileCount="1"
-                                       id="fileUploadInput"
+                                       Id="fileUploadInput"
                                        Hidden="true">
                         </MudFileUpload>
                         <MudPaper Elevation="0" 
@@ -363,10 +363,18 @@
     
     private async Task TriggerFileInput()
     {
-        // Find the input element inside the MudFileUpload and click it
-        await JSRuntime.InvokeVoidAsync("eval", @"
-            document.querySelector('#fileUploadInput input[type=""file""]')?.click();
-        ");
+        try
+        {
+            // Use dedicated JavaScript function instead of eval for security
+            await JSRuntime.InvokeVoidAsync("DocNFileUpload.triggerFileInput", "fileUploadInput");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error triggering file input: {ex.Message}");
+            // Optionally show error to user
+            uploadStatus = "❌ Errore nell'apertura del selettore file";
+            StateHasChanged();
+        }
     }
     
     private void OnFilesChanged(InputFileChangeEventArgs e)
