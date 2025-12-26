@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 using DocN.Data.Models;
 using DocN.Core.Interfaces;
 using System.Text;
-using System.Runtime.CompilerServices;
 
 #pragma warning disable SKEXP0110 // Agents are experimental
 #pragma warning disable SKEXP0001 // Type is for evaluation purposes only
@@ -111,15 +110,9 @@ Always cite your sources using [Document N] format where N is the document numbe
                 "Generating RAG response for query: {Query}, User: {UserId}, Conversation: {ConvId}",
                 query, userId, conversationId);
 
-            // Check cache first
-            var cacheKey = $"rag:{userId}:{query}:{string.Join(",", specificDocumentIds ?? new List<int>())}";
-            var cachedResponse = await _cacheService.GetAsync<SemanticRAGResponse>(cacheKey);
-            if (cachedResponse != null)
-            {
-                _logger.LogInformation("Returning cached RAG response");
-                cachedResponse.FromCache = true;
-                return cachedResponse;
-            }
+            // Check cache first (disabled for now - use specific embedding cache if needed)
+            // var cacheKey = $"rag:{userId}:{query}:{string.Join(",", specificDocumentIds ?? new List<int>())}";
+            // Can add generic caching later if needed
 
             // Step 1: Vector-based document retrieval
             var relevantDocs = await SearchDocumentsAsync(query, userId, topK, 0.7);
@@ -172,8 +165,8 @@ Always cite your sources using [Document N] format where N is the document numbe
                 }
             };
 
-            // Cache the response for 5 minutes
-            await _cacheService.SetAsync(cacheKey, response, TimeSpan.FromMinutes(5));
+            // Cache disabled for now - can be added with generic caching service later
+            // await _cacheService.SetAsync(cacheKey, response, TimeSpan.FromMinutes(5));
 
             _logger.LogInformation(
                 "RAG response generated in {ElapsedMs}ms with {DocCount} documents",
@@ -197,8 +190,7 @@ Always cite your sources using [Document N] format where N is the document numbe
         string query,
         string userId,
         int? conversationId = null,
-        List<int>? specificDocumentIds = null,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        List<int>? specificDocumentIds = null)
     {
         _logger.LogInformation("Generating streaming RAG response for query: {Query}", query);
 
@@ -241,7 +233,7 @@ Always cite your sources using [Document N] format where N is the document numbe
         var fullAnswer = new StringBuilder();
 
         await foreach (var chunk in _chatService.GetStreamingChatMessageContentsAsync(
-            chatHistory, settings, _kernel, cancellationToken))
+            chatHistory, settings, _kernel))
         {
             if (!string.IsNullOrEmpty(chunk.Content))
             {
@@ -328,7 +320,7 @@ Always cite your sources using [Document N] format where N is the document numbe
                     FileName = chunk.Document.FileName,
                     Category = chunk.Document.ActualCategory,
                     SimilarityScore = score,
-                    RelevantChunk = chunk.Content,
+                    RelevantChunk = chunk.ChunkText,
                     ChunkIndex = chunk.ChunkIndex
                 });
             }

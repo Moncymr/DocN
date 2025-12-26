@@ -18,8 +18,12 @@
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.29.0" />
     <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.29.0-alpha" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.29.0" />
-    <PackageReference Include="Mscc.GenerativeAI" Version="1.6.0" />
+    <PackageReference Include="Mscc.GenerativeAI" Version="2.1.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DocN.Core\DocN.Core.csproj" />
   </ItemGroup>
 
 </Project>
