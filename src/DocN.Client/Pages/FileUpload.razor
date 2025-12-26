@@ -381,6 +381,15 @@
     
     private void OnFilesChanged(InputFileChangeEventArgs e)
     {
+        // Ensure only one file is selected
+        if (e.FileCount > 1)
+        {
+            uploadStatus = "❌ Seleziona solo un file alla volta";
+            selectedFile = null;
+            StateHasChanged();
+            return;
+        }
+        
         selectedFile = e.File;
         
         // Validate file size (50 MB limit)
