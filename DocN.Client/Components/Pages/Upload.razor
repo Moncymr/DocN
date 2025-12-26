@@ -69,57 +69,6 @@
                 }
             </div>
 
-            @* Show Processing Options and Analyze Button when file is selected *@
-            @if (selectedFile != null && !processingComplete)
-            {
-                <div class="form-section">
-                    <h3>⚙️ Opzioni di Elaborazione</h3>
-                    <div class="processing-options">
-                        <label class="option-checkbox">
-                            <input type="checkbox" @bind="enableTextExtraction" />
-                            <span class="option-label">
-                                <span class="option-title">📝 Estrazione testo automatica</span>
-                                <span class="option-description">Extract text content from the document</span>
-                            </span>
-                        </label>
-                        
-                        <label class="option-checkbox">
-                            <input type="checkbox" @bind="enableAICategory" />
-                            <span class="option-label">
-                                <span class="option-title">🤖 Suggerisci categoria con AI</span>
-                                <span class="option-description">Let AI analyze and suggest a category</span>
-                            </span>
-                        </label>
-                        
-                        <label class="option-checkbox">
-                            <input type="checkbox" @bind="enableEmbeddings" />
-                            <span class="option-label">
-                                <span class="option-title">🧠 Genera embeddings (Gemini)</span>
-                                <span class="option-description">Generate vector embeddings for semantic search</span>
-                            </span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="analyze-button-section">
-                    <div class="analyze-instruction">
-                        <h3 style="color: #48bb78; margin: 0 0 1rem 0; font-size: 1.3rem;">
-                            👇 Clicca qui per analizzare il documento 👇
-                        </h3>
-                    </div>
-                    <button type="button" class="btn btn-process btn-large" @onclick="ProcessDocument" disabled="@isProcessing">
-                        @if (isProcessing)
-                        {
-                            <span>⏳ Elaborazione in corso...</span>
-                        }
-                        else
-                        {
-                            <span>🔬 Analizza Documento</span>
-                        }
-                    </button>
-                </div>
-            }
-
             @if (isProcessing)
             {
                 <div class="analyzing-section">
@@ -185,50 +134,114 @@
                             </div>
                         </div>
                     }
-
-                    <div class="form-section">
-                        <label>
-                            <input type="checkbox" @bind="useCustomCategory" />
-                            Usa una categoria diversa
-                        </label>
-                        
-                        @if (useCustomCategory)
-                        {
-                            <input type="text" @bind="customCategory" class="form-control" placeholder="Inserisci categoria personalizzata" />
-                        }
-                    </div>
-                </div>
-
-                <div class="form-section">
-                    <h3>Visibilità Documento</h3>
-                    <select @bind="selectedVisibility" class="form-control">
-                        <option value="0">🔒 Privato - Solo tu puoi vedere questo documento</option>
-                        <option value="1">👥 Condiviso - Condividi con utenti specifici</option>
-                        <option value="2">🏢 Organizzazione - Tutti i membri dell'organizzazione</option>
-                        <option value="3">🌐 Pubblico - Tutti possono vedere</option>
-                    </select>
                 </div>
             }
 
-            @* Show final save/cancel buttons only after processing *@
-            @if (processingComplete)
+            @* Show Category and Visibility form fields *@
+            <div class="form-section">
+                <label class="form-label">
+                    📁 Categoria
+                </label>
+                @if (processingComplete && !string.IsNullOrEmpty(suggestedCategory) && !useCustomCategory)
+                {
+                    <input type="text" @bind="suggestedCategory" class="form-control" placeholder="Categoria suggerita da AI" />
+                    <label style="margin-top: 0.5rem;">
+                        <input type="checkbox" @bind="useCustomCategory" />
+                        Usa una categoria diversa
+                    </label>
+                }
+                @if (useCustomCategory || !processingComplete)
+                {
+                    <input type="text" @bind="customCategory" class="form-control" placeholder="Inserisci categoria" />
+                }
+            </div>
+
+            <div class="form-section">
+                <label class="form-label">
+                    👁️ Visibilità Documento
+                </label>
+                <select @bind="selectedVisibility" class="form-control">
+                    <option value="0">🔒 Privato - Solo tu puoi vedere questo documento</option>
+                    <option value="1">👥 Condiviso - Condividi con utenti specifici</option>
+                    <option value="2">🏢 Organizzazione - Tutti i membri dell'organizzazione</option>
+                    <option value="3">🌐 Pubblico - Tutti possono vedere</option>
+                </select>
+            </div>
+
+            <div class="form-section">
+                <label class="form-label">
+                    🏷️ Tag (separati da virgola)
+                </label>
+                <input type="text" @bind="documentTags" class="form-control" placeholder="es: contratto, legale, 2024" />
+            </div>
+
+            <div class="form-section">
+                <label class="form-label">
+                    📝 Note
+                </label>
+                <textarea @bind="documentNotes" class="form-control" rows="3" placeholder="Aggiungi note sul documento..."></textarea>
+            </div>
+
+            <div class="form-section">
+                <h3>⚙️ Opzioni di Elaborazione</h3>
+                <div class="processing-options">
+                    <label class="option-checkbox">
+                        <input type="checkbox" @bind="enableTextExtraction" />
+                        <span class="option-label">
+                            <span class="option-title">📝 Estrazione testo automatica</span>
+                            <span class="option-description">Extract text content from the document</span>
+                        </span>
+                    </label>
+                    
+                    <label class="option-checkbox">
+                        <input type="checkbox" @bind="enableAICategory" />
+                        <span class="option-label">
+                            <span class="option-title">🤖 Suggerisci categoria con AI</span>
+                            <span class="option-description">Let AI analyze and suggest a category</span>
+                        </span>
+                    </label>
+                    
+                    <label class="option-checkbox">
+                        <input type="checkbox" @bind="enableEmbeddings" />
+                        <span class="option-label">
+                            <span class="option-title">🧠 Genera embeddings (Gemini)</span>
+                            <span class="option-description">Generate vector embeddings for semantic search</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            @* Show Analyze Button when file is selected and not yet processed *@
+            @if (selectedFile != null && !processingComplete && !isProcessing)
             {
+                <div class="analyze-button-section">
+                    <div class="analyze-instruction">
+                        <h3 style="color: #48bb78; margin: 0 0 1rem 0; font-size: 1.3rem;">
+                            👇 Clicca qui per analizzare il documento 👇
+                        </h3>
+                    </div>
+                    <button type="button" class="btn btn-process btn-large" @onclick="ProcessDocument">
+                        <span>🔬 Analizza Documento</span>
+                    </button>
+                </div>
+            }
+
+            @* Show Save/Cancel buttons *@
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled="@isUploading">
+                <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null)">
                     @if (isUploading)
                     {
-                        <span>⏳ Salvataggio...</span>
+                        <span>⏳ Caricamento...</span>
                     }
                     else
                     {
-                        <span>💾 Salva nel Database</span>
+                        <span>📤 Carica Documento</span>
                     }
                 </button>
                 <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isUploading">
                     Annulla
                 </button>
             </div>
-            }
         </EditForm>
     </div>
 </div>
@@ -637,6 +650,14 @@
         border: 1px solid #f5c6cb;
     }
 
+    .form-label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #333;
+        font-size: 1rem;
+    }
+
     .processing-options {
         display: flex;
         flex-direction: column;
@@ -725,6 +746,8 @@
     private string? successMessage;
     private string currentUserId = string.Empty;
     private string processingStep = "";
+    private string? documentTags;
+    private string? documentNotes;
     
     // Processing results
     private string extractedText = string.Empty;
