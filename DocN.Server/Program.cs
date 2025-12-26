@@ -1,8 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.SemanticKernel;
 using DocN.Data;
 using DocN.Data.Services;
 using DocN.Data.Services.Agents;
 using DocN.Server.Services;
+using DocN.Core.Interfaces;
+
+#pragma warning disable SKEXP0001 // Type is for evaluation purposes only
+#pragma warning disable SKEXP0110 // Agents are experimental
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,12 +62,57 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     }
 });
 
+// Configure Semantic Kernel
+var kernelBuilder = Kernel.CreateBuilder();
+
+// Configure AI services based on configuration
+var azureOpenAIEndpoint = builder.Configuration["AzureOpenAI:Endpoint"];
+var azureOpenAIKey = builder.Configuration["AzureOpenAI:ApiKey"];
+var azureOpenAIChatDeployment = builder.Configuration["AzureOpenAI:ChatDeployment"] ?? "gpt-4";
+var azureOpenAIEmbeddingDeployment = builder.Configuration["AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-ada-002";
+
+if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpenAIKey))
+{
+    // Add Azure OpenAI Chat Completion
+    kernelBuilder.AddAzureOpenAIChatCompletion(
+        deploymentName: azureOpenAIChatDeployment,
+        endpoint: azureOpenAIEndpoint,
+        apiKey: azureOpenAIKey);
+
+    // Add Azure OpenAI Text Embedding
+    kernelBuilder.AddAzureOpenAITextEmbeddingGeneration(
+        deploymentName: azureOpenAIEmbeddingDeployment,
+        endpoint: azureOpenAIEndpoint,
+        apiKey: azureOpenAIKey);
+}
+else
+{
+    // Fallback to OpenAI if Azure is not configured
+    var openAIKey = builder.Configuration["OpenAI:ApiKey"];
+    if (!string.IsNullOrEmpty(openAIKey))
+    {
+        kernelBuilder.AddOpenAIChatCompletion(
+            modelId: "gpt-4",
+            apiKey: openAIKey);
+
+        kernelBuilder.AddOpenAITextEmbeddingGeneration(
+            modelId: "text-embedding-ada-002",
+            apiKey: openAIKey);
+    }
+}
+
+var kernel = kernelBuilder.Build();
+builder.Services.AddSingleton(kernel);
+
 // Register core services
 builder.Services.AddScoped<IEmbeddingService, EmbeddingService>();
 builder.Services.AddScoped<IChunkingService, ChunkingService>();
 builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
 builder.Services.AddScoped<IBatchProcessingService, BatchProcessingService>();
+
+// Register Semantic RAG Service (new advanced RAG with Semantic Kernel)
+builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
 
 // Register agents
 builder.Services.AddScoped<IRetrievalAgent, RetrievalAgent>();

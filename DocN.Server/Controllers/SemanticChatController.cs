@@ -1,0 +1,395 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using DocN.Data;
+using DocN.Core.Interfaces;
+
+namespace DocN.Server.Controllers;
+
+/// <summary>
+/// API endpoints for Semantic Kernel RAG-based chat functionality
+/// Provides vector-based document search and intelligent chat responses
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+[Produces("application/json")]
+public class SemanticChatController : ControllerBase
+{
+    private readonly ISemanticRAGService _ragService;
+    private readonly ApplicationDbContext _context;
+    private readonly ILogger<SemanticChatController> _logger;
+
+    public SemanticChatController(
+        ISemanticRAGService ragService,
+        ApplicationDbContext context,
+        ILogger<SemanticChatController> logger)
+    {
+        _ragService = ragService;
+        _context = context;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Process a chat query using Semantic Kernel RAG with vector search
+    /// </summary>
+    [HttpPost("query")]
+    [ProducesResponseType(typeof(SemanticChatResponse), 200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(500)]
+    public async Task<ActionResult<SemanticChatResponse>> Query([FromBody] SemanticChatRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Message))
+            {
+                return BadRequest(new { error = "Message cannot be empty" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.UserId))
+            {
+                return BadRequest(new { error = "User ID is required" });
+            }
+
+            _logger.LogInformation(
+                "Processing semantic chat query: {Query} for user: {UserId}",
+                request.Message, request.UserId);
+
+            // Process query using Semantic RAG service
+            var result = await _ragService.GenerateResponseAsync(
+                request.Message,
+                request.UserId,
+                request.ConversationId,
+                request.SpecificDocumentIds,
+                request.TopK);
+
+            return Ok(new SemanticChatResponse
+            {
+                ConversationId = result.ConversationId,
+                Answer = result.Answer,
+                SourceDocuments = result.SourceDocuments.Select(d => new DocumentReference
+                {
+                    DocumentId = d.DocumentId,
+                    FileName = d.FileName,
+                    Category = d.Category,
+                    SimilarityScore = d.SimilarityScore,
+                    RelevantChunk = d.RelevantChunk,
+                    ChunkIndex = d.ChunkIndex
+                }).ToList(),
+                ResponseTimeMs = result.ResponseTimeMs,
+                FromCache = result.FromCache,
+                Metadata = result.Metadata
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing semantic chat query");
+            return StatusCode(500, new { error = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Process a chat query with streaming response
+    /// </summary>
+    [HttpPost("query/stream")]
+    [Produces("text/event-stream")]
+    public async IAsyncEnumerable<string> QueryStream([FromBody] SemanticChatRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Message) || string.IsNullOrWhiteSpace(request.UserId))
+        {
+            yield return "data: {\"error\": \"Invalid request\"}\n\n";
+            yield break;
+        }
+
+        _logger.LogInformation(
+            "Processing streaming semantic chat query: {Query}",
+            request.Message);
+
+        await foreach (var chunk in _ragService.GenerateStreamingResponseAsync(
+            request.Message,
+            request.UserId,
+            request.ConversationId,
+            request.SpecificDocumentIds))
+        {
+            yield return $"data: {System.Text.Json.JsonSerializer.Serialize(new { content = chunk })}\n\n";
+        }
+
+        yield return "data: [DONE]\n\n";
+    }
+
+    /// <summary>
+    /// Search documents using vector embeddings
+    /// </summary>
+    [HttpPost("search")]
+    [ProducesResponseType(typeof(SearchDocumentsResponse), 200)]
+    public async Task<ActionResult<SearchDocumentsResponse>> SearchDocuments(
+        [FromBody] SearchDocumentsRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Query))
+            {
+                return BadRequest(new { error = "Query cannot be empty" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.UserId))
+            {
+                return BadRequest(new { error = "User ID is required" });
+            }
+
+            _logger.LogInformation(
+                "Searching documents with query: {Query} for user: {UserId}",
+                request.Query, request.UserId);
+
+            var results = await _ragService.SearchDocumentsAsync(
+                request.Query,
+                request.UserId,
+                request.TopK,
+                request.MinSimilarity);
+
+            return Ok(new SearchDocumentsResponse
+            {
+                Results = results.Select(r => new DocumentReference
+                {
+                    DocumentId = r.DocumentId,
+                    FileName = r.FileName,
+                    Category = r.Category,
+                    SimilarityScore = r.SimilarityScore,
+                    RelevantChunk = r.RelevantChunk,
+                    ChunkIndex = r.ChunkIndex
+                }).ToList(),
+                TotalResults = results.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching documents");
+            return StatusCode(500, new { error = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Get all conversations for a user
+    /// </summary>
+    [HttpGet("conversations")]
+    [ProducesResponseType(typeof(List<ConversationSummary>), 200)]
+    public async Task<ActionResult<List<ConversationSummary>>> GetConversations(
+        [FromQuery] string userId)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return BadRequest(new { error = "User ID is required" });
+            }
+
+            var conversations = await _context.Conversations
+                .Where(c => c.UserId == userId && !c.IsArchived)
+                .OrderByDescending(c => c.LastMessageAt)
+                .Select(c => new ConversationSummary
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    CreatedAt = c.CreatedAt,
+                    LastMessageAt = c.LastMessageAt,
+                    MessageCount = c.Messages.Count,
+                    IsStarred = c.IsStarred
+                })
+                .ToListAsync();
+
+            return Ok(conversations);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving conversations");
+            return StatusCode(500, new { error = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Get messages for a specific conversation
+    /// </summary>
+    [HttpGet("conversations/{id}/messages")]
+    [ProducesResponseType(typeof(ConversationMessagesResponse), 200)]
+    [ProducesResponseType(404)]
+    public async Task<ActionResult<ConversationMessagesResponse>> GetMessages(int id)
+    {
+        try
+        {
+            var conversation = await _context.Conversations
+                .Include(c => c.Messages)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (conversation == null)
+            {
+                return NotFound(new { error = "Conversation not found" });
+            }
+
+            var messages = conversation.Messages
+                .OrderBy(m => m.Timestamp)
+                .Select(m => new ConversationMessage
+                {
+                    Id = m.Id,
+                    Role = m.Role,
+                    Content = m.Content,
+                    Timestamp = m.Timestamp,
+                    ReferencedDocumentIds = m.ReferencedDocumentIds ?? new List<int>()
+                })
+                .ToList();
+
+            return Ok(new ConversationMessagesResponse
+            {
+                ConversationId = conversation.Id,
+                Title = conversation.Title,
+                Messages = messages
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving messages");
+            return StatusCode(500, new { error = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Delete a conversation
+    /// </summary>
+    [HttpDelete("conversations/{id}")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> DeleteConversation(int id)
+    {
+        try
+        {
+            var conversation = await _context.Conversations.FindAsync(id);
+            if (conversation == null)
+            {
+                return NotFound(new { error = "Conversation not found" });
+            }
+
+            _context.Conversations.Remove(conversation);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting conversation");
+            return StatusCode(500, new { error = "An error occurred" });
+        }
+    }
+}
+
+#region Request/Response Models
+
+/// <summary>
+/// Request model for semantic chat
+/// </summary>
+public class SemanticChatRequest
+{
+    /// <summary>
+    /// The user's message/query
+    /// </summary>
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    /// User ID
+    /// </summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional conversation ID for context
+    /// </summary>
+    public int? ConversationId { get; set; }
+
+    /// <summary>
+    /// Optional specific document IDs to search within
+    /// </summary>
+    public List<int>? SpecificDocumentIds { get; set; }
+
+    /// <summary>
+    /// Number of top documents to retrieve (default: 5)
+    /// </summary>
+    public int TopK { get; set; } = 5;
+}
+
+/// <summary>
+/// Response model for semantic chat
+/// </summary>
+public class SemanticChatResponse
+{
+    public int ConversationId { get; set; }
+    public string Answer { get; set; } = string.Empty;
+    public List<DocumentReference> SourceDocuments { get; set; } = new();
+    public long ResponseTimeMs { get; set; }
+    public bool FromCache { get; set; }
+    public Dictionary<string, object> Metadata { get; set; } = new();
+}
+
+/// <summary>
+/// Document reference with similarity score
+/// </summary>
+public class DocumentReference
+{
+    public int DocumentId { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string? Category { get; set; }
+    public double SimilarityScore { get; set; }
+    public string? RelevantChunk { get; set; }
+    public int? ChunkIndex { get; set; }
+}
+
+/// <summary>
+/// Request model for document search
+/// </summary>
+public class SearchDocumentsRequest
+{
+    public string Query { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public int TopK { get; set; } = 10;
+    public double MinSimilarity { get; set; } = 0.7;
+}
+
+/// <summary>
+/// Response model for document search
+/// </summary>
+public class SearchDocumentsResponse
+{
+    public List<DocumentReference> Results { get; set; } = new();
+    public int TotalResults { get; set; }
+}
+
+/// <summary>
+/// Conversation summary
+/// </summary>
+public class ConversationSummary
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime LastMessageAt { get; set; }
+    public int MessageCount { get; set; }
+    public bool IsStarred { get; set; }
+}
+
+/// <summary>
+/// Conversation message
+/// </summary>
+public class ConversationMessage
+{
+    public int Id { get; set; }
+    public string Role { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
+    public List<int> ReferencedDocumentIds { get; set; } = new();
+}
+
+/// <summary>
+/// Response with conversation messages
+/// </summary>
+public class ConversationMessagesResponse
+{
+    public int ConversationId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public List<ConversationMessage> Messages { get; set; } = new();
+}
+
+#endregion
