@@ -4,12 +4,17 @@ DocN è una soluzione web modulare basata su .NET e Blazor, progettata per l'arc
 
 ## 🚀 Inizia Subito
 
-**📖 [Guida Configurazione Completa](CONFIGURAZIONE_COMPLETA.md)** - Tutto quello che devi impostare per il corretto funzionamento
+### 📖 Guide di Configurazione
 
-### Guide Rapide
-- 📘 [Setup Base](SETUP.md) - Installazione e configurazione generale
-- 🔑 [Configurazione API Keys](CONFIGURAZIONE_API_KEYS.md) - Setup chiavi API dettagliato
-- ⚡ [Quick Reference](QUICK_REFERENCE_API_KEYS.md) - Riferimento rapido configurazione
+| Guida | Descrizione | Tempo |
+|-------|-------------|-------|
+| **[⚡ Avvio Rapido](AVVIO_RAPIDO.md)** | Setup minimo per iniziare | 15 min |
+| **[📘 Configurazione Completa](CONFIGURAZIONE_COMPLETA.md)** | Guida passo-passo dettagliata | 30 min |
+| **[🔑 API Keys](CONFIGURAZIONE_API_KEYS.md)** | Setup chiavi API dettagliato | 10 min |
+
+### 📚 Altre Guide
+- [Setup Base](SETUP.md) - Installazione e configurazione generale
+- [Quick Reference](QUICK_REFERENCE_API_KEYS.md) - Riferimento rapido configurazione
 
 ## Funzionalità principali
 - Archiviazione documenti e metadati in SQL Server 2025.
