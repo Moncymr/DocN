@@ -190,7 +190,7 @@
                 }
                 else
                 {
-                    <input type="text" @bind="customCategory" class="form-control" placeholder="Inserisci categoria manualmente" />
+                    <input type="text" @bind="customCategory" class="form-control" placeholder="@GetCategoryPlaceholder()" />
                     @if (processingComplete && string.IsNullOrEmpty(suggestedCategory))
                     {
                         <small style="color: #666; display: block; margin-top: 0.5rem;">
@@ -1005,12 +1005,18 @@
             if (useCustomCategory || string.IsNullOrEmpty(suggestedCategory))
             {
                 // Use custom category (either user chose custom or no AI suggestion)
-                finalCategory = customCategory;
+                finalCategory = string.IsNullOrWhiteSpace(customCategory) ? null : customCategory;
             }
             else
             {
                 // Use AI suggested category
                 finalCategory = suggestedCategory;
+            }
+            
+            // If no category at all, use a default
+            if (string.IsNullOrEmpty(finalCategory))
+            {
+                finalCategory = "Uncategorized";
             }
             
             // Create upload directory if it doesn't exist
@@ -1097,5 +1103,14 @@
             len /= 1024;
         }
         return $"{len:0.##} {sizes[order]}";
+    }
+    
+    private string GetCategoryPlaceholder()
+    {
+        if (!processingComplete)
+        {
+            return "Inserisci categoria (opzionale - analizza prima il documento)";
+        }
+        return "Inserisci categoria manualmente";
     }
 }
