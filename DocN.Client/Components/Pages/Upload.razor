@@ -69,6 +69,52 @@
                 }
             </div>
 
+            @* Show Processing Options and Analyze Button when file is selected *@
+            @if (selectedFile != null && !processingComplete)
+            {
+                <div class="form-section">
+                    <h3>⚙️ Opzioni di Elaborazione</h3>
+                    <div class="processing-options">
+                        <label class="option-checkbox">
+                            <input type="checkbox" @bind="enableTextExtraction" />
+                            <span class="option-label">
+                                <span class="option-title">📝 Estrazione testo automatica</span>
+                                <span class="option-description">Extract text content from the document</span>
+                            </span>
+                        </label>
+                        
+                        <label class="option-checkbox">
+                            <input type="checkbox" @bind="enableAICategory" />
+                            <span class="option-label">
+                                <span class="option-title">🤖 Suggerisci categoria con AI</span>
+                                <span class="option-description">Let AI analyze and suggest a category</span>
+                            </span>
+                        </label>
+                        
+                        <label class="option-checkbox">
+                            <input type="checkbox" @bind="enableEmbeddings" />
+                            <span class="option-label">
+                                <span class="option-title">🧠 Genera embeddings (Gemini)</span>
+                                <span class="option-description">Generate vector embeddings for semantic search</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="analyze-button-section">
+                    <button type="button" class="btn btn-process btn-large" @onclick="ProcessDocument" disabled="@isProcessing">
+                        @if (isProcessing)
+                        {
+                            <span>⏳ Elaborazione in corso...</span>
+                        }
+                        else
+                        {
+                            <span>🔬 Analizza Documento</span>
+                        }
+                    </button>
+                </div>
+            }
+
             @if (isProcessing)
             {
                 <div class="analyzing-section">
@@ -80,18 +126,18 @@
             @if (processingComplete && !string.IsNullOrEmpty(extractedText))
             {
                 <div class="results-section">
-                    <h3>📋 Processing Results</h3>
+                    <h3>📋 Risultati Elaborazione</h3>
                     
                     @* Text Extraction Results *@
                     <div class="result-card">
                         <div class="result-header">
                             <span class="result-icon">📝</span>
-                            <span class="result-title">Extracted Text</span>
+                            <span class="result-title">Testo Estratto</span>
                             <span class="result-status success">✓ Success</span>
                         </div>
                         <div class="result-content">
                             <p class="text-preview">@GetTextPreview(extractedText, 200)</p>
-                            <small>@extractedText.Length characters extracted</small>
+                            <small>@extractedText.Length caratteri estratti</small>
                         </div>
                     </div>
 
@@ -102,11 +148,11 @@
                             <div class="result-header">
                                 <span class="result-icon">🧠</span>
                                 <span class="result-title">Vector Embeddings</span>
-                                <span class="result-status success">✓ Generated</span>
+                                <span class="result-status success">✓ Generato</span>
                             </div>
                             <div class="result-content">
-                                <p>Vector embeddings generated successfully</p>
-                                <small>Dimensions: @(embedding?.Length ?? 0)</small>
+                                <p>Vector embeddings generati con successo</p>
+                                <small>Dimensioni: @(embedding?.Length ?? 0)</small>
                             </div>
                         </div>
                     }
@@ -117,8 +163,8 @@
                         <div class="result-card">
                             <div class="result-header">
                                 <span class="result-icon">🤖</span>
-                                <span class="result-title">AI Category Analysis</span>
-                                <span class="result-status success">✓ Complete</span>
+                                <span class="result-title">Analisi Categoria AI</span>
+                                <span class="result-status success">✓ Completo</span>
                             </div>
                             <div class="result-content">
                                 <div class="category-result">
@@ -127,7 +173,7 @@
                                 @if (!string.IsNullOrEmpty(categoryReasoning))
                                 {
                                     <div class="reasoning-box">
-                                        <h4>💡 Reasoning</h4>
+                                        <h4>💡 Motivazione</h4>
                                         <p>@categoryReasoning</p>
                                     </div>
                                 }
@@ -138,85 +184,46 @@
                     <div class="form-section">
                         <label>
                             <input type="checkbox" @bind="useCustomCategory" />
-                            Use a different category
+                            Usa una categoria diversa
                         </label>
                         
                         @if (useCustomCategory)
                         {
-                            <input type="text" @bind="customCategory" class="form-control" placeholder="Enter custom category" />
+                            <input type="text" @bind="customCategory" class="form-control" placeholder="Inserisci categoria personalizzata" />
                         }
                     </div>
                 </div>
+
+                <div class="form-section">
+                    <h3>Visibilità Documento</h3>
+                    <select @bind="selectedVisibility" class="form-control">
+                        <option value="0">🔒 Privato - Solo tu puoi vedere questo documento</option>
+                        <option value="1">👥 Condiviso - Condividi con utenti specifici</option>
+                        <option value="2">🏢 Organizzazione - Tutti i membri dell'organizzazione</option>
+                        <option value="3">🌐 Pubblico - Tutti possono vedere</option>
+                    </select>
+                </div>
             }
 
-            <div class="form-section">
-                <h3>Document Visibility</h3>
-                <select @bind="selectedVisibility" class="form-control">
-                    <option value="0">🔒 Private - Only you can see this document</option>
-                    <option value="1">👥 Shared - Share with specific users</option>
-                    <option value="2">🏢 Organization - All organization members</option>
-                    <option value="3">🌐 Public - Everyone can see</option>
-                </select>
-            </div>
-
-            <div class="form-section">
-                <h3>⚙️ Processing Options</h3>
-                <div class="processing-options">
-                    <label class="option-checkbox">
-                        <input type="checkbox" @bind="enableTextExtraction" />
-                        <span class="option-label">
-                            <span class="option-title">📝 Estrazione testo automatica</span>
-                            <span class="option-description">Extract text content from the document</span>
-                        </span>
-                    </label>
-                    
-                    <label class="option-checkbox">
-                        <input type="checkbox" @bind="enableAICategory" />
-                        <span class="option-label">
-                            <span class="option-title">🤖 Suggerisci categoria con AI</span>
-                            <span class="option-description">Let AI analyze and suggest a category</span>
-                        </span>
-                    </label>
-                    
-                    <label class="option-checkbox">
-                        <input type="checkbox" @bind="enableEmbeddings" />
-                        <span class="option-label">
-                            <span class="option-title">🧠 Genera embeddings (Gemini)</span>
-                            <span class="option-description">Generate vector embeddings for semantic search</span>
-                        </span>
-                    </label>
-                </div>
-            </div>
-
+            @* Show final save/cancel buttons only after processing *@
+            @if (processingComplete)
+            {
             <div class="form-actions">
-                <button type="button" class="btn btn-process" @onclick="ProcessDocument" disabled="@(isProcessing || selectedFile == null || processingComplete)">
-                    @if (isProcessing)
-                    {
-                        <span>⏳ Processing...</span>
-                    }
-                    else if (processingComplete)
-                    {
-                        <span>✓ Analysis Complete</span>
-                    }
-                    else
-                    {
-                        <span>🔬 Analyze Document</span>
-                    }
-                </button>
-                <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null || !processingComplete)">
+                <button type="submit" class="btn btn-primary" disabled="@isUploading">
                     @if (isUploading)
                     {
-                        <span>⏳ Saving...</span>
+                        <span>⏳ Salvataggio...</span>
                     }
                     else
                     {
-                        <span>💾 Save to Database</span>
+                        <span>💾 Salva nel Database</span>
                     }
                 </button>
-                <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@(isUploading || isProcessing)">
-                    Cancel
+                <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isUploading">
+                    Annulla
                 </button>
             </div>
+            }
         </EditForm>
     </div>
 </div>
@@ -510,10 +517,26 @@
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
+    .analyze-button-section {
+        margin: 2rem 0;
+        text-align: center;
+    }
+
+    .btn-large {
+        padding: 1rem 2.5rem;
+        font-size: 1.2rem;
+        box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+    }
+
+    .btn-large:hover:not(:disabled) {
+        box-shadow: 0 6px 20px rgba(72, 187, 120, 0.4);
+    }
+
     .form-actions {
         display: flex;
         gap: 1rem;
         margin-top: 2rem;
+        justify-content: flex-end;
     }
 
     .btn {
