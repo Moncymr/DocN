@@ -637,6 +637,13 @@
 </style>
 
 @code {
+    // Constants
+    private const int UI_UPDATE_DELAY_MS = 500;
+    private const string STEP_EXTRACTING_TEXT = "Extracting text from file...";
+    private const string STEP_GENERATING_EMBEDDINGS = "Generating vector embeddings...";
+    private const string STEP_ANALYZING_AI = "Analyzing document with AI...";
+    private const string STEP_COMPLETE = "Processing complete!";
+    
     private class UploadModel
     {
         public string? Category { get; set; }
@@ -722,9 +729,9 @@
             // Step 1: Extract text
             if (enableTextExtraction)
             {
-                processingStep = "Extracting text from file...";
+                processingStep = STEP_EXTRACTING_TEXT;
                 StateHasChanged();
-                await Task.Delay(500); // Brief delay for UI update
+                await Task.Delay(UI_UPDATE_DELAY_MS);
 
                 using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
                 using var reader = new StreamReader(stream);
@@ -734,28 +741,28 @@
             // Step 2: Generate embeddings
             if (enableEmbeddings && !string.IsNullOrEmpty(extractedText))
             {
-                processingStep = "Generating vector embeddings...";
+                processingStep = STEP_GENERATING_EMBEDDINGS;
                 StateHasChanged();
-                await Task.Delay(500);
+                await Task.Delay(UI_UPDATE_DELAY_MS);
 
                 try
                 {
                     embedding = await AIService.GenerateEmbeddingAsync(extractedText);
                     embeddingGenerated = embedding != null;
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Log but don't fail the whole process
-                    Console.WriteLine($"Embedding generation failed: {ex.Message}");
+                    embeddingGenerated = false;
                 }
             }
 
             // Step 3: AI category analysis
             if (enableAICategory && !string.IsNullOrEmpty(extractedText))
             {
-                processingStep = "Analyzing document with AI...";
+                processingStep = STEP_ANALYZING_AI;
                 StateHasChanged();
-                await Task.Delay(500);
+                await Task.Delay(UI_UPDATE_DELAY_MS);
 
                 try
                 {
@@ -771,7 +778,7 @@
             }
 
             processingComplete = true;
-            processingStep = "Processing complete!";
+            processingStep = STEP_COMPLETE;
         }
         catch (Exception ex)
         {
@@ -871,7 +878,7 @@
     {
         if (string.IsNullOrEmpty(text)) return "";
         if (text.Length <= maxLength) return text;
-        return text.Substring(0, maxLength) + "...";
+        return text[..maxLength] + "...";
     }
 
     private string GetAcceptedExtensions()
