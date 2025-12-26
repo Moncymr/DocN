@@ -44,6 +44,12 @@ public class MultiProviderAIService : IMultiProviderAIService
 
     public async Task<float[]?> GenerateEmbeddingAsync(string text)
     {
+        // Truncate very long text to avoid API limits
+        if (text.Length > 10000)
+        {
+            text = text.Substring(0, 10000);
+        }
+
         // Try primary embedding provider
         try
         {
@@ -60,8 +66,11 @@ public class MultiProviderAIService : IMultiProviderAIService
                 return await GenerateEmbeddingWithGeminiAsync(text);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // Log the exception for debugging
+            Console.WriteLine($"Primary embedding provider failed: {ex.Message}");
+            
             // If primary fails and fallback is enabled, try alternatives
             if (_aiSettings.EnableFallback)
             {
@@ -70,15 +79,17 @@ public class MultiProviderAIService : IMultiProviderAIService
                 {
                     return await GenerateEmbeddingWithGeminiAsync(text);
                 }
-                catch
+                catch (Exception ex2)
                 {
+                    Console.WriteLine($"Gemini fallback failed: {ex2.Message}");
                     // Try OpenAI as last resort
                     try
                     {
                         return await GenerateEmbeddingWithOpenAIAsync(text);
                     }
-                    catch
+                    catch (Exception ex3)
                     {
+                        Console.WriteLine($"OpenAI fallback failed: {ex3.Message}");
                         return null;
                     }
                 }
@@ -118,7 +129,10 @@ public class MultiProviderAIService : IMultiProviderAIService
     private async Task<float[]?> GenerateEmbeddingWithGeminiAsync(string text)
     {
         if (string.IsNullOrEmpty(_geminiSettings.ApiKey))
+        {
+            Console.WriteLine("Gemini API key is not configured");
             return null;
+        }
 
         try
         {
@@ -129,12 +143,19 @@ public class MultiProviderAIService : IMultiProviderAIService
             
             if (response?.Embedding?.Values != null)
             {
-                return response.Embedding.Values.Select(v => (float)v).ToArray();
+                var embedding = response.Embedding.Values.Select(v => (float)v).ToArray();
+                Console.WriteLine($"Gemini embedding generated successfully: {embedding.Length} dimensions");
+                return embedding;
+            }
+            else
+            {
+                Console.WriteLine("Gemini response was null or had no embedding values");
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Gemini embedding not available, will fall back to other providers
+            Console.WriteLine($"Gemini embedding error: {ex.Message}");
+            throw; // Re-throw to allow fallback logic to work
         }
 
         return null;
@@ -184,15 +205,35 @@ public class MultiProviderAIService : IMultiProviderAIService
     private async Task<string> GenerateChatWithGeminiAsync(string systemPrompt, string userPrompt)
     {
         if (string.IsNullOrEmpty(_geminiSettings.ApiKey))
+        {
+            Console.WriteLine("Gemini API key is not configured");
             throw new InvalidOperationException("Gemini API key not configured");
+        }
 
-        var gemini = new GoogleAI(_geminiSettings.ApiKey);
-        var model = gemini.GenerativeModel(model: "gemini-1.5-flash");
-        
-        var fullPrompt = $"{systemPrompt}\n\n{userPrompt}";
-        var response = await model.GenerateContent(fullPrompt);
-        
-        return response?.Text ?? "No response from Gemini";
+        try
+        {
+            var gemini = new GoogleAI(_geminiSettings.ApiKey);
+            var model = gemini.GenerativeModel(model: "gemini-1.5-flash");
+            
+            var fullPrompt = $"{systemPrompt}\n\n{userPrompt}";
+            var response = await model.GenerateContent(fullPrompt);
+            
+            if (response?.Text != null)
+            {
+                Console.WriteLine($"Gemini chat response generated successfully");
+                return response.Text;
+            }
+            else
+            {
+                Console.WriteLine("Gemini chat response was null");
+                return "No response from Gemini";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Gemini chat error: {ex.Message}");
+            throw;
+        }
     }
 
     private async Task<string> GenerateChatWithOpenAIAsync(string systemPrompt, string userPrompt)

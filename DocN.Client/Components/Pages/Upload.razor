@@ -979,13 +979,24 @@
                 {
                     embedding = await AIService.GenerateEmbeddingAsync(extractedText);
                     embeddingGenerated = embedding != null && embedding.Length > 0;
-                    embeddingError = null;
+                    
+                    if (embeddingGenerated)
+                    {
+                        embeddingError = null;
+                        Console.WriteLine($"Embedding generated successfully: {embedding!.Length} dimensions");
+                    }
+                    else
+                    {
+                        embeddingError = "Embedding generation returned null. Check AI provider configuration (Gemini/OpenAI API keys).";
+                        Console.WriteLine("Embedding generation returned null");
+                    }
                 }
                 catch (Exception ex)
                 {
                     // Log but don't fail the whole process
                     embeddingGenerated = false;
-                    embeddingError = ex.Message;
+                    embeddingError = $"Error: {ex.Message}";
+                    Console.WriteLine($"Embedding generation exception: {ex.Message}");
                 }
             }
 
@@ -1000,6 +1011,8 @@
                 {
                     var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
                     
+                    Console.WriteLine($"Category suggestion result: Category='{result.Category}', Reasoning='{result.Reasoning}'");
+                    
                     // Check if category is valid
                     if (!string.IsNullOrEmpty(result.Category) && result.Category != "Uncategorized")
                     {
@@ -1010,14 +1023,15 @@
                     {
                         // No valid category found
                         suggestedCategory = null;
-                        categoryReasoning = result.Reasoning ?? "AI could not determine a suitable category";
+                        categoryReasoning = result.Reasoning ?? "L'AI non è riuscita a determinare una categoria appropriata. Potrebbe essere necessario verificare la configurazione dell'API (Gemini/OpenAI).";
                     }
                 }
                 catch (Exception ex)
                 {
                     // Category suggestion failed - user can still enter manually
                     suggestedCategory = null;
-                    categoryReasoning = $"Unable to analyze: {ex.Message}";
+                    categoryReasoning = $"Errore durante l'analisi: {ex.Message}. Verifica la configurazione AI.";
+                    Console.WriteLine($"Category suggestion exception: {ex.Message}");
                 }
             }
 
