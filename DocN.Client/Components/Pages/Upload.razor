@@ -11,7 +11,17 @@
 
 <PageTitle>Upload Document - DocN</PageTitle>
 
+@* Force no caching *@
+<HeadContent>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+</HeadContent>
+
 <div class="upload-container">
+    @* Version indicator - v2.0 with always-visible form fields *@
+    <div style="display: none;" data-version="2.0-enhanced-form"></div>
+    
     <div class="upload-header">
         <h2>📤 Upload Document</h2>
         <button class="btn btn-secondary" @onclick="GoBack">
