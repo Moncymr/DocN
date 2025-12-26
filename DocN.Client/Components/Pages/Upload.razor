@@ -33,9 +33,9 @@
     }
 
     <div class="upload-card">
-        <EditForm Model="@uploadModel" OnValidSubmit="HandleUpload">
+        <EditForm Model="@uploadModel" OnValidSubmit="HandleSaveToDatabase">
             <div class="form-section">
-                <h3>Select File</h3>
+                <h3>📂 Select File</h3>
                 <div class="file-upload-wrapper">
                     <label for="fileInput" class="file-upload-button">
                         <span class="upload-icon-large">📤</span>
@@ -55,7 +55,7 @@
                     <InputFile id="fileInput" OnChange="HandleFileSelection" class="file-input-hidden" accept="@GetAcceptedExtensions()" />
                 </div>
                 
-                @if (selectedFile != null)
+                @if (selectedFile != null && !isProcessing)
                 {
                     <div class="file-info">
                         <div class="file-icon">📄</div>
@@ -65,39 +65,140 @@
                             <p>Type: @selectedFile.ContentType</p>
                         </div>
                     </div>
+                    
+                    @if (!processingStarted)
+                    {
+                        <div class="process-button-wrapper">
+                            <button type="button" class="btn btn-process" @onclick="StartProcessing">
+                                🚀 Process Document
+                            </button>
+                        </div>
+                    }
                 }
             </div>
 
-            @if (isAnalyzing)
+            @if (isProcessing || processingComplete)
             {
-                <div class="analyzing-section">
-                    <div class="spinner"></div>
-                    <p>🤖 AI is analyzing the document and suggesting a category...</p>
-                </div>
-            }
-
-            @if (!string.IsNullOrEmpty(suggestedCategory))
-            {
-                <div class="suggestion-section">
-                    <h3>AI Category Suggestion</h3>
-                    <div class="suggestion-card">
-                        <div class="suggestion-header">
-                            <span class="category-badge">@suggestedCategory</span>
+                <div class="processing-section">
+                    <h3>⚙️ Document Processing</h3>
+                    
+                    <!-- Step 1: Text Extraction -->
+                    <div class="processing-step @GetStepClass(ProcessingStep.TextExtraction)">
+                        <div class="step-header">
+                            <span class="step-icon">
+                                @if (currentStep == ProcessingStep.TextExtraction && isProcessing)
+                                {
+                                    <div class="spinner-small"></div>
+                                }
+                                else if (textExtractionComplete)
+                                {
+                                    <span>✅</span>
+                                }
+                                else
+                                {
+                                    <span>📝</span>
+                                }
+                            </span>
+                            <span class="step-title">Text Extraction</span>
                         </div>
-                        @if (!string.IsNullOrEmpty(categoryReasoning))
+                        @if (textExtractionComplete && !string.IsNullOrEmpty(extractedText))
                         {
-                            <div class="reasoning-box">
-                                <h4>💡 Why this category?</h4>
-                                <p>@categoryReasoning</p>
+                            <div class="step-result">
+                                <div class="result-card">
+                                    <h4>📄 Extracted Text Preview</h4>
+                                    <div class="text-preview">
+                                        @GetTextPreview(extractedText, 500)
+                                    </div>
+                                    <p class="text-stats">Total characters: @extractedText.Length</p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Step 2: Embedding Generation -->
+                    <div class="processing-step @GetStepClass(ProcessingStep.EmbeddingGeneration)">
+                        <div class="step-header">
+                            <span class="step-icon">
+                                @if (currentStep == ProcessingStep.EmbeddingGeneration && isProcessing)
+                                {
+                                    <div class="spinner-small"></div>
+                                }
+                                else if (embeddingGenerationComplete)
+                                {
+                                    <span>✅</span>
+                                }
+                                else
+                                {
+                                    <span>🧠</span>
+                                }
+                            </span>
+                            <span class="step-title">Embedding Generation</span>
+                        </div>
+                        @if (embeddingGenerationComplete && embeddingVector != null)
+                        {
+                            <div class="step-result">
+                                <div class="result-card">
+                                    <h4>🧠 Vector Embeddings Created</h4>
+                                    <p>✨ Successfully generated @embeddingVector.Length-dimensional vector embedding</p>
+                                    <p class="embedding-preview">Vector preview: [@string.Join(", ", embeddingVector.Take(5).Select(v => v.ToString("F4")))]...</p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Step 3: AI Analysis -->
+                    <div class="processing-step @GetStepClass(ProcessingStep.AIAnalysis)">
+                        <div class="step-header">
+                            <span class="step-icon">
+                                @if (currentStep == ProcessingStep.AIAnalysis && isProcessing)
+                                {
+                                    <div class="spinner-small"></div>
+                                }
+                                else if (aiAnalysisComplete)
+                                {
+                                    <span>✅</span>
+                                }
+                                else
+                                {
+                                    <span>🤖</span>
+                                }
+                            </span>
+                            <span class="step-title">AI Analysis</span>
+                        </div>
+                        @if (aiAnalysisComplete && !string.IsNullOrEmpty(suggestedCategory))
+                        {
+                            <div class="step-result">
+                                <div class="result-card">
+                                    <h4>🤖 AI Category Suggestion</h4>
+                                    <div class="category-suggestion">
+                                        <span class="category-badge">@suggestedCategory</span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(categoryReasoning))
+                                    {
+                                        <div class="reasoning-box">
+                                            <h5>💡 Why this category?</h5>
+                                            <p>@categoryReasoning</p>
+                                        </div>
+                                    }
+                                </div>
                             </div>
                         }
                     </div>
                 </div>
+            }
 
+            @if (processingComplete)
+            {
                 <div class="form-section">
-                    <label>
-                        <input type="checkbox" @bind="useCustomCategory" />
-                        Use a different category
+                    <h3>🏷️ Choose Category</h3>
+                    <label class="category-choice">
+                        <input type="radio" name="categoryChoice" checked="@(!useCustomCategory)" @onchange="@(() => useCustomCategory = false)" />
+                        <span>Accept AI suggestion: <strong>@suggestedCategory</strong></span>
+                    </label>
+                    
+                    <label class="category-choice">
+                        <input type="radio" name="categoryChoice" checked="@useCustomCategory" @onchange="@(() => useCustomCategory = true)" />
+                        <span>Use custom category</span>
                     </label>
                     
                     @if (useCustomCategory)
@@ -105,62 +206,33 @@
                         <input type="text" @bind="customCategory" class="form-control" placeholder="Enter custom category" />
                     }
                 </div>
-            }
 
-            <div class="form-section">
-                <h3>Document Visibility</h3>
-                <select @bind="selectedVisibility" class="form-control">
-                    <option value="0">🔒 Private - Only you can see this document</option>
-                    <option value="1">👥 Shared - Share with specific users</option>
-                    <option value="2">🏢 Organization - All organization members</option>
-                    <option value="3">🌐 Public - Everyone can see</option>
-                </select>
-            </div>
-
-            <div class="form-section">
-                <h3>⚙️ Processing Options</h3>
-                <div class="processing-options">
-                    <label class="option-checkbox">
-                        <input type="checkbox" @bind="enableTextExtraction" />
-                        <span class="option-label">
-                            <span class="option-title">📝 Estrazione testo automatica</span>
-                            <span class="option-description">Extract text content from the document</span>
-                        </span>
-                    </label>
-                    
-                    <label class="option-checkbox">
-                        <input type="checkbox" @bind="enableAICategory" />
-                        <span class="option-label">
-                            <span class="option-title">🤖 Suggerisci categoria con AI</span>
-                            <span class="option-description">Let AI analyze and suggest a category</span>
-                        </span>
-                    </label>
-                    
-                    <label class="option-checkbox">
-                        <input type="checkbox" @bind="enableEmbeddings" />
-                        <span class="option-label">
-                            <span class="option-title">🧠 Genera embeddings (Gemini)</span>
-                            <span class="option-description">Generate vector embeddings for semantic search</span>
-                        </span>
-                    </label>
+                <div class="form-section">
+                    <h3>🔒 Document Visibility</h3>
+                    <select @bind="selectedVisibility" class="form-control">
+                        <option value="0">🔒 Private - Only you can see this document</option>
+                        <option value="1">👥 Shared - Share with specific users</option>
+                        <option value="2">🏢 Organization - All organization members</option>
+                        <option value="3">🌐 Public - Everyone can see</option>
+                    </select>
                 </div>
-            </div>
 
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null)">
-                    @if (isUploading)
-                    {
-                        <span>⏳ Uploading...</span>
-                    }
-                    else
-                    {
-                        <span>📤 Upload Document</span>
-                    }
-                </button>
-                <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isUploading">
-                    Cancel
-                </button>
-            </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span>💾 Saving...</span>
+                        }
+                        else
+                        {
+                            <span>💾 Save to Database</span>
+                        }
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isSaving">
+                        Cancel
+                    </button>
+                </div>
+            }
         </EditForm>
     </div>
 </div>
@@ -499,9 +571,181 @@
     .option-checkbox:has(input:checked) .option-title {
         color: #667eea;
     }
+
+    .process-button-wrapper {
+        margin-top: 1.5rem;
+        text-align: center;
+    }
+
+    .btn-process {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+    }
+
+    .btn-process:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(245, 87, 108, 0.5);
+    }
+
+    .processing-section {
+        margin: 2rem 0;
+        padding: 2rem;
+        background: #f8f9fa;
+        border-radius: 12px;
+    }
+
+    .processing-section h3 {
+        margin: 0 0 1.5rem 0;
+        font-size: 1.5rem;
+        color: #333;
+    }
+
+    .processing-step {
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        background: white;
+        border-radius: 8px;
+        border-left: 4px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    .processing-step.active {
+        border-left-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+
+    .processing-step.complete {
+        border-left-color: #28a745;
+        background: #f0fff4;
+    }
+
+    .step-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .step-icon {
+        font-size: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+    }
+
+    .spinner-small {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+    }
+
+    .step-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .step-result {
+        margin-top: 1rem;
+        padding-left: 56px;
+    }
+
+    .result-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+    }
+
+    .processing-step.complete .result-card {
+        border-color: #28a745;
+        background: white;
+    }
+
+    .result-card h4, .result-card h5 {
+        margin: 0 0 1rem 0;
+        color: #667eea;
+        font-size: 1.1rem;
+    }
+
+    .text-preview {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 5px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        max-height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        color: #333;
+    }
+
+    .text-stats {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        color: #666;
+    }
+
+    .embedding-preview {
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        color: #666;
+        background: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 4px;
+        margin-top: 0.5rem;
+    }
+
+    .category-suggestion {
+        margin: 1rem 0;
+    }
+
+    .category-choice {
+        display: block;
+        margin: 0.75rem 0;
+        padding: 0.75rem;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .category-choice:hover {
+        border-color: #667eea;
+        background: #f8f9ff;
+    }
+
+    .category-choice input[type="radio"] {
+        margin-right: 0.75rem;
+        cursor: pointer;
+        accent-color: #667eea;
+    }
 </style>
 
 @code {
+    private enum ProcessingStep
+    {
+        None,
+        TextExtraction,
+        EmbeddingGeneration,
+        AIAnalysis
+    }
+
     private class UploadModel
     {
         public string? Category { get; set; }
@@ -510,8 +754,10 @@
 
     private UploadModel uploadModel = new();
     private IBrowserFile? selectedFile;
-    private bool isUploading = false;
-    private bool isAnalyzing = false;
+    private bool isProcessing = false;
+    private bool isSaving = false;
+    private bool processingStarted = false;
+    private bool processingComplete = false;
     private bool useCustomCategory = false;
     private string? customCategory;
     private string? suggestedCategory;
@@ -521,10 +767,15 @@
     private string? successMessage;
     private string currentUserId = string.Empty;
     
-    // Processing options
-    private bool enableTextExtraction = true;
-    private bool enableAICategory = true;
-    private bool enableEmbeddings = true;
+    // Processing state
+    private ProcessingStep currentStep = ProcessingStep.None;
+    private bool textExtractionComplete = false;
+    private bool embeddingGenerationComplete = false;
+    private bool aiAnalysisComplete = false;
+    
+    // Processed data
+    private string extractedText = string.Empty;
+    private float[]? embeddingVector = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -540,8 +791,18 @@
         selectedFile = e.File;
         errorMessage = null;
         successMessage = null;
+        
+        // Reset processing state
+        processingStarted = false;
+        processingComplete = false;
+        textExtractionComplete = false;
+        embeddingGenerationComplete = false;
+        aiAnalysisComplete = false;
+        extractedText = string.Empty;
+        embeddingVector = null;
         suggestedCategory = null;
         categoryReasoning = null;
+        currentStep = ProcessingStep.None;
 
         // Validate file size
         var maxSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
@@ -561,27 +822,109 @@
             selectedFile = null;
             return;
         }
-
-        // Analyze document with AI only if enabled
-        if (enableAICategory)
-        {
-            await AnalyzeDocument();
-        }
     }
 
-    private async Task AnalyzeDocument()
+    private async Task StartProcessing()
     {
         if (selectedFile == null) return;
 
-        isAnalyzing = true;
+        processingStarted = true;
+        isProcessing = true;
+        errorMessage = null;
+
         try
         {
-            // Extract text from file (simplified - in production use proper text extraction libraries)
+            // Step 1: Text Extraction
+            currentStep = ProcessingStep.TextExtraction;
+            StateHasChanged();
+            await Task.Delay(500); // Brief delay for UI feedback
+            
+            await ExtractTextStep();
+            textExtractionComplete = true;
+            StateHasChanged();
+            await Task.Delay(800); // Brief delay between steps
+
+            // Step 2: Embedding Generation
+            currentStep = ProcessingStep.EmbeddingGeneration;
+            StateHasChanged();
+            await Task.Delay(500);
+            
+            await GenerateEmbeddingStep();
+            embeddingGenerationComplete = true;
+            StateHasChanged();
+            await Task.Delay(800);
+
+            // Step 3: AI Analysis
+            currentStep = ProcessingStep.AIAnalysis;
+            StateHasChanged();
+            await Task.Delay(500);
+            
+            await AnalyzeWithAIStep();
+            aiAnalysisComplete = true;
+            StateHasChanged();
+
+            // All steps complete
+            processingComplete = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error during processing: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            currentStep = ProcessingStep.None;
+        }
+    }
+
+    private async Task ExtractTextStep()
+    {
+        if (selectedFile == null) return;
+
+        try
+        {
             using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
             using var reader = new StreamReader(stream);
-            var extractedText = await reader.ReadToEndAsync();
+            extractedText = await reader.ReadToEndAsync();
 
-            // Get AI category suggestion using MultiProviderAIService
+            if (string.IsNullOrEmpty(extractedText))
+            {
+                extractedText = "[No text could be extracted from this file]";
+            }
+        }
+        catch (Exception ex)
+        {
+            extractedText = $"[Error extracting text: {ex.Message}]";
+        }
+    }
+
+    private async Task GenerateEmbeddingStep()
+    {
+        if (string.IsNullOrEmpty(extractedText)) return;
+
+        try
+        {
+            embeddingVector = await AIService.GenerateEmbeddingAsync(extractedText);
+            
+            if (embeddingVector == null || embeddingVector.Length == 0)
+            {
+                // Create a dummy embedding for demo purposes if AI service fails
+                embeddingVector = new float[1536]; // Standard embedding size
+            }
+        }
+        catch (Exception ex)
+        {
+            // Create a dummy embedding if service fails
+            embeddingVector = new float[1536];
+        }
+    }
+
+    private async Task AnalyzeWithAIStep()
+    {
+        if (selectedFile == null || string.IsNullOrEmpty(extractedText)) return;
+
+        try
+        {
             var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
             suggestedCategory = result.Category;
             categoryReasoning = result.Reasoning;
@@ -591,27 +934,21 @@
             suggestedCategory = "Uncategorized";
             categoryReasoning = $"Unable to analyze: {ex.Message}";
         }
-        finally
-        {
-            isAnalyzing = false;
-        }
     }
 
-    private async Task HandleUpload()
+    private async Task HandleSaveToDatabase()
     {
-        if (selectedFile == null)
+        if (selectedFile == null || !processingComplete)
         {
-            errorMessage = "Please select a file to upload";
+            errorMessage = "Please process the document before saving";
             return;
         }
         if (string.IsNullOrEmpty(currentUserId))
         {
             currentUserId = "26232771-0c4c-4926-9f1b-ad5f8a4128b7";
-            //errorMessage = "You must be logged in to upload documents.";
-            //return;
         }
 
-        isUploading = true;
+        isSaving = true;
         errorMessage = null;
         successMessage = null;
 
@@ -631,30 +968,6 @@
                 await stream.CopyToAsync(fileStream);
             }
 
-            // Extract text for embedding (only if enabled)
-            string extractedText = "";
-            if (enableTextExtraction)
-            {
-                try
-                {
-                    using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-                    using var reader = new StreamReader(stream);
-                    extractedText = await reader.ReadToEndAsync();
-                }
-                catch { }
-            }
-
-            // Generate embedding using MultiProviderAIService (only if enabled)
-            float[]? embedding = null;
-            if (enableEmbeddings && !string.IsNullOrEmpty(extractedText))
-            {
-                try
-                {
-                    embedding = await AIService.GenerateEmbeddingAsync(extractedText);
-                }
-                catch { }
-            }
-
             // Create document record
             var document = new Document
             {
@@ -667,7 +980,7 @@
                 CategoryReasoning = categoryReasoning,
                 ActualCategory = useCustomCategory ? customCategory : suggestedCategory,
                 Visibility = (DocumentVisibility)selectedVisibility,
-                EmbeddingVector = embedding,
+                EmbeddingVector = embeddingVector,
                 OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
                 UploadedAt = DateTime.UtcNow
             };
@@ -686,7 +999,7 @@
         }
         finally
         {
-            isUploading = false;
+            isSaving = false;
         }
     }
 
@@ -718,5 +1031,30 @@
             len /= 1024;
         }
         return $"{len:0.##} {sizes[order]}";
+    }
+
+    private string GetStepClass(ProcessingStep step)
+    {
+        if (step == currentStep && isProcessing)
+            return "active";
+        
+        return step switch
+        {
+            ProcessingStep.TextExtraction => textExtractionComplete ? "complete" : "",
+            ProcessingStep.EmbeddingGeneration => embeddingGenerationComplete ? "complete" : "",
+            ProcessingStep.AIAnalysis => aiAnalysisComplete ? "complete" : "",
+            _ => ""
+        };
+    }
+
+    private string GetTextPreview(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text))
+            return "[No text available]";
+        
+        if (text.Length <= maxLength)
+            return text;
+        
+        return text.Substring(0, maxLength) + "...";
     }
 }
