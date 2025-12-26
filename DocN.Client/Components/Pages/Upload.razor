@@ -106,19 +106,51 @@
                     </div>
 
                     @* Embedding Results *@
-                    @if (embeddingGenerated)
+                    @if (enableEmbeddings && processingComplete)
                     {
-                        <div class="result-card">
-                            <div class="result-header">
-                                <span class="result-icon">🧠</span>
-                                <span class="result-title">Vector Embeddings</span>
-                                <span class="result-status success">✓ Generato</span>
+                        @if (embeddingGenerated)
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🧠</span>
+                                    <span class="result-title">Vector Embeddings</span>
+                                    <span class="result-status success">✓ Generato</span>
+                                </div>
+                                <div class="result-content">
+                                    <p>Vector embeddings generati con successo</p>
+                                    <small>Dimensioni: @(embedding?.Length ?? 0) dimensioni</small>
+                                    <p style="margin-top: 0.5rem; color: #666; font-size: 0.875rem;">
+                                        ✓ Il documento può essere ricercato semanticamente
+                                    </p>
+                                </div>
                             </div>
-                            <div class="result-content">
-                                <p>Vector embeddings generati con successo</p>
-                                <small>Dimensioni: @(embedding?.Length ?? 0)</small>
+                        }
+                        else
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🧠</span>
+                                    <span class="result-title">Vector Embeddings</span>
+                                    <span class="result-status" style="background: #fff3cd; color: #856404;">⚠️ Non generato</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="color: #856404; margin: 0 0 0.5rem 0;">
+                                        ⚠️ Gli embeddings non sono stati generati.
+                                    </p>
+                                    @if (!string.IsNullOrEmpty(embeddingError))
+                                    {
+                                        <div class="reasoning-box" style="background: #fff3cd;">
+                                            <h4 style="color: #856404;">💡 Errore</h4>
+                                            <p style="color: #856404;">@embeddingError</p>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <small style="color: #856404;">Verifica la configurazione AI (Gemini/OpenAI/Azure OpenAI)</small>
+                                    }
+                                </div>
                             </div>
-                        </div>
+                        }
                     }
 
                     @* AI Category Analysis *@
@@ -821,6 +853,7 @@
     private string extractedText = string.Empty;
     private float[]? embedding;
     private bool embeddingGenerated = false;
+    private string? embeddingError;
     
     // Processing options
     private bool enableTextExtraction = true;
@@ -845,6 +878,7 @@
         categoryReasoning = null;
         processingComplete = false;
         embeddingGenerated = false;
+        embeddingError = null;
         extractedText = string.Empty;
         embedding = null;
 
@@ -944,12 +978,14 @@
                 try
                 {
                     embedding = await AIService.GenerateEmbeddingAsync(extractedText);
-                    embeddingGenerated = embedding != null;
+                    embeddingGenerated = embedding != null && embedding.Length > 0;
+                    embeddingError = null;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     // Log but don't fail the whole process
                     embeddingGenerated = false;
+                    embeddingError = ex.Message;
                 }
             }
 
