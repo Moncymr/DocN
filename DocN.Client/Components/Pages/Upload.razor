@@ -122,32 +122,60 @@
                     }
 
                     @* AI Category Analysis *@
-                    @if (!string.IsNullOrEmpty(suggestedCategory))
+                    @if (enableAICategory && processingComplete)
                     {
-                        <div class="result-card">
-                            <div class="result-header">
-                                <span class="result-icon">🤖</span>
-                                <span class="result-title">Analisi Categoria AI</span>
-                                <span class="result-status success">✓ Completo</span>
-                            </div>
-                            <div class="result-content">
-                                <div class="category-result">
-                                    <span class="category-badge">@suggestedCategory</span>
+                        @if (!string.IsNullOrEmpty(suggestedCategory))
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🤖</span>
+                                    <span class="result-title">Analisi Categoria AI</span>
+                                    <span class="result-status success">✓ Completo</span>
                                 </div>
-                                @if (!string.IsNullOrEmpty(categoryReasoning))
-                                {
-                                    <div class="reasoning-box">
-                                        <h4>💡 Motivazione</h4>
-                                        <p>@categoryReasoning</p>
+                                <div class="result-content">
+                                    <div class="category-result">
+                                        <span class="category-badge">@suggestedCategory</span>
                                     </div>
-                                }
+                                    @if (!string.IsNullOrEmpty(categoryReasoning))
+                                    {
+                                        <div class="reasoning-box">
+                                            <h4>💡 Motivazione</h4>
+                                            <p>@categoryReasoning</p>
+                                        </div>
+                                    }
+                                </div>
                             </div>
-                        </div>
+                        }
+                        else
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🤖</span>
+                                    <span class="result-title">Analisi Categoria AI</span>
+                                    <span class="result-status" style="background: #fff3cd; color: #856404;">⚠️ Nessuna categoria</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="color: #856404; margin: 0 0 0.5rem 0;">
+                                        ⚠️ L'AI non è riuscita a suggerire una categoria specifica per questo documento.
+                                    </p>
+                                    @if (!string.IsNullOrEmpty(categoryReasoning))
+                                    {
+                                        <div class="reasoning-box" style="background: #fff3cd;">
+                                            <h4 style="color: #856404;">💡 Dettagli</h4>
+                                            <p style="color: #856404;">@categoryReasoning</p>
+                                        </div>
+                                    }
+                                    <p style="margin-top: 1rem; font-weight: 600;">
+                                        👇 Puoi inserire manualmente una categoria nel campo qui sotto
+                                    </p>
+                                </div>
+                            </div>
+                        }
                     }
                 </div>
             }
 
-            @* Show Category and Visibility form fields *@
+            @* Show Category and Visibility form fields - ALWAYS visible *@
             <div class="form-section">
                 <label class="form-label">
                     📁 Categoria
@@ -160,9 +188,15 @@
                         Usa una categoria diversa
                     </label>
                 }
-                @if (useCustomCategory || !processingComplete)
+                else
                 {
-                    <input type="text" @bind="customCategory" class="form-control" placeholder="Inserisci categoria" />
+                    <input type="text" @bind="customCategory" class="form-control" placeholder="Inserisci categoria manualmente" />
+                    @if (processingComplete && string.IsNullOrEmpty(suggestedCategory))
+                    {
+                        <small style="color: #666; display: block; margin-top: 0.5rem;">
+                            ℹ️ Nessuna categoria suggerita dall'AI. Inserisci manualmente una categoria.
+                        </small>
+                    }
                 }
             </div>
 
@@ -905,12 +939,24 @@
                 try
                 {
                     var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
-                    suggestedCategory = result.Category;
-                    categoryReasoning = result.Reasoning;
+                    
+                    // Check if category is valid
+                    if (!string.IsNullOrEmpty(result.Category) && result.Category != "Uncategorized")
+                    {
+                        suggestedCategory = result.Category;
+                        categoryReasoning = result.Reasoning;
+                    }
+                    else
+                    {
+                        // No valid category found
+                        suggestedCategory = null;
+                        categoryReasoning = result.Reasoning ?? "AI could not determine a suitable category";
+                    }
                 }
                 catch (Exception ex)
                 {
-                    suggestedCategory = "Uncategorized";
+                    // Category suggestion failed - user can still enter manually
+                    suggestedCategory = null;
                     categoryReasoning = $"Unable to analyze: {ex.Message}";
                 }
             }
@@ -953,6 +999,20 @@
 
         try
         {
+            // Determine the final category to use
+            string? finalCategory = null;
+            
+            if (useCustomCategory || string.IsNullOrEmpty(suggestedCategory))
+            {
+                // Use custom category (either user chose custom or no AI suggestion)
+                finalCategory = customCategory;
+            }
+            else
+            {
+                // Use AI suggested category
+                finalCategory = suggestedCategory;
+            }
+            
             // Create upload directory if it doesn't exist
             var uploadPath = Configuration.GetValue<string>("FileStorage:UploadPath") ?? "C:\\DocumentArchive\\Uploads";
             Directory.CreateDirectory(uploadPath);
@@ -977,7 +1037,7 @@
                 ExtractedText = extractedText,
                 SuggestedCategory = suggestedCategory,
                 CategoryReasoning = categoryReasoning,
-                ActualCategory = useCustomCategory ? customCategory : suggestedCategory,
+                ActualCategory = finalCategory,
                 Visibility = (DocumentVisibility)selectedVisibility,
                 EmbeddingVector = embedding,
                 OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
