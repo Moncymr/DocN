@@ -102,6 +102,11 @@
                 </div>
 
                 <div class="analyze-button-section">
+                    <div class="analyze-instruction">
+                        <h3 style="color: #48bb78; margin: 0 0 1rem 0; font-size: 1.3rem;">
+                            👇 Clicca qui per analizzare il documento 👇
+                        </h3>
+                    </div>
                     <button type="button" class="btn btn-process btn-large" @onclick="ProcessDocument" disabled="@isProcessing">
                         @if (isProcessing)
                         {
@@ -520,16 +525,48 @@
     .analyze-button-section {
         margin: 2rem 0;
         text-align: center;
+        padding: 2rem;
+        background: linear-gradient(135deg, rgba(72, 187, 120, 0.05) 0%, rgba(56, 161, 105, 0.05) 100%);
+        border-radius: 12px;
+        border: 3px dashed #48bb78;
+        animation: pulse-border 2s ease-in-out infinite;
+    }
+
+    @@keyframes pulse-border {
+        0%, 100% {
+            border-color: #48bb78;
+            background: linear-gradient(135deg, rgba(72, 187, 120, 0.05) 0%, rgba(56, 161, 105, 0.05) 100%);
+        }
+        50% {
+            border-color: #38a169;
+            background: linear-gradient(135deg, rgba(72, 187, 120, 0.1) 0%, rgba(56, 161, 105, 0.1) 100%);
+        }
     }
 
     .btn-large {
-        padding: 1rem 2.5rem;
-        font-size: 1.2rem;
-        box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+        padding: 1.5rem 3rem;
+        font-size: 1.4rem;
+        box-shadow: 0 6px 20px rgba(72, 187, 120, 0.4);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        min-width: 300px;
+        animation: button-pulse 2s ease-in-out infinite;
+    }
+
+    @@keyframes button-pulse {
+        0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 6px 20px rgba(72, 187, 120, 0.4);
+        }
+        50% {
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.6);
+        }
     }
 
     .btn-large:hover:not(:disabled) {
-        box-shadow: 0 6px 20px rgba(72, 187, 120, 0.4);
+        box-shadow: 0 8px 30px rgba(72, 187, 120, 0.6);
+        transform: scale(1.1);
+        animation: none;
     }
 
     .form-actions {
