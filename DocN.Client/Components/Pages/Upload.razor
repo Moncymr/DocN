@@ -37,7 +37,7 @@
             <div class="form-section">
                 <h3>Select File</h3>
                 <div class="file-upload-wrapper">
-                    <label for="fileInput" class="file-upload-button">
+                    <label for="fileInput" class="file-upload-button" style="cursor: pointer;">
                         <span class="upload-icon-large">📤</span>
                         <span class="upload-content">
                             @if (selectedFile == null)
@@ -52,7 +52,7 @@
                             }
                         </span>
                     </label>
-                    <InputFile id="fileInput" OnChange="HandleFileSelection" class="file-input-hidden" accept="@GetAcceptedExtensions()" />
+                    <InputFile id="fileInput" OnChange="@HandleFileSelection" class="file-input-hidden" accept="@GetAcceptedExtensions()" />
                 </div>
                 
                 @if (selectedFile != null)
