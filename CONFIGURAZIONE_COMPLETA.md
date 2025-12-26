@@ -104,7 +104,7 @@ sqllocaldb start MSSQLLocalDB
 ```
 
 #### Passo 2: Configura Stringa di Connessione
-Modifica `src/DocN.Client/appsettings.json`:
+Modifica `src/DocN.Server/appsettings.json`:
 
 ```json
 {
@@ -124,7 +124,7 @@ GO
 ```
 
 #### Passo 2: Configura Stringa di Connessione
-Modifica `src/DocN.Client/appsettings.json`:
+Modifica `src/DocN.Server/appsettings.json`:
 
 ```json
 {
@@ -149,7 +149,7 @@ cd /path/to/DocN
 dotnet tool install --global dotnet-ef
 
 # Applica le migrazioni
-dotnet ef database update --project src/DocN.Data/DocN.Data.csproj --startup-project src/DocN.Client/DocN.Client.csproj
+dotnet ef database update --project src/DocN.Data/DocN.Data.csproj --startup-project src/DocN.Server/DocN.Server.csproj
 ```
 
 **Output atteso:**
@@ -190,7 +190,7 @@ Le chiavi API sono **ESSENZIALI** per il funzionamento delle funzionalità AI.
 #### Passo 1: Crea File Development
 ```bash
 # Copia il file template
-cp src/DocN.Client/appsettings.Development.example.json src/DocN.Client/appsettings.Development.json
+cp src/DocN.Server/appsettings.Development.example.json src/DocN.Server/appsettings.Development.json
 ```
 
 #### Passo 2: Ottieni le Chiavi API
@@ -220,7 +220,7 @@ cp src/DocN.Client/appsettings.Development.example.json src/DocN.Client/appsetti
 4. Copia la chiave (inizia con `AIzaSy`)
 
 #### Passo 3: Configura il File
-Modifica `src/DocN.Client/appsettings.Development.json`:
+Modifica `src/DocN.Server/appsettings.Development.json`:
 
 ```json
 {
@@ -308,7 +308,7 @@ mkdir -p ~/DocNData/Uploads
 ```
 
 ### Passo 2: Configura il Percorso
-Nel file `src/DocN.Client/appsettings.json` o `appsettings.Development.json`:
+Nel file `src/DocN.Server/appsettings.json` o `appsettings.Development.json`:
 
 ```json
 {
@@ -365,7 +365,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 ### Passo 1: Avvia l'Applicazione
 ```bash
 # Dalla directory root del progetto
-cd src/DocN.Client
+cd src/DocN.Server
 
 # Avvia l'applicazione
 dotnet run
@@ -555,7 +555,7 @@ sqllocaldb stop MSSQLLocalDB
 sqllocaldb start MSSQLLocalDB
 
 # Riapplica migrazioni
-dotnet ef database update --project src/DocN.Data/DocN.Data.csproj --startup-project src/DocN.Client/DocN.Client.csproj
+dotnet ef database update --project src/DocN.Data/DocN.Data.csproj --startup-project src/DocN.Server/DocN.Server.csproj
 ```
 
 ### Problema: "Azure OpenAI authentication failed"
@@ -688,7 +688,7 @@ cd DocN
 dotnet restore
 
 # 3. Crea file configurazione
-cp src/DocN.Client/appsettings.Development.example.json src/DocN.Client/appsettings.Development.json
+cp src/DocN.Server/appsettings.Development.example.json src/DocN.Server/appsettings.Development.json
 
 # 4. Modifica appsettings.Development.json con le tue chiavi
 
@@ -697,10 +697,10 @@ mkdir C:\DocNData\Uploads  # Windows
 # mkdir -p ~/DocNData/Uploads  # Linux/Mac
 
 # 6. Applica migrazioni database
-dotnet ef database update --project src/DocN.Data/DocN.Data.csproj --startup-project src/DocN.Client/DocN.Client.csproj
+dotnet ef database update --project src/DocN.Data/DocN.Data.csproj --startup-project src/DocN.Server/DocN.Server.csproj
 
 # 7. Avvia l'applicazione
-cd src/DocN.Client
+cd src/DocN.Server
 dotnet run
 
 # 8. Apri browser: http://localhost:5000
