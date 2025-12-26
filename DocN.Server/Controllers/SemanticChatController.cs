@@ -65,7 +65,7 @@ public class SemanticChatController : ControllerBase
             {
                 ConversationId = result.ConversationId,
                 Answer = result.Answer,
-                SourceDocuments = result.SourceDocuments.Select(d => new DocumentReference
+                SourceDocuments = result.SourceDocuments.Select(d => new SemanticDocumentReference
                 {
                     DocumentId = d.DocumentId,
                     FileName = d.FileName,
@@ -147,7 +147,7 @@ public class SemanticChatController : ControllerBase
 
             return Ok(new SearchDocumentsResponse
             {
-                Results = results.Select(r => new DocumentReference
+                Results = results.Select(r => new SemanticDocumentReference
                 {
                     DocumentId = r.DocumentId,
                     FileName = r.FileName,
@@ -318,16 +318,16 @@ public class SemanticChatResponse
 {
     public int ConversationId { get; set; }
     public string Answer { get; set; } = string.Empty;
-    public List<DocumentReference> SourceDocuments { get; set; } = new();
+    public List<SemanticDocumentReference> SourceDocuments { get; set; } = new();
     public long ResponseTimeMs { get; set; }
     public bool FromCache { get; set; }
     public Dictionary<string, object> Metadata { get; set; } = new();
 }
 
 /// <summary>
-/// Document reference with similarity score
+/// Document reference with similarity score for semantic search
 /// </summary>
-public class DocumentReference
+public class SemanticDocumentReference
 {
     public int DocumentId { get; set; }
     public string FileName { get; set; } = string.Empty;
@@ -353,21 +353,8 @@ public class SearchDocumentsRequest
 /// </summary>
 public class SearchDocumentsResponse
 {
-    public List<DocumentReference> Results { get; set; } = new();
+    public List<SemanticDocumentReference> Results { get; set; } = new();
     public int TotalResults { get; set; }
-}
-
-/// <summary>
-/// Conversation summary
-/// </summary>
-public class ConversationSummary
-{
-    public int Id { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-    public DateTime LastMessageAt { get; set; }
-    public int MessageCount { get; set; }
-    public bool IsStarred { get; set; }
 }
 
 /// <summary>

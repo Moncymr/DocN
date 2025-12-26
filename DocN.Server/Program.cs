@@ -7,6 +7,7 @@ using DocN.Server.Services;
 using DocN.Core.Interfaces;
 
 #pragma warning disable SKEXP0001 // Type is for evaluation purposes only
+#pragma warning disable SKEXP0010 // Method is for evaluation purposes only
 #pragma warning disable SKEXP0110 // Agents are experimental
 
 var builder = WebApplication.CreateBuilder(args);
@@ -104,9 +105,9 @@ else
 var kernel = kernelBuilder.Build();
 builder.Services.AddSingleton(kernel);
 
-// Register core services
-builder.Services.AddScoped<IEmbeddingService, EmbeddingService>();
-builder.Services.AddScoped<IChunkingService, ChunkingService>();
+// Register core services - use Data layer implementations
+builder.Services.AddScoped<DocN.Data.Services.IEmbeddingService, DocN.Data.Services.EmbeddingService>();
+builder.Services.AddScoped<DocN.Data.Services.IChunkingService, DocN.Data.Services.ChunkingService>();
 builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
 builder.Services.AddScoped<IBatchProcessingService, BatchProcessingService>();

@@ -203,10 +203,10 @@ public class MultiProviderAIService : IMultiProviderAIService
         var openAIClient = new OpenAI.OpenAIClient(_openAISettings.ApiKey);
         var chatClient = openAIClient.GetChatClient(_openAISettings.Model);
         
-        var messages = new List<ChatMessage>
+        var messages = new List<OpenAI.Chat.ChatMessage>
         {
-            new SystemChatMessage(systemPrompt),
-            new UserChatMessage(userPrompt)
+            OpenAI.Chat.ChatMessage.CreateSystemMessage(systemPrompt),
+            OpenAI.Chat.ChatMessage.CreateUserMessage(userPrompt)
         };
         
         var completion = await chatClient.CompleteChatAsync(messages);
