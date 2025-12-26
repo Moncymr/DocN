@@ -272,7 +272,7 @@
 
             @* Show Save/Cancel buttons *@
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null)">
+                <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null || !processingComplete)">
                     @if (isUploading)
                     {
                         <span>⏳ Caricamento...</span>
@@ -286,6 +286,16 @@
                     Annulla
                 </button>
             </div>
+            
+            @* Help text for upload button *@
+            @if (selectedFile != null && !processingComplete && !isProcessing)
+            {
+                <div class="help-text">
+                    <small>
+                        ℹ️ Clicca prima su "🔬 Analizza Documento" per abilitare il caricamento
+                    </small>
+                </div>
+            }
         </EditForm>
     </div>
 </div>
@@ -759,6 +769,20 @@
 
     .option-checkbox:has(input:checked) .option-title {
         color: #667eea;
+    }
+    
+    .help-text {
+        text-align: center;
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: #e7f3ff;
+        border-radius: 5px;
+        border: 1px solid #90caf9;
+    }
+    
+    .help-text small {
+        color: #1976d2;
+        font-weight: 500;
     }
 </style>
 
