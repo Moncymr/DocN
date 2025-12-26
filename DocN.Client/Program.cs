@@ -2,6 +2,7 @@ using DocN.Client.Components;
 using DocN.Data;
 using DocN.Data.Models;
 using DocN.Data.Services;
+using DocN.Core.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Add HttpClient for Blazor components
+builder.Services.AddHttpClient();
 
 // Database configuration
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -76,11 +80,17 @@ builder.Services.Configure<EmbeddingsSettings>(builder.Configuration.GetSection(
 
 // Application Services
 builder.Services.AddScoped<IDocumentService, DocumentService>();
-builder.Services.AddScoped<IEmbeddingService, EmbeddingService>();
-builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<DocN.Data.Services.IEmbeddingService, EmbeddingService>();
+builder.Services.AddScoped<DocN.Data.Services.ICategoryService, CategoryService>();
 builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService>();
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
+
+// Configure HttpClient to call the backend API
+builder.Services.AddHttpClient("BackendAPI", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["BackendApiUrl"] ?? "https://localhost:5001/");
+});
 
 var app = builder.Build();
 
