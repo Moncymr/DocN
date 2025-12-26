@@ -2,6 +2,7 @@
 @page "/fileupload"
 @using MudBlazor
 @using Microsoft.AspNetCore.Components.Forms
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Carica File - DocN</PageTitle>
 
@@ -123,39 +124,41 @@
                             <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Small" Class="mr-2" />
                             Seleziona File
                         </MudText>
-                        <MudFileUpload T="IBrowserFile" OnFilesChanged="OnFilesChanged" 
+                        <MudFileUpload T="IBrowserFile" 
+                                       OnFilesChanged="OnFilesChanged"
                                        Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                                       MaximumFileCount="1">
-                            <ButtonTemplate>
-                                <MudButton HtmlTag="label"
-                                           Variant="Variant.Filled"
-                                           Style="background: linear-gradient(135deg, #7c4dff 0%, #9d6eff 100%); border-radius: 16px; min-height: 300px; width: 100%; box-shadow: 0 8px 24px rgba(124, 77, 255, 0.25); transition: all 0.3s ease; position: relative; overflow: hidden; padding: 2rem;">
-                                    <MudStack AlignItems="AlignItems.Center" Spacing="3" Class="upload-icon-container">
-                                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
-                                                 Style="font-size: 5rem; color: white; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));" />
-                                        <MudText Typo="Typo.h4" Style="color: white; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                                            @if (selectedFile == null)
-                                            {
-                                                <span>Scegli un file o trascinalo qui</span>
-                                            }
-                                            else
-                                            {
-                                                <span>✓ File selezionato - Clicca per cambiare</span>
-                                            }
-                                        </MudText>
-                                        <MudText Typo="Typo.h6" Style="color: rgba(255,255,255,0.95); text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                                            Formati supportati: PDF, Word, Excel, PowerPoint
-                                        </MudText>
-                                        @if (selectedFile == null)
-                                        {
-                                            <MudChip Color="Color.Default" Style="background: rgba(255,255,255,0.2); color: white; backdrop-filter: blur(10px);">
-                                                Max 50 MB
-                                            </MudChip>
-                                        }
-                                    </MudStack>
-                                </MudButton>
-                            </ButtonTemplate>
+                                       MaximumFileCount="1"
+                                       id="fileUploadInput"
+                                       Hidden="true">
                         </MudFileUpload>
+                        <MudPaper Elevation="0" 
+                                  Class="d-flex align-center justify-center pa-6 cursor-pointer mud-width-full"
+                                  @onclick="TriggerFileInput"
+                                  Style="background: linear-gradient(135deg, #7c4dff 0%, #9d6eff 100%); border-radius: 16px; min-height: 300px; box-shadow: 0 8px 24px rgba(124, 77, 255, 0.25); transition: all 0.3s ease; position: relative; overflow: hidden;">
+                            <MudStack AlignItems="AlignItems.Center" Spacing="3" Class="upload-icon-container">
+                                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
+                                         Style="font-size: 5rem; color: white; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));" />
+                                <MudText Typo="Typo.h4" Style="color: white; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                    @if (selectedFile == null)
+                                    {
+                                        <span>Scegli un file o trascinalo qui</span>
+                                    }
+                                    else
+                                    {
+                                        <span>✓ File selezionato - Clicca per cambiare</span>
+                                    }
+                                </MudText>
+                                <MudText Typo="Typo.h6" Style="color: rgba(255,255,255,0.95); text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                    Formati supportati: PDF, Word, Excel, PowerPoint
+                                </MudText>
+                                @if (selectedFile == null)
+                                {
+                                    <MudChip Color="Color.Default" Style="background: rgba(255,255,255,0.2); color: white; backdrop-filter: blur(10px);">
+                                        Max 50 MB
+                                    </MudChip>
+                                }
+                            </MudStack>
+                        </MudPaper>
                     </MudItem>
                     
                     <!-- Selected File Info -->
@@ -357,6 +360,14 @@
     private bool generateEmbeddings = true;
     private bool isUploading = false;
     private string uploadStatus = "";
+    
+    private async Task TriggerFileInput()
+    {
+        // Find the input element inside the MudFileUpload and click it
+        await JSRuntime.InvokeVoidAsync("eval", @"
+            document.querySelector('#fileUploadInput input[type=""file""]')?.click();
+        ");
+    }
     
     private void OnFilesChanged(InputFileChangeEventArgs e)
     {
