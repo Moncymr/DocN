@@ -127,8 +127,9 @@
                                        Accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                                        MaximumFileCount="1">
                             <ButtonTemplate>
-                                <MudPaper Elevation="0" Class="d-flex align-center justify-center pa-6 cursor-pointer mud-width-full"
-                                          Style="background: linear-gradient(135deg, #7c4dff 0%, #9d6eff 100%); border-radius: 16px; min-height: 300px; box-shadow: 0 8px 24px rgba(124, 77, 255, 0.25); transition: all 0.3s ease; position: relative; overflow: hidden;">
+                                <MudButton HtmlTag="label"
+                                           Variant="Variant.Filled"
+                                           Style="background: linear-gradient(135deg, #7c4dff 0%, #9d6eff 100%); border-radius: 16px; min-height: 300px; width: 100%; box-shadow: 0 8px 24px rgba(124, 77, 255, 0.25); transition: all 0.3s ease; position: relative; overflow: hidden; padding: 2rem;">
                                     <MudStack AlignItems="AlignItems.Center" Spacing="3" Class="upload-icon-container">
                                         <MudIcon Icon="@Icons.Material.Filled.CloudUpload" 
                                                  Style="font-size: 5rem; color: white; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));" />
@@ -152,7 +153,7 @@
                                             </MudChip>
                                         }
                                     </MudStack>
-                                </MudPaper>
+                                </MudButton>
                             </ButtonTemplate>
                         </MudFileUpload>
                     </MudItem>
