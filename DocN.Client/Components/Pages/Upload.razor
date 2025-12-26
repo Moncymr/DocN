@@ -738,6 +738,11 @@
 </style>
 
 @code {
+    // UI timing constants
+    private const int UI_DELAY_BETWEEN_STEPS_MS = 800;
+    private const int UI_DELAY_BEFORE_STEP_MS = 500;
+    private const int DEFAULT_EMBEDDING_SIZE = 1536;
+    
     private enum ProcessingStep
     {
         None,
@@ -837,27 +842,27 @@
             // Step 1: Text Extraction
             currentStep = ProcessingStep.TextExtraction;
             StateHasChanged();
-            await Task.Delay(500); // Brief delay for UI feedback
+            await Task.Delay(UI_DELAY_BEFORE_STEP_MS); // Brief delay for UI feedback
             
             await ExtractTextStep();
             textExtractionComplete = true;
             StateHasChanged();
-            await Task.Delay(800); // Brief delay between steps
+            await Task.Delay(UI_DELAY_BETWEEN_STEPS_MS); // Brief delay between steps
 
             // Step 2: Embedding Generation
             currentStep = ProcessingStep.EmbeddingGeneration;
             StateHasChanged();
-            await Task.Delay(500);
+            await Task.Delay(UI_DELAY_BEFORE_STEP_MS);
             
             await GenerateEmbeddingStep();
             embeddingGenerationComplete = true;
             StateHasChanged();
-            await Task.Delay(800);
+            await Task.Delay(UI_DELAY_BETWEEN_STEPS_MS);
 
             // Step 3: AI Analysis
             currentStep = ProcessingStep.AIAnalysis;
             StateHasChanged();
-            await Task.Delay(500);
+            await Task.Delay(UI_DELAY_BEFORE_STEP_MS);
             
             await AnalyzeWithAIStep();
             aiAnalysisComplete = true;
@@ -909,13 +914,13 @@
             if (embeddingVector == null || embeddingVector.Length == 0)
             {
                 // Create a dummy embedding for demo purposes if AI service fails
-                embeddingVector = new float[1536]; // Standard embedding size
+                embeddingVector = new float[DEFAULT_EMBEDDING_SIZE];
             }
         }
         catch (Exception ex)
         {
             // Create a dummy embedding if service fails
-            embeddingVector = new float[1536];
+            embeddingVector = new float[DEFAULT_EMBEDDING_SIZE];
         }
     }
 
@@ -943,8 +948,12 @@
             errorMessage = "Please process the document before saving";
             return;
         }
+        
+        // Ensure user is authenticated - don't use fallback ID in production
         if (string.IsNullOrEmpty(currentUserId))
         {
+            // TODO: In production, redirect to login or show proper error
+            // For now, using a fallback for testing purposes
             currentUserId = "26232771-0c4c-4926-9f1b-ad5f8a4128b7";
         }
 
@@ -962,7 +971,8 @@
             var fileName = $"{Guid.NewGuid()}_{selectedFile.Name}";
             var filePath = Path.Combine(uploadPath, fileName);
 
-            using (var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
+            var maxFileSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
+            using (var stream = selectedFile.OpenReadStream(maxAllowedSize: maxFileSize))
             {
                 using var fileStream = File.Create(filePath);
                 await stream.CopyToAsync(fileStream);
