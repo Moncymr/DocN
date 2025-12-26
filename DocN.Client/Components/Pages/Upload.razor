@@ -3,6 +3,7 @@
 @using System.IO
 @inject IDocumentService DocumentService
 @inject IMultiProviderAIService AIService
+@inject IFileProcessingService FileProcessingService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
@@ -734,8 +735,34 @@
                 await Task.Delay(UI_UPDATE_DELAY_MS);
 
                 using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-                using var reader = new StreamReader(stream);
-                extractedText = await reader.ReadToEndAsync();
+                
+                try
+                {
+                    // Use FileProcessingService for proper multi-format text extraction
+                    var processingResult = await FileProcessingService.ProcessFileAsync(
+                        stream, 
+                        selectedFile.Name, 
+                        selectedFile.ContentType);
+                    
+                    if (processingResult.Success)
+                    {
+                        extractedText = processingResult.ExtractedText;
+                    }
+                    else
+                    {
+                        // Fallback to simple text reading if processing fails
+                        stream.Position = 0;
+                        using var reader = new StreamReader(stream);
+                        extractedText = await reader.ReadToEndAsync();
+                    }
+                }
+                catch (Exception)
+                {
+                    // Fallback to simple text reading
+                    stream.Position = 0;
+                    using var reader = new StreamReader(stream);
+                    extractedText = await reader.ReadToEndAsync();
+                }
             }
 
             // Step 2: Generate embeddings
