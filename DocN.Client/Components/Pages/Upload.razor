@@ -70,7 +70,7 @@
                     {
                         <div class="process-button-wrapper">
                             <button type="button" class="btn btn-process" @onclick="StartProcessing">
-                                🚀 Process Document
+                                🚀 Elabora Documento
                             </button>
                         </div>
                     }
@@ -80,7 +80,7 @@
             @if (isProcessing || processingComplete)
             {
                 <div class="processing-section">
-                    <h3>⚙️ Document Processing</h3>
+                    <h3>⚙️ Elaborazione Documento</h3>
                     
                     <!-- Step 1: Text Extraction -->
                     <div class="processing-step @GetStepClass(ProcessingStep.TextExtraction)">
@@ -99,17 +99,17 @@
                                     <span>📝</span>
                                 }
                             </span>
-                            <span class="step-title">Text Extraction</span>
+                            <span class="step-title">Estrazione Testo</span>
                         </div>
                         @if (textExtractionComplete && !string.IsNullOrEmpty(extractedText))
                         {
                             <div class="step-result">
                                 <div class="result-card">
-                                    <h4>📄 Extracted Text Preview</h4>
+                                    <h4>📄 Anteprima Testo Estratto</h4>
                                     <div class="text-preview">
                                         @GetTextPreview(extractedText, 500)
                                     </div>
-                                    <p class="text-stats">Total characters: @extractedText.Length</p>
+                                    <p class="text-stats">Caratteri totali: @extractedText.Length</p>
                                 </div>
                             </div>
                         }
@@ -132,15 +132,15 @@
                                     <span>🧠</span>
                                 }
                             </span>
-                            <span class="step-title">Embedding Generation</span>
+                            <span class="step-title">Generazione Embedding</span>
                         </div>
                         @if (embeddingGenerationComplete && embeddingVector != null)
                         {
                             <div class="step-result">
                                 <div class="result-card">
-                                    <h4>🧠 Vector Embeddings Created</h4>
-                                    <p>✨ Successfully generated @embeddingVector.Length-dimensional vector embedding</p>
-                                    <p class="embedding-preview">Vector preview: [@string.Join(", ", embeddingVector.Take(5).Select(v => v.ToString("F4")))]...</p>
+                                    <h4>🧠 Embedding Vettoriali Creati</h4>
+                                    <p>✨ Generato con successo embedding vettoriale a @embeddingVector.Length dimensioni</p>
+                                    <p class="embedding-preview">Anteprima vettore: [@string.Join(", ", embeddingVector.Take(5).Select(v => v.ToString("F4")))]...</p>
                                 </div>
                             </div>
                         }
@@ -163,20 +163,20 @@
                                     <span>🤖</span>
                                 }
                             </span>
-                            <span class="step-title">AI Analysis</span>
+                            <span class="step-title">Analisi AI</span>
                         </div>
                         @if (aiAnalysisComplete && !string.IsNullOrEmpty(suggestedCategory))
                         {
                             <div class="step-result">
                                 <div class="result-card">
-                                    <h4>🤖 AI Category Suggestion</h4>
+                                    <h4>🤖 Suggerimento Categoria AI</h4>
                                     <div class="category-suggestion">
                                         <span class="category-badge">@suggestedCategory</span>
                                     </div>
                                     @if (!string.IsNullOrEmpty(categoryReasoning))
                                     {
                                         <div class="reasoning-box">
-                                            <h5>💡 Why this category?</h5>
+                                            <h5>💡 Perché questa categoria?</h5>
                                             <p>@categoryReasoning</p>
                                         </div>
                                     }
@@ -190,30 +190,30 @@
             @if (processingComplete)
             {
                 <div class="form-section">
-                    <h3>🏷️ Choose Category</h3>
+                    <h3>🏷️ Scegli Categoria</h3>
                     <label class="category-choice">
                         <input type="radio" name="categoryChoice" checked="@(!useCustomCategory)" @onchange="@(() => useCustomCategory = false)" />
-                        <span>Accept AI suggestion: <strong>@suggestedCategory</strong></span>
+                        <span>Accetta suggerimento AI: <strong>@suggestedCategory</strong></span>
                     </label>
                     
                     <label class="category-choice">
                         <input type="radio" name="categoryChoice" checked="@useCustomCategory" @onchange="@(() => useCustomCategory = true)" />
-                        <span>Use custom category</span>
+                        <span>Usa categoria personalizzata</span>
                     </label>
                     
                     @if (useCustomCategory)
                     {
-                        <input type="text" @bind="customCategory" class="form-control" placeholder="Enter custom category" />
+                        <input type="text" @bind="customCategory" class="form-control" placeholder="Inserisci categoria personalizzata" />
                     }
                 </div>
 
                 <div class="form-section">
-                    <h3>🔒 Document Visibility</h3>
+                    <h3>🔒 Visibilità Documento</h3>
                     <select @bind="selectedVisibility" class="form-control">
-                        <option value="0">🔒 Private - Only you can see this document</option>
-                        <option value="1">👥 Shared - Share with specific users</option>
-                        <option value="2">🏢 Organization - All organization members</option>
-                        <option value="3">🌐 Public - Everyone can see</option>
+                        <option value="0">🔒 Privato - Solo tu puoi vedere questo documento</option>
+                        <option value="1">👥 Condiviso - Condividi con utenti specifici</option>
+                        <option value="2">🏢 Organizzazione - Tutti i membri dell'organizzazione</option>
+                        <option value="3">🌐 Pubblico - Tutti possono vedere</option>
                     </select>
                 </div>
 
@@ -221,11 +221,11 @@
                     <button type="submit" class="btn btn-primary" disabled="@isSaving">
                         @if (isSaving)
                         {
-                            <span>💾 Saving...</span>
+                            <span>💾 Salvataggio...</span>
                         }
                         else
                         {
-                            <span>💾 Save to Database</span>
+                            <span>💾 Salva nel Database</span>
                         }
                     </button>
                     <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isSaving">
