@@ -37,7 +37,7 @@
             <div class="form-section">
                 <h3>Select File</h3>
                 <div class="file-upload-wrapper">
-                    <label for="fileInput" class="file-upload-button">
+                    <label for="fileInput" class="file-upload-button" style="cursor: pointer;">
                         <span class="upload-icon-large">📤</span>
                         <span class="upload-content">
                             @if (selectedFile == null)
@@ -52,7 +52,7 @@
                             }
                         </span>
                     </label>
-                    <InputFile id="fileInput" OnChange="HandleFileSelection" class="file-input-hidden" accept="@GetAcceptedExtensions()" />
+                    <InputFile id="fileInput" OnChange="@HandleFileSelection" class="file-input-hidden" accept="@GetAcceptedExtensions()" />
                 </div>
                 
                 @if (selectedFile != null)
@@ -68,42 +68,83 @@
                 }
             </div>
 
-            @if (isAnalyzing)
+            @if (isProcessing)
             {
                 <div class="analyzing-section">
                     <div class="spinner"></div>
-                    <p>🤖 AI is analyzing the document and suggesting a category...</p>
+                    <p>🔄 Processing document: @processingStep</p>
                 </div>
             }
 
-            @if (!string.IsNullOrEmpty(suggestedCategory))
+            @if (processingComplete && !string.IsNullOrEmpty(extractedText))
             {
-                <div class="suggestion-section">
-                    <h3>AI Category Suggestion</h3>
-                    <div class="suggestion-card">
-                        <div class="suggestion-header">
-                            <span class="category-badge">@suggestedCategory</span>
+                <div class="results-section">
+                    <h3>📋 Processing Results</h3>
+                    
+                    @* Text Extraction Results *@
+                    <div class="result-card">
+                        <div class="result-header">
+                            <span class="result-icon">📝</span>
+                            <span class="result-title">Extracted Text</span>
+                            <span class="result-status success">✓ Success</span>
                         </div>
-                        @if (!string.IsNullOrEmpty(categoryReasoning))
-                        {
-                            <div class="reasoning-box">
-                                <h4>💡 Why this category?</h4>
-                                <p>@categoryReasoning</p>
+                        <div class="result-content">
+                            <p class="text-preview">@GetTextPreview(extractedText, 200)</p>
+                            <small>@extractedText.Length characters extracted</small>
+                        </div>
+                    </div>
+
+                    @* Embedding Results *@
+                    @if (embeddingGenerated)
+                    {
+                        <div class="result-card">
+                            <div class="result-header">
+                                <span class="result-icon">🧠</span>
+                                <span class="result-title">Vector Embeddings</span>
+                                <span class="result-status success">✓ Generated</span>
                             </div>
+                            <div class="result-content">
+                                <p>Vector embeddings generated successfully</p>
+                                <small>Dimensions: @(embedding?.Length ?? 0)</small>
+                            </div>
+                        </div>
+                    }
+
+                    @* AI Category Analysis *@
+                    @if (!string.IsNullOrEmpty(suggestedCategory))
+                    {
+                        <div class="result-card">
+                            <div class="result-header">
+                                <span class="result-icon">🤖</span>
+                                <span class="result-title">AI Category Analysis</span>
+                                <span class="result-status success">✓ Complete</span>
+                            </div>
+                            <div class="result-content">
+                                <div class="category-result">
+                                    <span class="category-badge">@suggestedCategory</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(categoryReasoning))
+                                {
+                                    <div class="reasoning-box">
+                                        <h4>💡 Reasoning</h4>
+                                        <p>@categoryReasoning</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div class="form-section">
+                        <label>
+                            <input type="checkbox" @bind="useCustomCategory" />
+                            Use a different category
+                        </label>
+                        
+                        @if (useCustomCategory)
+                        {
+                            <input type="text" @bind="customCategory" class="form-control" placeholder="Enter custom category" />
                         }
                     </div>
-                </div>
-
-                <div class="form-section">
-                    <label>
-                        <input type="checkbox" @bind="useCustomCategory" />
-                        Use a different category
-                    </label>
-                    
-                    @if (useCustomCategory)
-                    {
-                        <input type="text" @bind="customCategory" class="form-control" placeholder="Enter custom category" />
-                    }
                 </div>
             }
 
@@ -147,17 +188,31 @@
             </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null)">
-                    @if (isUploading)
+                <button type="button" class="btn btn-process" @onclick="ProcessDocument" disabled="@(isProcessing || selectedFile == null || processingComplete)">
+                    @if (isProcessing)
                     {
-                        <span>⏳ Uploading...</span>
+                        <span>⏳ Processing...</span>
+                    }
+                    else if (processingComplete)
+                    {
+                        <span>✓ Processing Complete</span>
                     }
                     else
                     {
-                        <span>📤 Upload Document</span>
+                        <span>🔄 Process Document</span>
                     }
                 </button>
-                <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@isUploading">
+                <button type="submit" class="btn btn-primary" disabled="@(isUploading || selectedFile == null || !processingComplete)">
+                    @if (isUploading)
+                    {
+                        <span>⏳ Saving...</span>
+                    }
+                    else
+                    {
+                        <span>💾 Save to Database</span>
+                    }
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@(isUploading || isProcessing)">
                     Cancel
                 </button>
             </div>
@@ -332,6 +387,76 @@
         margin-bottom: 2rem;
     }
 
+    .results-section {
+        margin-bottom: 2rem;
+    }
+
+    .results-section h3 {
+        margin-bottom: 1.5rem;
+        color: #333;
+    }
+
+    .result-card {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .result-card:hover {
+        border-color: #667eea;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+    }
+
+    .result-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .result-icon {
+        font-size: 1.5rem;
+    }
+
+    .result-title {
+        flex: 1;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .result-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .result-status.success {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .result-content {
+        padding: 1rem;
+    }
+
+    .text-preview {
+        margin: 0 0 0.5rem 0;
+        line-height: 1.6;
+        color: #555;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .category-result {
+        margin-bottom: 1rem;
+    }
+
     .suggestion-card {
         background: #f0f7ff;
         padding: 1.5rem;
@@ -402,6 +527,16 @@
     .btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+
+    .btn-process {
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        color: white;
+    }
+
+    .btn-process:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-2px);
     }
 
     .btn-primary {
@@ -502,6 +637,13 @@
 </style>
 
 @code {
+    // Constants
+    private const int UI_UPDATE_DELAY_MS = 500;
+    private const string STEP_EXTRACTING_TEXT = "Extracting text from file...";
+    private const string STEP_GENERATING_EMBEDDINGS = "Generating vector embeddings...";
+    private const string STEP_ANALYZING_AI = "Analyzing document with AI...";
+    private const string STEP_COMPLETE = "Processing complete!";
+    
     private class UploadModel
     {
         public string? Category { get; set; }
@@ -511,7 +653,8 @@
     private UploadModel uploadModel = new();
     private IBrowserFile? selectedFile;
     private bool isUploading = false;
-    private bool isAnalyzing = false;
+    private bool isProcessing = false;
+    private bool processingComplete = false;
     private bool useCustomCategory = false;
     private string? customCategory;
     private string? suggestedCategory;
@@ -520,6 +663,12 @@
     private string? errorMessage;
     private string? successMessage;
     private string currentUserId = string.Empty;
+    private string processingStep = "";
+    
+    // Processing results
+    private string extractedText = string.Empty;
+    private float[]? embedding;
+    private bool embeddingGenerated = false;
     
     // Processing options
     private bool enableTextExtraction = true;
@@ -542,6 +691,10 @@
         successMessage = null;
         suggestedCategory = null;
         categoryReasoning = null;
+        processingComplete = false;
+        embeddingGenerated = false;
+        extractedText = string.Empty;
+        embedding = null;
 
         // Validate file size
         var maxSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
@@ -561,39 +714,79 @@
             selectedFile = null;
             return;
         }
-
-        // Analyze document with AI only if enabled
-        if (enableAICategory)
-        {
-            await AnalyzeDocument();
-        }
     }
 
-    private async Task AnalyzeDocument()
+    private async Task ProcessDocument()
     {
         if (selectedFile == null) return;
 
-        isAnalyzing = true;
+        isProcessing = true;
+        processingComplete = false;
+        errorMessage = null;
+
         try
         {
-            // Extract text from file (simplified - in production use proper text extraction libraries)
-            using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-            using var reader = new StreamReader(stream);
-            var extractedText = await reader.ReadToEndAsync();
+            // Step 1: Extract text
+            if (enableTextExtraction)
+            {
+                processingStep = STEP_EXTRACTING_TEXT;
+                StateHasChanged();
+                await Task.Delay(UI_UPDATE_DELAY_MS);
 
-            // Get AI category suggestion using MultiProviderAIService
-            var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
-            suggestedCategory = result.Category;
-            categoryReasoning = result.Reasoning;
+                using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                extractedText = await reader.ReadToEndAsync();
+            }
+
+            // Step 2: Generate embeddings
+            if (enableEmbeddings && !string.IsNullOrEmpty(extractedText))
+            {
+                processingStep = STEP_GENERATING_EMBEDDINGS;
+                StateHasChanged();
+                await Task.Delay(UI_UPDATE_DELAY_MS);
+
+                try
+                {
+                    embedding = await AIService.GenerateEmbeddingAsync(extractedText);
+                    embeddingGenerated = embedding != null;
+                }
+                catch (Exception)
+                {
+                    // Log but don't fail the whole process
+                    embeddingGenerated = false;
+                }
+            }
+
+            // Step 3: AI category analysis
+            if (enableAICategory && !string.IsNullOrEmpty(extractedText))
+            {
+                processingStep = STEP_ANALYZING_AI;
+                StateHasChanged();
+                await Task.Delay(UI_UPDATE_DELAY_MS);
+
+                try
+                {
+                    var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
+                    suggestedCategory = result.Category;
+                    categoryReasoning = result.Reasoning;
+                }
+                catch (Exception ex)
+                {
+                    suggestedCategory = "Uncategorized";
+                    categoryReasoning = $"Unable to analyze: {ex.Message}";
+                }
+            }
+
+            processingComplete = true;
+            processingStep = STEP_COMPLETE;
         }
         catch (Exception ex)
         {
-            suggestedCategory = "Uncategorized";
-            categoryReasoning = $"Unable to analyze: {ex.Message}";
+            errorMessage = $"Error processing document: {ex.Message}";
         }
         finally
         {
-            isAnalyzing = false;
+            isProcessing = false;
         }
     }
 
@@ -604,11 +797,16 @@
             errorMessage = "Please select a file to upload";
             return;
         }
+        
+        if (!processingComplete)
+        {
+            errorMessage = "Please process the document first before saving";
+            return;
+        }
+        
         if (string.IsNullOrEmpty(currentUserId))
         {
             currentUserId = "26232771-0c4c-4926-9f1b-ad5f8a4128b7";
-            //errorMessage = "You must be logged in to upload documents.";
-            //return;
         }
 
         isUploading = true;
@@ -631,31 +829,7 @@
                 await stream.CopyToAsync(fileStream);
             }
 
-            // Extract text for embedding (only if enabled)
-            string extractedText = "";
-            if (enableTextExtraction)
-            {
-                try
-                {
-                    using var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-                    using var reader = new StreamReader(stream);
-                    extractedText = await reader.ReadToEndAsync();
-                }
-                catch { }
-            }
-
-            // Generate embedding using MultiProviderAIService (only if enabled)
-            float[]? embedding = null;
-            if (enableEmbeddings && !string.IsNullOrEmpty(extractedText))
-            {
-                try
-                {
-                    embedding = await AIService.GenerateEmbeddingAsync(extractedText);
-                }
-                catch { }
-            }
-
-            // Create document record
+            // Create document record using already-processed data
             var document = new Document
             {
                 FileName = selectedFile.Name,
@@ -674,7 +848,7 @@
 
             // Save to database
             await DocumentService.CreateDocumentAsync(document);
-            successMessage = $"Document '{selectedFile.Name}' uploaded successfully!";
+            successMessage = $"Document '{selectedFile.Name}' saved successfully to database!";
             
             // Wait a moment then redirect
             await Task.Delay(2000);
@@ -682,7 +856,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error uploading document: {ex.Message}";
+            errorMessage = $"Error saving document: {ex.Message}";
         }
         finally
         {
@@ -698,6 +872,13 @@
     private void GoBack()
     {
         Navigation.NavigateTo("/documents");
+    }
+
+    private string GetTextPreview(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        if (text.Length <= maxLength) return text;
+        return text[..maxLength] + "...";
     }
 
     private string GetAcceptedExtensions()
