@@ -78,3 +78,4 @@ DocN.Client/appsettings.json
 project.lock.json
 project.fragment.lock.json
 artifacts/
+/DocN.Client/appsettings.json
