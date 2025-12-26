@@ -33,6 +33,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.FileName).IsRequired().HasMaxLength(255);
             entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);
             entity.Property(e => e.ExtractedText).HasMaxLength(int.MaxValue);
+            entity.Property(e => e.SuggestedCategory).HasMaxLength(200);
+            entity.Property(e => e.ActualCategory).HasMaxLength(200);
             entity.Property(e => e.CategoryReasoning).HasMaxLength(2000);
             
             // Configure vector column for SQL Server 2025 native vector support
