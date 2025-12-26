@@ -33,7 +33,13 @@ builder.Services.AddDbContext<DocArcContext>(options =>
     var connectionString = builder.Configuration.GetConnectionString("DocArc");
     if (!string.IsNullOrEmpty(connectionString))
     {
-        options.UseSqlServer(connectionString);
+        options.UseSqlServer(connectionString, sqlServerOptions =>
+        {
+            sqlServerOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null);
+        });
     }
     else
     {
@@ -49,7 +55,13 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
                         ?? builder.Configuration.GetConnectionString("DocArc");
     if (!string.IsNullOrEmpty(connectionString))
     {
-        options.UseSqlServer(connectionString);
+        options.UseSqlServer(connectionString, sqlServerOptions =>
+        {
+            sqlServerOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null);
+        });
     }
     else
     {
