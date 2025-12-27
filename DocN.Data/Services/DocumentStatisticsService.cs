@@ -43,9 +43,9 @@ public class DocumentStatisticsService : IDocumentStatisticsService
                 .Include(d => d.Shares)
                 .Where(d => 
                     d.OwnerId == userId ||  // Owned by user
-                    d.OwnerId == null ||    // No owner (accessible to all in tenant)
                     d.Shares.Any(s => s.SharedWithUserId == userId) ||  // Shared with user
-                    (userTenantId != null && d.TenantId == userTenantId) // Same tenant
+                    (userTenantId != null && d.TenantId == userTenantId) || // Same tenant - see all docs in tenant
+                    (d.OwnerId == null && d.Visibility == DocumentVisibility.Public) // Public documents without owner
                 );
         }
         
