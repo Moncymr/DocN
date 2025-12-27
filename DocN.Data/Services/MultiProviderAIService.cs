@@ -185,7 +185,7 @@ public class MultiProviderAIService : IMultiProviderAIService
             }
         }
         catch (System.Net.Http.HttpRequestException ex) when (
-            ex.StatusCode == System.Net.HttpStatusCode.Forbidden || 
+            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
             ex.Message.Contains("Forbidden") || 
             ex.Message.Contains("403"))
         {
@@ -277,7 +277,7 @@ public class MultiProviderAIService : IMultiProviderAIService
             }
         }
         catch (System.Net.Http.HttpRequestException ex) when (
-            ex.StatusCode == System.Net.HttpStatusCode.Forbidden || 
+            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
             ex.Message.Contains("Forbidden") || 
             ex.Message.Contains("403"))
         {
