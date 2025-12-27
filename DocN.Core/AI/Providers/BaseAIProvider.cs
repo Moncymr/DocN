@@ -26,6 +26,10 @@ public abstract class BaseAIProvider : IDocumentAIProvider
         List<string> availableCategories, 
         CancellationToken cancellationToken = default);
 
+    public abstract Task<List<string>> ExtractTagsAsync(
+        string documentText,
+        CancellationToken cancellationToken = default);
+
     public virtual async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(
         string documentText, 
         List<string> availableCategories, 
@@ -38,7 +42,7 @@ public abstract class BaseAIProvider : IDocumentAIProvider
             ExtractedText = documentText
         };
 
-        // Genera embedding
+        // Genera embedding - non bloccare se fallisce
         try
         {
             var embedding = await GenerateEmbeddingAsync(documentText, cancellationToken);
@@ -51,10 +55,10 @@ public abstract class BaseAIProvider : IDocumentAIProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating embedding");
+            _logger.LogError(ex, "Error generating embedding - continuing with analysis");
         }
 
-        // Suggerisci categorie
+        // Suggerisci categorie - sempre eseguire, anche se embedding fallisce
         try
         {
             result.CategorySuggestions = await SuggestCategoriesAsync(documentText, availableCategories, cancellationToken);
@@ -62,6 +66,16 @@ public abstract class BaseAIProvider : IDocumentAIProvider
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error suggesting categories");
+        }
+
+        // Estrai tag - sempre eseguire, anche se embedding fallisce
+        try
+        {
+            result.ExtractedTags = await ExtractTagsAsync(documentText, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting tags");
         }
 
         return result;
@@ -81,6 +95,24 @@ Fornisci un JSON con un array 'suggestions' contenente oggetti con:
 - categoryName: nome della categoria
 - confidence: valore da 0 a 1
 - reasoning: breve motivazione
+
+Rispondi SOLO con JSON valido, senza altri commenti.";
+    }
+
+    protected string BuildTagExtractionPrompt(string documentText)
+    {
+        var text = documentText.Length > 2000 
+            ? documentText.Substring(0, 2000) 
+            : documentText;
+            
+        return $@"Estrai 5-10 tag o parole chiave rilevanti dal seguente documento.
+I tag devono essere brevi, specifici e rappresentativi del contenuto.
+
+Documento:
+{text}
+
+Fornisci un JSON con un array 'tags' contenente le parole chiave estratte.
+Esempio: {{""tags"": [""contratto"", ""legale"", ""2024"", ""servizi""]}}
 
 Rispondi SOLO con JSON valido, senza altri commenti.";
     }

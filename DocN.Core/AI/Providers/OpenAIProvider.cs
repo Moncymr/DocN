@@ -74,6 +74,35 @@ public class OpenAIProvider : BaseAIProvider
         return ParseCategorySuggestions(content);
     }
 
+    public override async Task<List<string>> ExtractTagsAsync(
+        string documentText,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Extracting tags with OpenAI");
+
+        try
+        {
+            var chatClient = _client.GetChatClient(_config.ChatModel);
+            var prompt = BuildTagExtractionPrompt(documentText);
+
+            var chatMessages = new List<ChatMessage>
+            {
+                new SystemChatMessage("Sei un assistente che estrae tag rilevanti dai documenti."),
+                new UserChatMessage(prompt)
+            };
+
+            var response = await chatClient.CompleteChatAsync(chatMessages, cancellationToken: cancellationToken);
+            var content = response.Value.Content[0].Text;
+
+            return ParseTags(content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting tags with OpenAI");
+            return new List<string>();
+        }
+    }
+
     private List<CategorySuggestion> ParseCategorySuggestions(string jsonResponse)
     {
         try
@@ -100,6 +129,34 @@ public class OpenAIProvider : BaseAIProvider
         {
             _logger.LogError(ex, "Error parsing category suggestions");
             return new List<CategorySuggestion>();
+        }
+    }
+
+    private List<string> ParseTags(string jsonResponse)
+    {
+        try
+        {
+            var jsonDoc = JsonDocument.Parse(jsonResponse);
+            var tags = new List<string>();
+
+            if (jsonDoc.RootElement.TryGetProperty("tags", out var tagsArray))
+            {
+                foreach (var item in tagsArray.EnumerateArray())
+                {
+                    var tag = item.GetString();
+                    if (!string.IsNullOrEmpty(tag))
+                    {
+                        tags.Add(tag);
+                    }
+                }
+            }
+
+            return tags;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error parsing tags");
+            return new List<string>();
         }
     }
 }

@@ -21,6 +21,11 @@ public class DocumentAnalysisResult
     public DocumentEmbedding? Embedding { get; set; }
     
     /// <summary>
+    /// Tag estratti dal documento
+    /// </summary>
+    public List<string> ExtractedTags { get; set; } = new();
+    
+    /// <summary>
     /// Metadati estratti
     /// </summary>
     public Dictionary<string, string> Metadata { get; set; } = new();

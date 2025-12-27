@@ -38,6 +38,16 @@ public interface IDocumentAIProvider
         CancellationToken cancellationToken = default);
     
     /// <summary>
+    /// Estrae tag rilevanti da un documento
+    /// </summary>
+    /// <param name="documentText">Testo del documento</param>
+    /// <param name="cancellationToken">Token di cancellazione</param>
+    /// <returns>Lista di tag estratti</returns>
+    Task<List<string>> ExtractTagsAsync(
+        string documentText,
+        CancellationToken cancellationToken = default);
+    
+    /// <summary>
     /// Analizza completamente un documento
     /// </summary>
     /// <param name="documentText">Testo del documento</param>

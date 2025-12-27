@@ -76,6 +76,33 @@ public class GeminiProvider : BaseAIProvider
         return new List<CategorySuggestion>();
     }
 
+    public override async Task<List<string>> ExtractTagsAsync(
+        string documentText,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Extracting tags with Gemini");
+
+        try
+        {
+            var model = _client.GenerativeModel(model: _config.GenerationModel);
+            var prompt = BuildTagExtractionPrompt(documentText);
+
+            var response = await model.GenerateContent(prompt);
+            
+            if (response?.Text != null)
+            {
+                return ParseTags(response.Text);
+            }
+
+            return new List<string>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting tags with Gemini");
+            return new List<string>();
+        }
+    }
+
     private List<CategorySuggestion> ParseCategorySuggestions(string jsonResponse)
     {
         try
@@ -118,6 +145,50 @@ public class GeminiProvider : BaseAIProvider
         {
             _logger.LogError(ex, "Error parsing category suggestions from Gemini");
             return new List<CategorySuggestion>();
+        }
+    }
+
+    private List<string> ParseTags(string jsonResponse)
+    {
+        try
+        {
+            // Gemini a volte include ```json markers, rimuoviamoli
+            var cleanedResponse = jsonResponse.Trim();
+            if (cleanedResponse.StartsWith("```json"))
+            {
+                cleanedResponse = cleanedResponse.Substring(7);
+            }
+            if (cleanedResponse.StartsWith("```"))
+            {
+                cleanedResponse = cleanedResponse.Substring(3);
+            }
+            if (cleanedResponse.EndsWith("```"))
+            {
+                cleanedResponse = cleanedResponse.Substring(0, cleanedResponse.Length - 3);
+            }
+            cleanedResponse = cleanedResponse.Trim();
+
+            var jsonDoc = JsonDocument.Parse(cleanedResponse);
+            var tags = new List<string>();
+
+            if (jsonDoc.RootElement.TryGetProperty("tags", out var tagsArray))
+            {
+                foreach (var item in tagsArray.EnumerateArray())
+                {
+                    var tag = item.GetString();
+                    if (!string.IsNullOrEmpty(tag))
+                    {
+                        tags.Add(tag);
+                    }
+                }
+            }
+
+            return tags;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error parsing tags from Gemini");
+            return new List<string>();
         }
     }
 }
