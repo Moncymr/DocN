@@ -32,7 +32,16 @@ bld/
 # Visual Studio Code
 .vscode/
 appsettings.json
+
+appsettings.Development.json
+
 DocN.Client/appsettings.json
+DocN.Client/appsettings.Development.json
+
+
+
+DocN.Server/appsettings.json
+DocN.Server/appsettings.Development.json
 # Rider
 .idea/
 
@@ -79,3 +88,4 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 /DocN.Client/appsettings.json
+/DocN.Server/appsettings.json
