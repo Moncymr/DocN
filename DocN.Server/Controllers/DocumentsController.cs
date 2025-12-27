@@ -131,4 +131,38 @@ public class DocumentsController : ControllerBase
             return StatusCode(500, "Errore durante il download del documento");
         }
     }
+
+    [HttpGet("categories")]
+    public async Task<ActionResult<IEnumerable<string>>> GetCategories()
+    {
+        try
+        {
+            // Get all unique categories from documents (both ActualCategory and SuggestedCategory)
+            var actualCategories = await _context.Documents
+                .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
+                .Select(d => d.ActualCategory!)
+                .Distinct()
+                .ToListAsync();
+
+            var suggestedCategories = await _context.Documents
+                .Where(d => !string.IsNullOrEmpty(d.SuggestedCategory) && string.IsNullOrEmpty(d.ActualCategory))
+                .Select(d => d.SuggestedCategory!)
+                .Distinct()
+                .ToListAsync();
+
+            // Combine and return unique categories
+            var categories = actualCategories.Union(suggestedCategories)
+                .Where(c => c != "Uncategorized")
+                .OrderBy(c => c)
+                .ToList();
+
+            _logger.LogInformation("Retrieved {Count} unique categories", categories.Count);
+            return Ok(categories);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving categories");
+            return StatusCode(500, "An error occurred while retrieving categories");
+        }
+    }
 }

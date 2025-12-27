@@ -235,8 +235,42 @@
         var user = authState.User;
         currentUserId = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         
-        // Load categories for filter (you might want to fetch from API)
-        categories = new List<string> { "Documents", "Contracts", "Reports", "Technical", "Financial", "Notes" };
+        // Load categories from API
+        await LoadCategoriesFromAPI();
+    }
+
+    private async Task LoadCategoriesFromAPI()
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var response = await httpClient.GetAsync("Documents/categories");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var loadedCategories = await response.Content.ReadFromJsonAsync<List<string>>();
+                if (loadedCategories != null && loadedCategories.Any())
+                {
+                    categories = loadedCategories;
+                }
+                else
+                {
+                    // Fallback to default categories if none found in database
+                    categories = new List<string> { "Documents", "Contracts", "Reports", "Technical", "Financial", "Notes" };
+                }
+            }
+            else
+            {
+                // Fallback to default categories on error
+                categories = new List<string> { "Documents", "Contracts", "Reports", "Technical", "Financial", "Notes" };
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading categories from API");
+            // Fallback to default categories
+            categories = new List<string> { "Documents", "Contracts", "Reports", "Technical", "Financial", "Notes" };
+        }
     }
 
     private async Task PerformSearch()

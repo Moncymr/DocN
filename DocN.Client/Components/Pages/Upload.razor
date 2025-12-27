@@ -956,6 +956,11 @@
     private bool tagExtractionAttempted = false;
     private bool tagExtractionSucceeded = false;
     private string? tagExtractionError;
+    private int? pageCount;
+    private string? detectedLanguage;
+    private string processingStatus = "Pending";
+    private string? processingError;
+    private DateTime? aiAnalysisDate;
     
     // Processing options
     private bool enableTextExtraction = true;
@@ -1017,6 +1022,8 @@
         isProcessing = true;
         processingComplete = false;
         errorMessage = null;
+        processingStatus = "Processing";
+        processingError = null;
 
         try
         {
@@ -1040,9 +1047,13 @@
                     if (processingResult.Success)
                     {
                         extractedText = processingResult.ExtractedText;
+                        // Capture metadata from processing result
+                        pageCount = processingResult.PageCount;
+                        detectedLanguage = processingResult.DetectedLanguage;
                     }
                     else
                     {
+                        processingError = processingResult.ErrorMessage;
                         // Fallback to simple text reading if processing fails
                         if (stream.CanSeek)
                         {
@@ -1059,8 +1070,9 @@
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    processingError = ex.Message;
                     // Fallback to simple text reading on any error
                     try
                     {
@@ -1182,12 +1194,21 @@
                 }
             }
 
+            // Set AI analysis date if any AI processing was attempted
+            if (enableAICategory || enableTagExtraction || enableEmbeddings)
+            {
+                aiAnalysisDate = DateTime.UtcNow;
+            }
+
             processingComplete = true;
+            processingStatus = "Completed";
             processingStep = STEP_COMPLETE;
         }
         catch (Exception ex)
         {
             errorMessage = "Errore durante l'elaborazione del documento. Riprova o contatta l'amministratore.";
+            processingStatus = "Failed";
+            processingError = ex.Message;
             Console.WriteLine($"Document processing error: {ex.Message}");
             Console.WriteLine($"Stack trace: {ex.StackTrace}");
         }
@@ -1272,8 +1293,31 @@
                 Visibility = (DocumentVisibility)selectedVisibility,
                 EmbeddingVector = embedding,
                 OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
-                UploadedAt = DateTime.UtcNow
+                UploadedAt = DateTime.UtcNow,
+                
+                // NEW FIELDS - Populate all missing fields
+                Notes = documentNotes,
+                PageCount = pageCount,
+                DetectedLanguage = detectedLanguage,
+                ProcessingStatus = processingStatus,
+                ProcessingError = processingError,
+                AIAnalysisDate = aiAnalysisDate,
+                AITagsJson = aiExtractedTags != null && aiExtractedTags.Any() 
+                    ? System.Text.Json.JsonSerializer.Serialize(aiExtractedTags) 
+                    : null,
+                TenantId = null // Will be set from user's tenant if available
             };
+
+            // Set TenantId from user's tenant if user is authenticated
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                var tenantClaim = authState.User.FindFirst("TenantId");
+                if (tenantClaim != null && int.TryParse(tenantClaim.Value, out var tenantId))
+                {
+                    document.TenantId = tenantId;
+                }
+            }
 
             // Parse and add tags as DocumentTag entities
             if (!string.IsNullOrWhiteSpace(documentTags))
