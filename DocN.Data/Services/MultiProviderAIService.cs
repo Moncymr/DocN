@@ -319,7 +319,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         return completion.Value.Content[0].Text;
     }
 
-    public async Task<(string Category, string Reasoning)> SuggestCategoryAsync(string fileName, string extractedText)
+    public async Task<(string Category, string Reasoning, string Provider)> SuggestCategoryAsync(string fileName, string extractedText)
     {
         try
         {

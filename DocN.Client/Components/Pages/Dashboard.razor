@@ -1,7 +1,10 @@
 @page "/dashboard"
 @inject IDocumentStatisticsService StatisticsService
+@inject IDocumentService DocumentService
+@inject IEmbeddingService EmbeddingService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILogger<Dashboard> Logger
+@inject NavigationManager Navigation
 @rendermode InteractiveServer
 
 <PageTitle>Dashboard - DocN</PageTitle>
@@ -120,15 +123,26 @@
                                 <th>Documento</th>
                                 <th>Visualizzazioni</th>
                                 <th>Ultimo Accesso</th>
+                                <th>Azioni</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var doc in stats.MostAccessedDocuments)
                             {
-                                <tr>
-                                    <td>@doc.FileName</td>
+                                <tr class="document-row" @onclick="() => ViewDocumentDetails(doc)">
+                                    <td>
+                                        <div class="doc-cell">
+                                            <span class="doc-icon">@GetFileIcon(doc.FileName)</span>
+                                            <span>@doc.FileName</span>
+                                        </div>
+                                    </td>
                                     <td>@doc.AccessCount</td>
                                     <td>@doc.LastAccessedAt.ToString("dd MMM yyyy HH:mm")</td>
+                                    <td>
+                                        <button class="btn-details" @onclick:stopPropagation="true" @onclick="() => ViewDocumentDetails(doc)">
+                                            👁️ Dettagli
+                                        </button>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -164,6 +178,82 @@
         <div class="alert alert-info">
             <strong>ℹ️ Benvenuto</strong>
             <p>Inizia caricando alcuni documenti per visualizzare le statistiche del dashboard.</p>
+        </div>
+    }
+    
+    <!-- Document Details Panel (Slide-in) -->
+    @if (showDetailsPanel && selectedDocument != null)
+    {
+        <div class="details-overlay" @onclick="CloseDetailsPanel"></div>
+        <div class="details-panel @(showDetailsPanel ? "open" : "")">
+            <div class="panel-header">
+                <h3>📄 Dettagli Documento</h3>
+                <button class="btn-close" @onclick="CloseDetailsPanel">✕</button>
+            </div>
+            
+            <div class="panel-body">
+                <div class="detail-section">
+                    <div class="doc-icon-xl">@GetFileIcon(selectedDocument.FileName)</div>
+                    <h4 class="detail-title">@selectedDocument.FileName</h4>
+                </div>
+                
+                <div class="detail-section">
+                    <h5>📋 Informazioni</h5>
+                    <dl class="detail-list">
+                        <dt>Categoria:</dt>
+                        <dd>@(selectedDocument.ActualCategory ?? "Senza Categoria")</dd>
+                        
+                        <dt>Visualizzazioni:</dt>
+                        <dd>@selectedDocument.AccessCount volte</dd>
+                        
+                        @if (selectedDocument.LastAccessedAt.HasValue)
+                        {
+                            <dt>Ultimo Accesso:</dt>
+                            <dd>@selectedDocument.LastAccessedAt.Value.ToString("dd MMMM yyyy HH:mm")</dd>
+                        }
+                        
+                        <dt>Caricato il:</dt>
+                        <dd>@selectedDocument.UploadedAt.ToString("dd MMMM yyyy 'alle' HH:mm")</dd>
+                    </dl>
+                </div>
+                
+                @if (!string.IsNullOrEmpty(selectedDocument.CategoryReasoning))
+                {
+                    <div class="detail-section">
+                        <h5>💡 Motivazione Classificazione AI</h5>
+                        <p class="reasoning-text">@selectedDocument.CategoryReasoning</p>
+                    </div>
+                }
+                
+                @* Similar Documents *@
+                @if (selectedDocument.EmbeddingVector != null && selectedDocument.EmbeddingVector.Length > 0)
+                {
+                    @if (similarDocumentsForSelected != null && similarDocumentsForSelected.Any())
+                    {
+                        <div class="detail-section">
+                            <h5>🔍 Documenti Simili</h5>
+                            <div class="similar-docs-list">
+                                @foreach (var doc in similarDocumentsForSelected)
+                                {
+                                    <div class="similar-doc-card" @onclick="() => ViewDocumentDetails(doc)">
+                                        <div class="similar-doc-icon">@GetFileIcon(doc.FileName)</div>
+                                        <div class="similar-doc-details">
+                                            <h6>@doc.FileName</h6>
+                                            <p class="doc-date-small">@doc.UploadedAt.ToString("dd MMM yyyy")</p>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+                
+                <div class="detail-actions">
+                    <button class="btn-action btn-view" @onclick="() => NavigateToDocuments()">
+                        📄 Vai ai Documenti
+                    </button>
+                </div>
+            </div>
         </div>
     }
 </div>
@@ -394,6 +484,243 @@
         display: block;
         margin-bottom: 0.5rem;
     }
+    
+    /* Document Row Styles */
+    .document-row {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .document-row:hover {
+        background: #f8f9fa;
+        transform: scale(1.01);
+    }
+    
+    .doc-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .doc-icon {
+        font-size: 1.5rem;
+    }
+    
+    .btn-details {
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-details:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Details Panel */
+    .details-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    .details-panel {
+        position: fixed;
+        top: 0;
+        right: -500px;
+        width: 500px;
+        height: 100vh;
+        background: white;
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        overflow-y: auto;
+        transition: right 0.3s ease;
+    }
+    
+    .details-panel.open {
+        right: 0;
+    }
+    
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .panel-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+    
+    .btn-close {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-close:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: rotate(90deg);
+    }
+    
+    .panel-body {
+        padding: 2rem;
+    }
+    
+    .detail-section {
+        margin-bottom: 2rem;
+        padding-bottom: 2rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .detail-section:last-of-type {
+        border-bottom: none;
+    }
+    
+    .doc-icon-xl {
+        font-size: 4rem;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    
+    .detail-title {
+        text-align: center;
+        color: #333;
+        font-size: 1.2rem;
+        margin: 0;
+        word-wrap: break-word;
+    }
+    
+    .detail-section h5 {
+        margin: 0 0 1rem 0;
+        color: #667eea;
+        font-size: 1.1rem;
+    }
+    
+    .detail-list {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.75rem;
+    }
+    
+    .detail-list dt {
+        font-weight: 600;
+        color: #666;
+    }
+    
+    .detail-list dd {
+        margin: 0;
+        color: #333;
+    }
+    
+    .reasoning-text {
+        margin: 0;
+        line-height: 1.6;
+        color: #555;
+    }
+    
+    .similar-docs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .similar-doc-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .similar-doc-card:hover {
+        background: #e9ecef;
+        transform: translateX(4px);
+    }
+    
+    .similar-doc-icon {
+        font-size: 2rem;
+        flex-shrink: 0;
+    }
+    
+    .similar-doc-details {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .similar-doc-details h6 {
+        margin: 0 0 0.25rem 0;
+        font-size: 0.95rem;
+        color: #333;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .doc-date-small {
+        margin: 0;
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
+    .detail-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+    
+    .btn-action {
+        flex: 1;
+        padding: 1rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-view {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .btn-view:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
 </style>
 
 @code {
@@ -402,6 +729,11 @@
     private string currentUserId = string.Empty;
     private string errorMessage = string.Empty;
     private string infoMessage = string.Empty;
+    
+    // Details panel
+    private bool showDetailsPanel = false;
+    private Document? selectedDocument = null;
+    private List<Document>? similarDocumentsForSelected;
 
     protected override async Task OnInitializedAsync()
     {
@@ -460,12 +792,48 @@
     {
         return contentType.ToLower() switch
         {
-            var t when t.Contains("pdf") => "📕",
-            var t when t.Contains("word") || t.Contains("document") => "📘",
-            var t when t.Contains("excel") || t.Contains("spreadsheet") => "📗",
+            var t when t.Contains("pdf") => "📑",
+            var t when t.Contains("word") || t.Contains("document") => "📝",
+            var t when t.Contains("excel") || t.Contains("spreadsheet") => "📊",
             var t when t.Contains("image") => "🖼️",
             var t when t.Contains("text") => "📄",
             _ => "📎"
         };
+    }
+    
+    private async Task ViewDocumentDetails(Document doc)
+    {
+        selectedDocument = doc;
+        showDetailsPanel = true;
+        
+        // Load similar documents if the document has embeddings
+        if (doc.EmbeddingVector != null && doc.EmbeddingVector.Length > 0)
+        {
+            try
+            {
+                var allSimilar = await EmbeddingService.SearchSimilarDocumentsAsync(doc.EmbeddingVector, topK: 6);
+                // Exclude the current document from similar results
+                similarDocumentsForSelected = allSimilar.Where(d => d.Id != doc.Id).Take(5).ToList();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error loading similar documents for document {DocumentId}", doc.Id);
+                similarDocumentsForSelected = new List<Document>();
+            }
+        }
+        
+        StateHasChanged();
+    }
+    
+    private void CloseDetailsPanel()
+    {
+        showDetailsPanel = false;
+        selectedDocument = null;
+        similarDocumentsForSelected = null;
+    }
+    
+    private void NavigateToDocuments()
+    {
+        Navigation.NavigateTo("/documents");
     }
 }
