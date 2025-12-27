@@ -8,8 +8,8 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Applicatio
     public ApplicationDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true");
-        
+        optionsBuilder.UseSqlServer("Server=NTSPJ-060-02\\SQL2025;Database=DocumentArchive;Trusted_Connection=True;MultipleActiveResultSets=true");
+
         return new ApplicationDbContext(optionsBuilder.Options);
     }
 }

@@ -2,7 +2,6 @@ using DocN.Client.Components;
 using DocN.Data;
 using DocN.Data.Models;
 using DocN.Data.Services;
-using DocN.Core.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +22,7 @@ if (string.IsNullOrEmpty(connectionString))
 {
     if (builder.Environment.IsDevelopment())
     {
-        connectionString = "Server=(localdb)\\mssqllocaldb;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true";
+        connectionString = "Server=NTSPJ-060-02\\SQL2025;Database=DocumentArchive;Trusted_Connection=True;MultipleActiveResultSets=true";
     }
     else
     {
@@ -41,7 +40,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(30),
             errorNumbersToAdd: null);
     });
-    
+
     // Enable sensitive data logging in development
     if (builder.Environment.IsDevelopment())
     {
@@ -60,7 +59,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireUppercase = true;
     options.Password.RequireLowercase = true;
     options.User.RequireUniqueEmail = true;
-    
+
     // Lockout configuration
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
     options.Lockout.MaxFailedAccessAttempts = 5;
