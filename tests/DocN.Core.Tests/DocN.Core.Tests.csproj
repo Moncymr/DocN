@@ -20,4 +20,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\DocN.Core\DocN.Core.csproj" />
+  </ItemGroup>
+
 </Project>
