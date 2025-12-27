@@ -173,8 +173,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // Configura ReferencedDocumentIds come JSON
             // Use explicit ValueConverter to avoid EF Core collection mapping issues
             var referencedDocIdsConverter = new ValueConverter<List<int>, string>(
-                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<int>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<int>()
+                v => System.Text.Json.JsonSerializer.Serialize(v),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<int>>(v) ?? new List<int>()
             );
             
             entity.Property(e => e.ReferencedDocumentIds)
