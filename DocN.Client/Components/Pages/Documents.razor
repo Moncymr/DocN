@@ -83,7 +83,7 @@
         }
     </div>
 
-    <!-- Loading State -->
+    @* Loading State *@
     @if (isLoading)
     {
         <div class="loading-state">
@@ -91,7 +91,7 @@
             <p>Caricamento documenti in corso...</p>
         </div>
     }
-    <!-- Empty State -->
+    @* Empty State *@
     else if (!filteredDocuments.Any())
     {
         <div class="empty-state">
@@ -111,7 +111,7 @@
             }
         </div>
     }
-    <!-- Document Display -->
+    @* Document Display *@
     else
     {
         @if (viewMode == "list")

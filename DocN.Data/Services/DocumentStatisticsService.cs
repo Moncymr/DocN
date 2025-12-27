@@ -20,7 +20,28 @@ public class DocumentStatisticsService : IDocumentStatisticsService
 
     public async Task<DocumentStatistics> GetStatisticsAsync(string userId)
     {
-        var userDocs = _context.Documents.Where(d => d.OwnerId == userId);
+        // Use the same logic as DocumentService.GetUserDocumentsAsync to get accessible documents
+        IQueryable<Document> userDocs;
+        
+        if (string.IsNullOrEmpty(userId))
+        {
+            // If no user ID, get all public documents and documents without owner
+            userDocs = _context.Documents.Where(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
+        }
+        else
+        {
+            // Get user's tenant
+            var user = await _context.Users.FindAsync(userId);
+            var userTenantId = user?.TenantId;
+            
+            // Get documents owned by user, shared with user, OR in the same tenant (if user has a tenant)
+            userDocs = _context.Documents.Where(d => 
+                d.OwnerId == userId ||  // Owned by user
+                d.OwnerId == null ||    // No owner (accessible to all in tenant)
+                d.Shares.Any(s => s.SharedWithUserId == userId) ||  // Shared with user
+                (userTenantId != null && d.TenantId == userTenantId) // Same tenant
+            );
+        }
         
         var totalDocs = await userDocs.CountAsync();
         var totalStorage = await userDocs.SumAsync(d => (long?)d.FileSize) ?? 0;
