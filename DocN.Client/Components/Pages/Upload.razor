@@ -278,6 +278,14 @@
                     </label>
                     
                     <label class="option-checkbox">
+                        <input type="checkbox" @bind="enableTagExtraction" />
+                        <span class="option-label">
+                            <span class="option-title">🏷️ Estrai tag automaticamente con AI</span>
+                            <span class="option-description">Let AI extract relevant tags and keywords</span>
+                        </span>
+                    </label>
+                    
+                    <label class="option-checkbox">
                         <input type="checkbox" @bind="enableEmbeddings" />
                         <span class="option-label">
                             <span class="option-title">🧠 Genera embeddings (Gemini)</span>
@@ -848,6 +856,7 @@
     private string processingStep = "";
     private string? documentTags;
     private string? documentNotes;
+    private List<string>? aiExtractedTags;
     
     // Processing results
     private string extractedText = string.Empty;
@@ -859,6 +868,7 @@
     private bool enableTextExtraction = true;
     private bool enableAICategory = true;
     private bool enableEmbeddings = true;
+    private bool enableTagExtraction = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -881,6 +891,8 @@
         embeddingError = null;
         extractedText = string.Empty;
         embedding = null;
+        documentTags = null;
+        aiExtractedTags = null;
 
         // Validate file size
         var maxSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
@@ -1035,6 +1047,35 @@
                 }
             }
 
+            // Step 4: AI tag extraction - always execute even if embeddings failed
+            if (enableTagExtraction && !string.IsNullOrEmpty(extractedText))
+            {
+                processingStep = "Extracting tags from document...";
+                StateHasChanged();
+                await Task.Delay(UI_UPDATE_DELAY_MS);
+
+                try
+                {
+                    aiExtractedTags = await AIService.ExtractTagsAsync(extractedText);
+                    
+                    if (aiExtractedTags != null && aiExtractedTags.Any())
+                    {
+                        // Merge AI-extracted tags with any manually entered tags
+                        documentTags = string.Join(", ", aiExtractedTags);
+                        Console.WriteLine($"AI extracted {aiExtractedTags.Count} tags: {documentTags}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("No tags were extracted by AI");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Tag extraction failed - user can still enter manually
+                    Console.WriteLine($"Tag extraction exception: {ex.Message}");
+                }
+            }
+
             processingComplete = true;
             processingStep = STEP_COMPLETE;
         }
@@ -1123,6 +1164,25 @@
                 OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
                 UploadedAt = DateTime.UtcNow
             };
+
+            // Parse and add tags as DocumentTag entities
+            if (!string.IsNullOrWhiteSpace(documentTags))
+            {
+                var tagNames = documentTags.Split(',')
+                    .Select(t => t.Trim())
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .Distinct()
+                    .ToList();
+
+                foreach (var tagName in tagNames)
+                {
+                    document.Tags.Add(new DocumentTag
+                    {
+                        Name = tagName,
+                        Document = document
+                    });
+                }
+            }
 
             // Save to database
             await DocumentService.CreateDocumentAsync(document);

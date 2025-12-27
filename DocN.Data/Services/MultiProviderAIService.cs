@@ -13,6 +13,7 @@ public interface IMultiProviderAIService
     Task<float[]?> GenerateEmbeddingAsync(string text);
     Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt);
     Task<(string Category, string Reasoning)> SuggestCategoryAsync(string fileName, string extractedText);
+    Task<List<string>> ExtractTagsAsync(string extractedText);
 }
 
 public class MultiProviderAIService : IMultiProviderAIService
@@ -352,6 +353,35 @@ Respond in JSON format:
         }
     }
 
+    public async Task<List<string>> ExtractTagsAsync(string extractedText)
+    {
+        try
+        {
+            var systemPrompt = "You are a tag extraction expert. Extract 5-10 relevant keywords or tags from documents.";
+            
+            var userPrompt = $@"Extract 5-10 relevant tags or keywords from this document.
+Tags should be short, specific, and representative of the content.
+
+Content: {TruncateText(extractedText, 1000)}
+
+Respond in JSON format:
+{{
+    ""tags"": [""tag1"", ""tag2"", ""tag3"", ...]
+}}";
+
+            var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
+            
+            // Parse JSON response
+            var result = System.Text.Json.JsonSerializer.Deserialize<TagsResponse>(response);
+            return result?.Tags ?? new List<string>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error extracting tags: {ex.Message}");
+            return new List<string>();
+        }
+    }
+
     private string TruncateText(string text, int maxLength)
     {
         if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
@@ -364,5 +394,10 @@ Respond in JSON format:
     {
         public string Category { get; set; } = string.Empty;
         public string Reasoning { get; set; } = string.Empty;
+    }
+
+    private class TagsResponse
+    {
+        public List<string> Tags { get; set; } = new List<string>();
     }
 }
