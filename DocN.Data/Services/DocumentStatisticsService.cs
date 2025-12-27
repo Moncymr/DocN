@@ -25,8 +25,8 @@ public class DocumentStatisticsService : IDocumentStatisticsService
         
         if (string.IsNullOrEmpty(userId))
         {
-            // If no user ID, get all public documents and documents without owner
-            userDocs = _context.Documents.Where(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
+            // If no user ID, get only public documents
+            userDocs = _context.Documents.Where(d => d.Visibility == DocumentVisibility.Public);
         }
         else
         {
