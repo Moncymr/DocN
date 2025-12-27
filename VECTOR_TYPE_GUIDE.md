@@ -6,6 +6,26 @@ Entity Framework Core **does not natively support** the SQL Server 2025 `VECTOR`
 
 Entity Framework Core **non supporta nativamente** il tipo `VECTOR` di SQL Server 2025. Questo causa una `NullReferenceException` durante la finalizzazione del modello.
 
+## 🆕 Recent Fix - Correzione Recente
+
+**December 2025 Update**: Fixed critical type mismatch in migrations that caused `SqlException: varbinary incompatible with vector` error.
+
+**Aggiornamento Dicembre 2025**: Corretto un grave errore di tipo nelle migration che causava l'errore `SqlException: varbinary incompatibile con vector`.
+
+**The Problem / Il Problema:**
+- Migration files incorrectly defined `EmbeddingVector` and `ChunkEmbedding` as `nvarchar(max)` (string)
+- ApplicationDbContext.cs correctly configured them as `varbinary(max)` with value converter
+- When saving embeddings, binary data was sent to string columns, causing type conflict
+- Le migration definivano erroneamente `EmbeddingVector` e `ChunkEmbedding` come `nvarchar(max)` (stringa)
+- ApplicationDbContext.cs li configurava correttamente come `varbinary(max)` con convertitore di valori
+- Durante il salvataggio degli embedding, i dati binari venivano inviati a colonne stringa, causando conflitto di tipo
+
+**The Fix / La Correzione:**
+- Updated migrations to use `varbinary(max)` instead of `nvarchar(max)`
+- Added migration `20250103000000_FixVectorColumnTypes.cs` to alter existing databases
+- Aggiornate le migration per usare `varbinary(max)` invece di `nvarchar(max)`
+- Aggiunta migration `20250103000000_FixVectorColumnTypes.cs` per alterare i database esistenti
+
 ## ✅ Solution - Soluzione
 
 ### Approach 1: Use SQL Script Directly (Recommended)
