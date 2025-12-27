@@ -1,7 +1,7 @@
 # Implementation Summary - Document Upload Improvements
 
 ## Problem Statement (Original - Italian)
-L'AI non è riuscita a estrarre tag dal documento. Puoi inserirli manualmente., puoi migliorare ? se non determina la categoria con i bvettori può AI proporre una sua categoria? Al salvataggio il pulsante si disabilita, appare la clessidrea, salva nella cartella fisica C:\ESEMPIO\Uploads ma non salva nel db e snon segnala nulla e si pianta
+L'AI non è riuscita a estrarre tag dal documento. Puoi inserirli manualmente., puoi migliorare ? se non determina la categoria con i bvettori può AI proporre una sua categoria? Al salvataggio il pulsante si disabilita, appare la clessidrea, salva nella cartella fisica C:\ESEMPIO\Uploads ma non salva nel db e non segnala nulla e si pianta
 
 ## Translation
 - AI failed to extract tags from the document - can we improve? 

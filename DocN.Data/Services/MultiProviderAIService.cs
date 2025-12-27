@@ -448,6 +448,9 @@ Respond in JSON format:
         }
         
         // Last resort - use file extension based category
+        if (string.IsNullOrEmpty(extension) || extension == ".")
+            return "Unknown Files";
+        
         return $"{extension.TrimStart('.')} Files";
     }
 
