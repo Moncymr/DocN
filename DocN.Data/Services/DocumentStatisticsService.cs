@@ -31,8 +31,11 @@ public class DocumentStatisticsService : IDocumentStatisticsService
         else
         {
             // Get user's tenant once upfront to avoid repeated queries
-            var user = await _context.Users.FindAsync(userId);
-            var userTenantId = user?.TenantId;
+            // Use projection to fetch only TenantId rather than the entire user entity
+            var userTenantId = await _context.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.TenantId)
+                .FirstOrDefaultAsync();
             
             // Get documents owned by user, shared with user, OR in the same tenant (if user has a tenant)
             // Use Include to avoid N+1 query issues with Shares
