@@ -2,8 +2,14 @@ using DocN.Client.Components;
 using DocN.Data;
 using DocN.Data.Models;
 using DocN.Data.Services;
+using DocN.Core.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.SemanticKernel;
+
+#pragma warning disable SKEXP0001 // Type is for evaluation purposes only
+#pragma warning disable SKEXP0010 // Method is for evaluation purposes only
+#pragma warning disable SKEXP0110 // Agents are experimental
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +19,12 @@ builder.Services.AddRazorComponents()
 
 // Add HttpClient for Blazor components
 builder.Services.AddHttpClient();
+
+// Add memory cache for caching service
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = 1024 * 1024 * 100; // 100MB cache limit
+});
 
 // Database configuration
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -84,6 +96,55 @@ builder.Services.AddScoped<DocN.Data.Services.ICategoryService, CategoryService>
 builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService>();
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
+
+// Configure Semantic Kernel for RAG Service
+var kernelBuilder = Kernel.CreateBuilder();
+
+// Configure AI services based on configuration
+var azureOpenAIEndpoint = builder.Configuration["AzureOpenAI:Endpoint"];
+var azureOpenAIKey = builder.Configuration["AzureOpenAI:ApiKey"];
+var azureOpenAIChatDeployment = builder.Configuration["AzureOpenAI:ChatDeployment"] ?? "gpt-4";
+var azureOpenAIEmbeddingDeployment = builder.Configuration["AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-ada-002";
+
+if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpenAIKey))
+{
+    // Add Azure OpenAI Chat Completion
+    kernelBuilder.AddAzureOpenAIChatCompletion(
+        deploymentName: azureOpenAIChatDeployment,
+        endpoint: azureOpenAIEndpoint,
+        apiKey: azureOpenAIKey);
+
+    // Add Azure OpenAI Text Embedding
+    kernelBuilder.AddAzureOpenAITextEmbeddingGeneration(
+        deploymentName: azureOpenAIEmbeddingDeployment,
+        endpoint: azureOpenAIEndpoint,
+        apiKey: azureOpenAIKey);
+}
+else
+{
+    // Fallback to OpenAI if Azure is not configured
+    var openAIKey = builder.Configuration["OpenAI:ApiKey"];
+    if (!string.IsNullOrEmpty(openAIKey))
+    {
+        kernelBuilder.AddOpenAIChatCompletion(
+            modelId: "gpt-4",
+            apiKey: openAIKey);
+
+        kernelBuilder.AddOpenAITextEmbeddingGeneration(
+            modelId: "text-embedding-ada-002",
+            apiKey: openAIKey);
+    }
+}
+
+var kernel = kernelBuilder.Build();
+builder.Services.AddSingleton(kernel);
+
+// Register additional services for RAG
+builder.Services.AddScoped<DocN.Data.Services.IChunkingService, ChunkingService>();
+builder.Services.AddScoped<ICacheService, CacheService>();
+
+// Register Semantic RAG Service
+builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
 
 // Register ApplicationSeeder
 builder.Services.AddScoped<DocN.Data.Services.ApplicationSeeder>();
