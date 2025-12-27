@@ -8,23 +8,25 @@ Entity Framework Core **non supporta nativamente** il tipo `VECTOR` di SQL Serve
 
 ## 🆕 Recent Fix - Correzione Recente
 
-**December 2025 Update**: Fixed critical type mismatch in migrations that caused `SqlException: varbinary incompatible with vector` error.
+**December 2025 Update**: Fixed critical type mismatch that caused `SqlException: varbinary incompatible with vector` error.
 
-**Aggiornamento Dicembre 2025**: Corretto un grave errore di tipo nelle migration che causava l'errore `SqlException: varbinary incompatibile con vector`.
+**Aggiornamento Dicembre 2025**: Corretto un grave errore di tipo che causava l'errore `SqlException: varbinary incompatibile con vector`.
 
 **The Problem / Il Problema:**
-- Migration files incorrectly defined `EmbeddingVector` and `ChunkEmbedding` as `nvarchar(max)` (string)
-- ApplicationDbContext.cs correctly configured them as `varbinary(max)` with value converter
-- When saving embeddings, binary data was sent to string columns, causing type conflict
-- Le migration definivano erroneamente `EmbeddingVector` e `ChunkEmbedding` come `nvarchar(max)` (stringa)
-- ApplicationDbContext.cs li configurava correttamente come `varbinary(max)` con convertitore di valori
-- Durante il salvataggio degli embedding, i dati binari venivano inviati a colonne stringa, causando conflitto di tipo
+- ApplicationDbContext was using `varbinary(max)` with binary serialization (`float[]` → `byte[]`)
+- SQL Server VECTOR type expects JSON array format: `[0.1, 0.2, 0.3, ...]`
+- When saving embeddings, binary data was sent to VECTOR columns, causing type conflict
+- ApplicationDbContext usava `varbinary(max)` con serializzazione binaria (`float[]` → `byte[]`)
+- Il tipo VECTOR di SQL Server si aspetta formato JSON array: `[0.1, 0.2, 0.3, ...]`
+- Durante il salvataggio degli embedding, i dati binari venivano inviati alle colonne VECTOR, causando conflitto di tipo
 
 **The Fix / La Correzione:**
-- Updated migrations to use `varbinary(max)` instead of `nvarchar(max)`
-- Added migration `20250103000000_FixVectorColumnTypes.cs` to alter existing databases
-- Aggiornate le migration per usare `varbinary(max)` invece di `nvarchar(max)`
-- Aggiunta migration `20250103000000_FixVectorColumnTypes.cs` per alterare i database esistenti
+- Changed value converter to use JSON serialization (`float[]` → JSON string)
+- Updated ApplicationDbContext to use `nvarchar(max)` which is compatible with VECTOR type
+- Migration automatically handles conversion from varbinary to nvarchar if needed
+- Cambiato il convertitore di valori per usare serializzazione JSON (`float[]` → stringa JSON)
+- Aggiornato ApplicationDbContext per usare `nvarchar(max)` che è compatibile con il tipo VECTOR
+- La migration gestisce automaticamente la conversione da varbinary a nvarchar se necessario
 
 ## ✅ Solution - Soluzione
 
@@ -89,10 +91,15 @@ PRINT '✅ Columns converted to VECTOR type';
 
 ### In EF Core (ApplicationDbContext.cs):
 ```csharp
-// Uses varbinary(max) for EF Core compatibility
-// Usa varbinary(max) per compatibilità con EF Core
+// Uses nvarchar(max) with JSON serialization for VECTOR compatibility
+// Usa nvarchar(max) con serializzazione JSON per compatibilità con VECTOR
+var vectorConverter = new ValueConverter<float[]?, string?>(
+    v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
+    v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
+);
+
 entity.Property(e => e.EmbeddingVector)
-    .HasColumnType("varbinary(max)")  
+    .HasColumnType("nvarchar(max)")  
     .HasConversion(vectorConverter)
     .IsRequired(false);
 ```
@@ -107,39 +114,38 @@ ChunkEmbedding VECTOR(1536) NULL,
 
 ## 🔄 Data Conversion - Conversione Dati
 
-The application uses `Buffer.BlockCopy` to convert between `float[]` (C#) and `byte[]` (storage):
+The application uses `System.Text.Json` to convert between `float[]` (C#) and JSON string (storage):
 
-L'applicazione usa `Buffer.BlockCopy` per convertire tra `float[]` (C#) e `byte[]` (storage):
+L'applicazione usa `System.Text.Json` per convertire tra `float[]` (C#) e stringa JSON (storage):
 
 ```csharp
-// float[] -> byte[]
-byte[] bytes = new byte[floats.Length * sizeof(float)];
-Buffer.BlockCopy(floats, 0, bytes, 0, bytes.Length);
+// float[] -> JSON string
+string json = System.Text.Json.JsonSerializer.Serialize(floats);
+// Example: [0.1, 0.2, 0.3, ...]
 
-// byte[] -> float[]
-float[] floats = new float[bytes.Length / sizeof(float)];
-Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
+// JSON string -> float[]
+float[] floats = System.Text.Json.JsonSerializer.Deserialize<float[]>(json) ?? Array.Empty<float>();
 ```
 
-This works correctly with both `varbinary(max)` and `VECTOR(1536)` since both store binary data.
+This works correctly with both `nvarchar(max)` and `VECTOR(1536)` since SQL Server VECTOR type accepts JSON array format.
 
-Questo funziona correttamente sia con `varbinary(max)` che con `VECTOR(1536)` poiché entrambi memorizzano dati binari.
+Questo funziona correttamente sia con `nvarchar(max)` che con `VECTOR(1536)` poiché il tipo VECTOR di SQL Server accetta formato JSON array.
 
 ## ⚠️ Important Notes - Note Importanti
 
 **English:**
 - The SQL script creates `VECTOR(1536)` columns ✅
-- EF Core migrations would create `varbinary(max)` columns ⚠️
-- If you use the SQL script, **do not run EF Core migrations**
-- If you use EF Core migrations, **manually ALTER to VECTOR after migration**
+- EF Core migrations create `nvarchar(max)` columns with JSON serialization ✅
+- Both approaches work because VECTOR accepts JSON array format
 - The application code works with both column types
+- JSON format: `[0.1, 0.2, 0.3, ...]` is compatible with VECTOR type
 
 **Italiano:**
 - Lo script SQL crea colonne `VECTOR(1536)` ✅
-- Le migration di EF Core creerebbero colonne `varbinary(max)` ⚠️
-- Se usi lo script SQL, **non eseguire le migration di EF Core**
-- Se usi le migration di EF Core, **esegui ALTER manuale a VECTOR dopo la migration**
+- Le migration di EF Core creano colonne `nvarchar(max)` con serializzazione JSON ✅
+- Entrambi gli approcci funzionano perché VECTOR accetta formato JSON array
 - Il codice dell'applicazione funziona con entrambi i tipi di colonna
+- Formato JSON: `[0.1, 0.2, 0.3, ...]` è compatibile con il tipo VECTOR
 
 ## 🚀 Recommended Workflow - Flusso di Lavoro Raccomandato
 

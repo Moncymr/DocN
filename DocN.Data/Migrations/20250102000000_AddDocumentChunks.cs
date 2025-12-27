@@ -19,7 +19,7 @@ namespace DocN.Data.Migrations
                     DocumentId = table.Column<int>(type: "int", nullable: false),
                     ChunkIndex = table.Column<int>(type: "int", nullable: false),
                     ChunkText = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    ChunkEmbedding = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
+                    ChunkEmbedding = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     TokenCount = table.Column<int>(type: "int", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     StartPosition = table.Column<int>(type: "int", nullable: false),

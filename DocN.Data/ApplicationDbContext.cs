@@ -60,16 +60,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.AITagsJson).HasColumnType("nvarchar(max)");
             
             // Configure vector column for SQL Server 2025 native VECTOR type
-            // Note: Using varbinary(max) as intermediate type since EF Core doesn't support VECTOR natively
-            // The actual column type in database should be VECTOR(1536)
-            // We convert float[] to byte[] for storage
-            var vectorConverter = new ValueConverter<float[]?, byte[]?>(
-                v => v == null ? null : ConvertFloatArrayToBytes(v),
-                v => v == null ? null : ConvertBytesToFloatArray(v)
+            // SQL Server VECTOR type expects JSON array format: [0.1, 0.2, 0.3, ...]
+            // We convert float[] to JSON string for storage
+            var vectorConverter = new ValueConverter<float[]?, string?>(
+                v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
+                v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
             );
             
             entity.Property(e => e.EmbeddingVector)
-                .HasColumnType("varbinary(max)")  // Use varbinary as EF Core compatible type
+                .HasColumnType("nvarchar(max)")  // Use nvarchar(max) for JSON - compatible with VECTOR type
                 .HasConversion(vectorConverter)
                 .IsRequired(false);
             
@@ -193,15 +192,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.ChunkText).IsRequired();
             
             // Configure vector column for chunk embeddings
-            // Note: Using varbinary(max) as intermediate type since EF Core doesn't support VECTOR natively
-            // The actual column type in database should be VECTOR(1536)
-            var chunkVectorConverter = new ValueConverter<float[]?, byte[]?>(
-                v => v == null ? null : ConvertFloatArrayToBytes(v),
-                v => v == null ? null : ConvertBytesToFloatArray(v)
+            // SQL Server VECTOR type expects JSON array format: [0.1, 0.2, 0.3, ...]
+            // We convert float[] to JSON string for storage
+            var chunkVectorConverter = new ValueConverter<float[]?, string?>(
+                v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
+                v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
             );
             
             entity.Property(e => e.ChunkEmbedding)
-                .HasColumnType("varbinary(max)")  // Use varbinary as EF Core compatible type
+                .HasColumnType("nvarchar(max)")  // Use nvarchar(max) for JSON - compatible with VECTOR type
                 .HasConversion(chunkVectorConverter)
                 .IsRequired(false);
             
