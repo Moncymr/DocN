@@ -218,18 +218,18 @@ public class FileProcessingService : IFileProcessingService
     // Dizionario tipo file -> icona
     private static readonly Dictionary<FileType, string> _fileIcons = new()
     {
-        { FileType.PDF, "📕" },
-        { FileType.Word, "📘" },
-        { FileType.Excel, "📗" },
-        { FileType.PowerPoint, "📙" },
+        { FileType.PDF, "📑" },
+        { FileType.Word, "📝" },
+        { FileType.Excel, "📊" },
+        { FileType.PowerPoint, "📺" },
         { FileType.Image, "🖼️" },
         { FileType.Text, "📄" },
-        { FileType.CSV, "📊" },
-        { FileType.JSON, "📋" },
-        { FileType.XML, "📋" },
+        { FileType.CSV, "📈" },
+        { FileType.JSON, "🗂️" },
+        { FileType.XML, "🗂️" },
         { FileType.HTML, "🌐" },
-        { FileType.Email, "📧" },
-        { FileType.Archive, "📦" },
+        { FileType.Email, "✉️" },
+        { FileType.Archive, "🗜️" },
         { FileType.Unknown, "📎" }
     };
 

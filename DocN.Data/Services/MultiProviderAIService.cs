@@ -13,8 +13,9 @@ public interface IMultiProviderAIService
 {
     Task<float[]?> GenerateEmbeddingAsync(string text);
     Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt);
-    Task<(string Category, string Reasoning)> SuggestCategoryAsync(string fileName, string extractedText);
+    Task<(string Category, string Reasoning, string Provider)> SuggestCategoryAsync(string fileName, string extractedText);
     Task<List<string>> ExtractTagsAsync(string extractedText);
+    string GetCurrentProvider();
 }
 
 public class MultiProviderAIService : IMultiProviderAIService
@@ -25,6 +26,7 @@ public class MultiProviderAIService : IMultiProviderAIService
     private readonly EmbeddingsSettings _embeddingsSettings;
     private readonly GeminiSettings _geminiSettings;
     private readonly OpenAISettings _openAISettings;
+    private string _lastUsedProvider = string.Empty;
 
     public MultiProviderAIService(IConfiguration configuration, ApplicationDbContext context)
     {
@@ -208,10 +210,12 @@ public class MultiProviderAIService : IMultiProviderAIService
         {
             if (_aiSettings.Provider == "Gemini")
             {
+                _lastUsedProvider = "Gemini";
                 return await GenerateChatWithGeminiAsync(systemPrompt, userPrompt);
             }
             else if (_aiSettings.Provider == "OpenAI")
             {
+                _lastUsedProvider = "OpenAI";
                 return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt);
             }
         }
@@ -228,22 +232,26 @@ public class MultiProviderAIService : IMultiProviderAIService
                     if (_aiSettings.Provider == "Gemini")
                     {
                         Console.WriteLine("Trying OpenAI as fallback...");
+                        _lastUsedProvider = "OpenAI (Fallback)";
                         return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt);
                     }
                     else if (_aiSettings.Provider == "OpenAI")
                     {
                         Console.WriteLine("Trying Gemini as fallback...");
+                        _lastUsedProvider = "Gemini (Fallback)";
                         return await GenerateChatWithGeminiAsync(systemPrompt, userPrompt);
                     }
                 }
                 catch (Exception ex2)
                 {
                     Console.WriteLine($"Fallback chat provider failed: {ex2.Message}");
+                    _lastUsedProvider = "Error";
                     return $"Error: All AI providers failed. Primary: {ex.Message}, Fallback: {ex2.Message}";
                 }
             }
             else
             {
+                _lastUsedProvider = "Error";
                 return $"Error: {ex.Message}";
             }
         }
@@ -393,14 +401,19 @@ Respond in JSON format:
                 reasoning = $"Categoria inferita dal nome file o contenuto. {reasoning}";
             }
             
-            return (category, reasoning);
+            return (category, reasoning, _lastUsedProvider);
         }
         catch (Exception ex)
         {
             // Even on error, try to return something meaningful instead of "Uncategorized"
             var inferredCategory = InferCategoryFromFileNameOrContent(fileName, extractedText);
-            return (inferredCategory, $"Errore nell'analisi AI: {ex.Message}. Categoria inferita dal nome del file.");
+            return (inferredCategory, $"Errore nell'analisi AI: {ex.Message}. Categoria inferita dal nome del file.", "Fallback");
         }
+    }
+    
+    public string GetCurrentProvider()
+    {
+        return _aiSettings.Provider ?? "None";
     }
     
     private string InferCategoryFromFileNameOrContent(string fileName, string extractedText)

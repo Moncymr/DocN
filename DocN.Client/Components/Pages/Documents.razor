@@ -5,6 +5,7 @@
 @inject IDocumentService DocumentService
 @inject IDocumentStatisticsService StatisticsService
 @inject IFileProcessingService FileProcessingService
+@inject IEmbeddingService EmbeddingService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
@@ -366,6 +367,41 @@
                             @TruncateText(selectedDocument.ExtractedText, 500)
                         </div>
                     </div>
+                }
+                
+                @* Similar Documents based on Vector Analysis *@
+                @if (selectedDocument.EmbeddingVector != null && selectedDocument.EmbeddingVector.Length > 0)
+                {
+                    @if (similarDocumentsForSelected != null && similarDocumentsForSelected.Any())
+                    {
+                        <div class="detail-section">
+                            <h5>🔍 Documenti Simili (Analisi Vettoriale)</h5>
+                            <p class="section-description">I 5 documenti più simili per contenuto:</p>
+                            <div class="similar-docs-list">
+                                @foreach (var doc in similarDocumentsForSelected)
+                                {
+                                    <div class="similar-doc-card" @onclick="() => SelectDocument(doc)">
+                                        <div class="similar-doc-icon">@GetFileIcon(doc.FileName)</div>
+                                        <div class="similar-doc-details">
+                                            <h6>@doc.FileName</h6>
+                                            <p class="doc-category-small">📂 @(doc.ActualCategory ?? "Senza Categoria")</p>
+                                            <p class="doc-date-small">@doc.UploadedAt.ToString("dd MMM yyyy")</p>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else if (isLoadingSimilarDocs)
+                    {
+                        <div class="detail-section">
+                            <h5>🔍 Documenti Simili</h5>
+                            <div class="loading-inline">
+                                <div class="spinner-small"></div>
+                                <span>Caricamento documenti simili...</span>
+                            </div>
+                        </div>
+                    }
                 }
                 
                 <div class="detail-actions">
@@ -1165,6 +1201,87 @@
             justify-content: space-around;
         }
     }
+    
+    /* Similar Documents Styles */
+    .similar-docs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+    
+    .similar-doc-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .similar-doc-card:hover {
+        background: #e9ecef;
+        transform: translateX(4px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .similar-doc-icon {
+        font-size: 2rem;
+        flex-shrink: 0;
+    }
+    
+    .similar-doc-details {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .similar-doc-details h6 {
+        margin: 0 0 0.25rem 0;
+        font-size: 0.95rem;
+        color: #333;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .doc-category-small {
+        margin: 0.25rem 0;
+        font-size: 0.85rem;
+        color: #666;
+    }
+    
+    .doc-date-small {
+        margin: 0.25rem 0 0 0;
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
+    .section-description {
+        margin: 0.5rem 0 0 0;
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .loading-inline {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        color: #666;
+    }
+    
+    .spinner-small {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+    }
 </style>
 
 @code {
@@ -1192,6 +1309,8 @@
     // Details panel
     private bool showDetailsPanel = false;
     private Document? selectedDocument = null;
+    private List<Document>? similarDocumentsForSelected;
+    private bool isLoadingSimilarDocs = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1292,10 +1411,35 @@
         selectedDocument = doc;
     }
 
-    private void ViewDocumentDetails(Document doc)
+    private async Task ViewDocumentDetails(Document doc)
     {
         selectedDocument = doc;
         showDetailsPanel = true;
+        
+        // Load similar documents if the document has embeddings
+        if (doc.EmbeddingVector != null && doc.EmbeddingVector.Length > 0)
+        {
+            isLoadingSimilarDocs = true;
+            similarDocumentsForSelected = null;
+            StateHasChanged();
+            
+            try
+            {
+                var allSimilar = await EmbeddingService.SearchSimilarDocumentsAsync(doc.EmbeddingVector, topK: 6);
+                // Exclude the current document from similar results
+                similarDocumentsForSelected = allSimilar.Where(d => d.Id != doc.Id).Take(5).ToList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading similar documents: {ex.Message}");
+                similarDocumentsForSelected = new List<Document>();
+            }
+            finally
+            {
+                isLoadingSimilarDocs = false;
+                StateHasChanged();
+            }
+        }
     }
 
     private void CloseDetailsPanel()

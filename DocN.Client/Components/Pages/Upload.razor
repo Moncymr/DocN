@@ -3,6 +3,7 @@
 @using System.IO
 @inject IDocumentService DocumentService
 @inject IMultiProviderAIService AIService
+@inject IEmbeddingService EmbeddingService
 @inject IFileProcessingService FileProcessingService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
@@ -53,12 +54,12 @@
                         <span class="upload-content">
                             @if (selectedFile == null)
                             {
-                                <span class="upload-title">Choose a file to upload</span>
-                                <span class="upload-subtitle">Click here or drag and drop</span>
+                                <span class="upload-title">Scegli un file da caricare</span>
+                                <span class="upload-subtitle">Clicca qui o trascina e rilascia</span>
                             }
                             else
                             {
-                                <span class="upload-title">File selected - Click to change</span>
+                                <span class="upload-title">File selezionato - Clicca per cambiare</span>
                                 <span class="upload-subtitle">@selectedFile.Name</span>
                             }
                         </span>
@@ -173,6 +174,12 @@
                                         <div class="reasoning-box">
                                             <h4>💡 Motivazione</h4>
                                             <p>@categoryReasoning</p>
+                                            @if (!string.IsNullOrEmpty(aiProviderUsed))
+                                            {
+                                                <p style="margin-top: 0.5rem; font-size: 0.875rem; color: #667eea;">
+                                                    <strong>Provider utilizzato:</strong> @aiProviderUsed
+                                                </p>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -203,6 +210,34 @@
                                 </div>
                             </div>
                         }
+                    }
+
+                    @* Similar Documents Section *@
+                    @if (enableEmbeddings && embeddingGenerated && similarDocuments != null && similarDocuments.Any())
+                    {
+                        <div class="result-card">
+                            <div class="result-header">
+                                <span class="result-icon">🔍</span>
+                                <span class="result-title">Documenti Simili (Analisi Vettoriale)</span>
+                                <span class="result-status success">✓ Trovati @similarDocuments.Count</span>
+                            </div>
+                            <div class="result-content">
+                                <p style="margin-bottom: 1rem;">I 5 documenti più simili per contenuto:</p>
+                                <div class="similar-documents-list">
+                                    @foreach (var doc in similarDocuments)
+                                    {
+                                        <div class="similar-doc-item">
+                                            <div class="similar-doc-icon">📄</div>
+                                            <div class="similar-doc-info">
+                                                <h5>@doc.FileName</h5>
+                                                <p class="doc-category-tag">📂 @(doc.ActualCategory ?? "Senza Categoria")</p>
+                                                <p class="doc-date">Caricato: @doc.UploadedAt.ToString("dd MMM yyyy")</p>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
                     }
 
                     @* AI Tag Extraction Results *@
@@ -736,6 +771,13 @@
         gap: 1rem;
         margin-top: 2rem;
         justify-content: flex-end;
+        position: sticky;
+        bottom: 20px;
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 100;
     }
 
     .btn {
@@ -884,6 +926,55 @@
         color: #667eea;
     }
     
+    .similar-documents-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .similar-doc-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+        transition: all 0.3s ease;
+    }
+    
+    .similar-doc-item:hover {
+        background: #e9ecef;
+        transform: translateX(4px);
+    }
+    
+    .similar-doc-icon {
+        font-size: 2rem;
+        flex-shrink: 0;
+    }
+    
+    .similar-doc-info {
+        flex: 1;
+    }
+    
+    .similar-doc-info h5 {
+        margin: 0 0 0.25rem 0;
+        color: #333;
+        font-size: 0.95rem;
+    }
+    
+    .doc-category-tag {
+        margin: 0.25rem 0;
+        font-size: 0.85rem;
+        color: #666;
+    }
+    
+    .doc-date {
+        margin: 0.25rem 0 0 0;
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
     .help-text {
         text-align: center;
         margin-top: 1rem;
@@ -961,6 +1052,8 @@
     private string processingStatus = "Pending";
     private string? processingError;
     private DateTime? aiAnalysisDate;
+    private string? aiProviderUsed;
+    private List<Document>? similarDocuments;
     
     // Processing options
     private bool enableTextExtraction = true;
@@ -1108,6 +1201,18 @@
                     {
                         embeddingError = null;
                         Console.WriteLine($"Embedding generated successfully: {embedding!.Length} dimensions");
+                        
+                        // Fetch similar documents based on vector similarity
+                        try
+                        {
+                            similarDocuments = await EmbeddingService.SearchSimilarDocumentsAsync(embedding!, topK: 5);
+                            Console.WriteLine($"Found {similarDocuments.Count} similar documents");
+                        }
+                        catch (Exception simEx)
+                        {
+                            Console.WriteLine($"Error finding similar documents: {simEx.Message}");
+                            similarDocuments = new List<Document>();
+                        }
                     }
                     else
                     {
@@ -1136,7 +1241,10 @@
                 {
                     var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
                     
-                    Console.WriteLine($"Category suggestion result: Category='{result.Category}', Reasoning='{result.Reasoning}'");
+                    Console.WriteLine($"Category suggestion result: Category='{result.Category}', Reasoning='{result.Reasoning}', Provider='{result.Provider}'");
+                    
+                    // Capture the provider used
+                    aiProviderUsed = result.Provider;
                     
                     // Check if category is valid
                     if (!string.IsNullOrEmpty(result.Category) && result.Category != "Uncategorized")
