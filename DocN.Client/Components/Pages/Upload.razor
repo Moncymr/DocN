@@ -1187,7 +1187,9 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error processing document: {ex.Message}";
+            errorMessage = "Errore durante l'elaborazione del documento. Riprova o contatta l'amministratore.";
+            Console.WriteLine($"Document processing error: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
         }
         finally
         {
