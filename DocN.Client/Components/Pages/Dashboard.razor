@@ -801,6 +801,23 @@
         };
     }
     
+    private async Task ViewDocumentDetails(TopDocument topDoc)
+    {
+        try
+        {
+            // Fetch the full document
+            var doc = await DocumentService.GetDocumentAsync(topDoc.Id, currentUserId);
+            if (doc != null)
+            {
+                await ViewDocumentDetails(doc);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading document {DocumentId}", topDoc.Id);
+        }
+    }
+    
     private async Task ViewDocumentDetails(Document doc)
     {
         selectedDocument = doc;
