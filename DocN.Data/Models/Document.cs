@@ -18,6 +18,15 @@ public class Document
     public string? AITagsJson { get; set; } // JSON array of AI-detected tags with confidence scores
     public DateTime? AIAnalysisDate { get; set; }
     
+    // Document metadata from processing
+    public int? PageCount { get; set; }
+    public string? DetectedLanguage { get; set; }
+    public string? ProcessingStatus { get; set; } // "Pending", "Processing", "Completed", "Failed"
+    public string? ProcessingError { get; set; }
+    
+    // User notes
+    public string? Notes { get; set; }
+    
     // Visibility management
     public DocumentVisibility Visibility { get; set; } = DocumentVisibility.Private;
     
