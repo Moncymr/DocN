@@ -21,11 +21,15 @@ public class DocumentStatisticsService : IDocumentStatisticsService
     public async Task<DocumentStatistics> GetStatisticsAsync(string userId)
     {
         // Include documents based on user authentication status:
-        // - Anonymous users: documents without owner OR public visibility
-        // - Logged-in users: documents owned by user OR without owner
+        // - Anonymous users: public documents OR unowned documents (legacy)
+        // - Logged-in users: owned documents OR unowned documents (legacy) OR public/org documents
         var userDocs = string.IsNullOrEmpty(userId) 
-            ? _context.Documents.Where(d => d.OwnerId == null || d.Visibility == DocumentVisibility.Public)
-            : _context.Documents.Where(d => d.OwnerId == userId || d.OwnerId == null);
+            ? _context.Documents.Where(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null)
+            : _context.Documents.Where(d => 
+                d.OwnerId == userId || 
+                d.OwnerId == null ||
+                d.Visibility == DocumentVisibility.Public || 
+                d.Visibility == DocumentVisibility.Organization);
         
         var totalDocs = await userDocs.CountAsync();
         var totalStorage = await userDocs.SumAsync(d => (long?)d.FileSize) ?? 0;

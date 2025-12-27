@@ -85,16 +85,24 @@ public class DocumentService : IDocumentService
         
         if (string.IsNullOrEmpty(userId))
         {
-            // If no user ID, return all public documents and documents without owner
+            // If no user ID, return:
+            // 1. All documents with Public visibility
+            // 2. All documents without an owner (legacy documents - treat as public)
             query = query.Where(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
         }
         else
         {
-            // Get documents owned by user, shared with user, or documents without an owner (legacy/public documents)
-            var ownedDocs = _context.Documents.Where(d => d.OwnerId == userId);
-            var sharedDocs = _context.Documents.Where(d => d.Shares.Any(s => s.SharedWithUserId == userId));
-            var unownedDocs = _context.Documents.Where(d => d.OwnerId == null);
-            query = ownedDocs.Union(sharedDocs).Union(unownedDocs);
+            // Get documents for logged-in users:
+            // 1. Documents owned by user (any visibility)
+            // 2. Documents shared with user
+            // 3. Documents without owner (legacy documents - treat as public)
+            // 4. Documents with Public or Organization visibility
+            query = query.Where(d => 
+                d.OwnerId == userId || 
+                d.Shares.Any(s => s.SharedWithUserId == userId) ||
+                d.OwnerId == null ||
+                d.Visibility == DocumentVisibility.Public || 
+                d.Visibility == DocumentVisibility.Organization);
         }
 
         var allDocs = await query
@@ -103,6 +111,7 @@ public class DocumentService : IDocumentService
             .Take(pageSize)
             .Include(d => d.Owner)
             .Include(d => d.Tags)
+            .Distinct() // Ensure no duplicates
             .ToListAsync();
 
         return allDocs;
@@ -112,18 +121,26 @@ public class DocumentService : IDocumentService
     {
         if (string.IsNullOrEmpty(userId))
         {
-            // If no user ID, count all public documents and documents without owner
+            // If no user ID, count public documents and unowned documents (legacy)
             return await _context.Documents.CountAsync(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
         }
         
-        // Use a single query with distinct to avoid double-counting
-        // This includes: owned documents, shared documents, and unowned documents
-        var query = _context.Documents.Where(d => 
-            d.OwnerId == userId || 
-            d.OwnerId == null || 
-            d.Shares.Any(s => s.SharedWithUserId == userId));
+        // Count documents for logged-in users:
+        // 1. Documents owned by user
+        // 2. Documents shared with user
+        // 3. Documents without owner (legacy documents)
+        // 4. Public or Organization documents
+        var count = await _context.Documents
+            .Where(d => 
+                d.OwnerId == userId || 
+                d.Shares.Any(s => s.SharedWithUserId == userId) ||
+                d.OwnerId == null ||
+                d.Visibility == DocumentVisibility.Public || 
+                d.Visibility == DocumentVisibility.Organization)
+            .Distinct()
+            .CountAsync();
         
-        return await query.CountAsync();
+        return count;
     }
 
     public async Task<byte[]?> DownloadDocumentAsync(int documentId, string userId)
