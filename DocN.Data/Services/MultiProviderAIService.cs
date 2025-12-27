@@ -113,10 +113,16 @@ public class MultiProviderAIService : IMultiProviderAIService
                         Console.WriteLine($"AzureOpenAI fallback failed: {ex4.Message}");
                     }
                 }
+                
+                // All fallback attempts failed
+                throw new InvalidOperationException($"All embedding providers failed. Primary provider ({_embeddingsSettings.Provider}): {ex.Message}");
             }
+            
+            // Fallback is disabled, throw the original exception
+            throw;
         }
 
-        return null;
+        throw new InvalidOperationException("No embedding provider configured.");
     }
 
     private async Task<float[]?> GenerateEmbeddingWithAzureOpenAIAsync(string text)
@@ -232,7 +238,7 @@ public class MultiProviderAIService : IMultiProviderAIService
             }
         }
 
-        return "AI service not configured.";
+        throw new InvalidOperationException("No chat provider configured.");
     }
 
     private async Task<string> GenerateChatWithGeminiAsync(string systemPrompt, string userPrompt)
