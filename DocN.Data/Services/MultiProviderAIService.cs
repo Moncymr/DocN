@@ -74,6 +74,8 @@ public class MultiProviderAIService : IMultiProviderAIService
             // If primary fails and fallback is enabled, try alternatives
             if (_aiSettings.EnableFallback)
             {
+                var errors = new List<string> { $"{_embeddingsSettings.Provider}: {ex.Message}" };
+                
                 // Try alternative providers, but skip the one that just failed
                 if (_embeddingsSettings.Provider != "Gemini")
                 {
@@ -85,6 +87,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                     catch (Exception ex2)
                     {
                         Console.WriteLine($"Gemini fallback failed: {ex2.Message}");
+                        errors.Add($"Gemini: {ex2.Message}");
                     }
                 }
                 
@@ -98,6 +101,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                     catch (Exception ex3)
                     {
                         Console.WriteLine($"OpenAI fallback failed: {ex3.Message}");
+                        errors.Add($"OpenAI: {ex3.Message}");
                     }
                 }
                 
@@ -111,11 +115,12 @@ public class MultiProviderAIService : IMultiProviderAIService
                     catch (Exception ex4)
                     {
                         Console.WriteLine($"AzureOpenAI fallback failed: {ex4.Message}");
+                        errors.Add($"AzureOpenAI: {ex4.Message}");
                     }
                 }
                 
                 // All fallback attempts failed
-                throw new InvalidOperationException($"All embedding providers failed. Primary provider ({_embeddingsSettings.Provider}): {ex.Message}");
+                throw new InvalidOperationException($"All embedding providers failed. Errors: {string.Join("; ", errors)}");
             }
             
             // Fallback is disabled, throw the original exception
@@ -179,7 +184,10 @@ public class MultiProviderAIService : IMultiProviderAIService
                 throw new InvalidOperationException("Gemini returned no embedding values");
             }
         }
-        catch (System.Net.Http.HttpRequestException ex) when (ex.Message.Contains("Forbidden") || ex.Message.Contains("403"))
+        catch (System.Net.Http.HttpRequestException ex) when (
+            ex.StatusCode == System.Net.HttpStatusCode.Forbidden || 
+            ex.Message.Contains("Forbidden") || 
+            ex.Message.Contains("403"))
         {
             Console.WriteLine($"Gemini API key issue (possibly leaked or invalid): {ex.Message}");
             throw new InvalidOperationException("Gemini API key is invalid or has been reported as leaked. Please use a different API key.", ex);
@@ -268,7 +276,10 @@ public class MultiProviderAIService : IMultiProviderAIService
                 throw new InvalidOperationException("No response from Gemini");
             }
         }
-        catch (System.Net.Http.HttpRequestException ex) when (ex.Message.Contains("Forbidden") || ex.Message.Contains("403"))
+        catch (System.Net.Http.HttpRequestException ex) when (
+            ex.StatusCode == System.Net.HttpStatusCode.Forbidden || 
+            ex.Message.Contains("Forbidden") || 
+            ex.Message.Contains("403"))
         {
             Console.WriteLine($"Gemini API key issue (possibly leaked or invalid): {ex.Message}");
             throw new InvalidOperationException("Gemini API key is invalid or has been reported as leaked. Please use a different API key.", ex);
