@@ -1004,8 +1004,9 @@
             return;
         }
 
-        // Validate file extension
-        var allowedExtensions = Configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>() ?? new[] { ".pdf", ".docx", ".txt" };
+        // Validate file extension - use comprehensive list of supported formats
+        var allowedExtensions = Configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>() 
+            ?? new[] { ".pdf", ".doc", ".docx", ".xlsx", ".xls", ".pptx", ".ppt", ".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".gif", ".webp" };
         var extension = Path.GetExtension(selectedFile.Name).ToLowerInvariant();
         if (!allowedExtensions.Contains(extension))
         {
@@ -1439,7 +1440,7 @@
     private string GetAcceptedExtensions()
     {
         var extensions = Configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>() 
-            ?? new[] { ".pdf", ".docx", ".xlsx", ".txt", ".xml", ".html", ".json", ".csv", ".png", ".jpg" };
+            ?? new[] { ".pdf", ".doc", ".docx", ".xlsx", ".xls", ".pptx", ".ppt", ".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".gif", ".webp" };
         return string.Join(",", extensions);
     }
 
