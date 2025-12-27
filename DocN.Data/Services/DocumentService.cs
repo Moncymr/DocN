@@ -80,20 +80,27 @@ public class DocumentService : IDocumentService
 
     public async Task<List<Document>> GetUserDocumentsAsync(string userId, int page = 1, int pageSize = 20)
     {
-        // Get documents owned by user or shared with user - optimized for large datasets
+        // Get documents owned by user, shared with user, or in same tenant
         var query = _context.Documents.AsQueryable();
         
         if (string.IsNullOrEmpty(userId))
         {
-            // If no user ID, return all public documents
+            // If no user ID, return all public documents and documents without owner
             query = query.Where(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
         }
         else
         {
-            // Get documents owned by user or shared with user
-            var ownedDocs = _context.Documents.Where(d => d.OwnerId == userId);
-            var sharedDocs = _context.Documents.Where(d => d.Shares.Any(s => s.SharedWithUserId == userId));
-            query = ownedDocs.Union(sharedDocs);
+            // Get user's tenant
+            var user = await _context.Users.FindAsync(userId);
+            var userTenantId = user?.TenantId;
+            
+            // Get documents owned by user, shared with user, OR in the same tenant (if user has a tenant)
+            query = _context.Documents.Where(d => 
+                d.OwnerId == userId ||  // Owned by user
+                d.OwnerId == null ||    // No owner (accessible to all in tenant)
+                d.Shares.Any(s => s.SharedWithUserId == userId) ||  // Shared with user
+                (userTenantId != null && d.TenantId == userTenantId) // Same tenant
+            );
         }
 
         var allDocs = await query
@@ -115,10 +122,17 @@ public class DocumentService : IDocumentService
             return await _context.Documents.CountAsync(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
         }
         
-        var ownedCount = await _context.Documents.CountAsync(d => d.OwnerId == userId);
-        var sharedCount = await _context.Documents.CountAsync(d => d.Shares.Any(s => s.SharedWithUserId == userId));
+        // Get user's tenant
+        var user = await _context.Users.FindAsync(userId);
+        var userTenantId = user?.TenantId;
         
-        return ownedCount + sharedCount;
+        // Count documents owned by user, shared with user, OR in the same tenant
+        return await _context.Documents.CountAsync(d => 
+            d.OwnerId == userId ||  // Owned by user
+            d.OwnerId == null ||    // No owner (accessible to all in tenant)
+            d.Shares.Any(s => s.SharedWithUserId == userId) ||  // Shared with user
+            (userTenantId != null && d.TenantId == userTenantId) // Same tenant
+        );
     }
 
     public async Task<byte[]?> DownloadDocumentAsync(int documentId, string userId)

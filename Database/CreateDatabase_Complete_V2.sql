@@ -250,9 +250,8 @@ BEGIN
         AITagsJson NVARCHAR(MAX) NULL,  -- JSON array of AI-detected tags with confidence scores
         AIAnalysisDate DATETIME2(7) NULL,
         
-        -- Vector embedding (temporaneamente nvarchar(max), poi VECTOR(1536))
-        -- Memorizzato come CSV: "0.1,0.2,0.3,..."
-        EmbeddingVector NVARCHAR(MAX) NULL,
+        -- Vector embedding for SQL Server 2025 (1536 dimensions for text-embedding-ada-002)
+        EmbeddingVector VECTOR(1536) NULL,
         
         -- Metadata
         UploadedAt DATETIME2(7) NOT NULL DEFAULT GETUTCDATE(),
@@ -350,7 +349,7 @@ BEGIN
         DocumentId INT NOT NULL,
         ChunkIndex INT NOT NULL,
         ChunkText NVARCHAR(MAX) NOT NULL,
-        ChunkEmbedding NVARCHAR(MAX) NULL,  -- Vector embedding for semantic search
+        ChunkEmbedding VECTOR(1536) NULL,  -- Vector embedding for semantic search (SQL Server 2025)
         TokenCount INT NULL,
         CreatedAt DATETIME2(7) NOT NULL DEFAULT GETUTCDATE(),
         

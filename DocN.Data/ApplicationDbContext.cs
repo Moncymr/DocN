@@ -59,20 +59,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // AI Tags JSON field
             entity.Property(e => e.AITagsJson).HasColumnType("nvarchar(max)");
             
-            // Configure vector column for SQL Server 2025 native vector support
-            // Using VECTOR(1536, FLOAT32) for text-embedding-ada-002 embeddings
-            // Note: We use a value converter to handle float[] <-> string conversion
-            // until EF Core has native VECTOR type support
-            var converter = new ValueConverter<float[]?, string?>(
-                v => v == null ? null : string.Join(",", v.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))),
-                v => v == null ? null : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture))
-                    .ToArray()
+            // Configure vector column for SQL Server 2025 native VECTOR type
+            // VECTOR(1536) for text-embedding-ada-002 embeddings
+            // We store as binary representation of float array
+            var vectorConverter = new ValueConverter<float[]?, byte[]?>(
+                v => v == null ? null : ConvertFloatArrayToBytes(v),
+                v => v == null ? null : ConvertBytesToFloatArray(v)
             );
             
             entity.Property(e => e.EmbeddingVector)
-                .HasColumnType("nvarchar(max)")  // Temporarily use nvarchar(max) until database supports VECTOR
-                .HasConversion(converter)
+                .HasColumnType("VECTOR(1536)")  // SQL Server 2025 native VECTOR type
+                .HasConversion(vectorConverter)
                 .IsRequired(false);
             
             // Index for performance with large number of documents
@@ -190,17 +187,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ChunkText).IsRequired();
             
-            // Configure vector column for chunk embeddings
-            var converter = new ValueConverter<float[]?, string?>(
-                v => v == null ? null : string.Join(",", v.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))),
-                v => v == null ? null : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture))
-                    .ToArray()
+            // Configure vector column for chunk embeddings - SQL Server 2025 VECTOR type
+            // VECTOR(1536) for text-embedding-ada-002 embeddings
+            var chunkVectorConverter = new ValueConverter<float[]?, byte[]?>(
+                v => v == null ? null : ConvertFloatArrayToBytes(v),
+                v => v == null ? null : ConvertBytesToFloatArray(v)
             );
             
             entity.Property(e => e.ChunkEmbedding)
-                .HasColumnType("nvarchar(max)")  // Temporarily use nvarchar(max) until database supports VECTOR
-                .HasConversion(converter)
+                .HasColumnType("VECTOR(1536)")  // SQL Server 2025 native VECTOR type
+                .HasConversion(chunkVectorConverter)
                 .IsRequired(false);
             
             // Relationship with Document
@@ -213,5 +209,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => e.DocumentId);
             entity.HasIndex(e => new { e.DocumentId, e.ChunkIndex });
         });
+    }
+    
+    // Helper methods for VECTOR type conversion
+    private static byte[] ConvertFloatArrayToBytes(float[] floats)
+    {
+        byte[] bytes = new byte[floats.Length * sizeof(float)];
+        Buffer.BlockCopy(floats, 0, bytes, 0, bytes.Length);
+        return bytes;
+    }
+    
+    private static float[] ConvertBytesToFloatArray(byte[] bytes)
+    {
+        float[] floats = new float[bytes.Length / sizeof(float)];
+        Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
+        return floats;
     }
 }
