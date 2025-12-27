@@ -86,6 +86,9 @@ builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
 
+// Register ApplicationSeeder
+builder.Services.AddScoped<DocN.Data.Services.ApplicationSeeder>();
+
 // Configure HttpClient to call the backend API
 builder.Services.AddHttpClient("BackendAPI", client =>
 {
@@ -93,6 +96,13 @@ builder.Services.AddHttpClient("BackendAPI", client =>
 });
 
 var app = builder.Build();
+
+// Seed the database with default tenant and user
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<DocN.Data.Services.ApplicationSeeder>();
+    await seeder.SeedAsync();
+}
 
 // Ensure upload directory exists
 var fileStorageSettings = builder.Configuration.GetSection("FileStorage").Get<FileStorageSettings>();

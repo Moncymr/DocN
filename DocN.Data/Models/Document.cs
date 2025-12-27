@@ -14,6 +14,10 @@ public class Document
     public string? CategoryReasoning { get; set; } // NEW: Explains why AI suggested this category
     public string? ActualCategory { get; set; }
     
+    // AI Tag Analysis Results
+    public string? AITagsJson { get; set; } // JSON array of AI-detected tags with confidence scores
+    public DateTime? AIAnalysisDate { get; set; }
+    
     // Visibility management
     public DocumentVisibility Visibility { get; set; } = DocumentVisibility.Private;
     
@@ -28,6 +32,10 @@ public class Document
     // Owner (nullable until authentication is fully implemented)
     public string? OwnerId { get; set; }
     public virtual ApplicationUser? Owner { get; set; }
+    
+    // Multi-tenant support
+    public int? TenantId { get; set; }
+    public virtual Tenant? Tenant { get; set; }
     
     // Document sharing
     public virtual ICollection<DocumentShare> Shares { get; set; } = new List<DocumentShare>();

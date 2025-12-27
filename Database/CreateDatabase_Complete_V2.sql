@@ -188,6 +188,44 @@ PRINT '✅ Tabelle Identity completate';
 PRINT '';
 
 -- ================================================
+-- 2B. TABELLA TENANTS (Multi-Tenant Support)
+-- ================================================
+
+PRINT '🏢 Creazione tabella Tenants...';
+
+-- Tenants
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Tenants' and xtype='U')
+BEGIN
+    CREATE TABLE Tenants (
+        Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name NVARCHAR(200) NOT NULL,
+        Description NVARCHAR(1000) NULL,
+        IsActive BIT NOT NULL DEFAULT 1,
+        CreatedAt DATETIME2(7) NOT NULL DEFAULT GETUTCDATE(),
+        UpdatedAt DATETIME2(7) NULL
+    );
+    
+    CREATE INDEX IX_Tenants_Name ON Tenants(Name);
+    CREATE INDEX IX_Tenants_IsActive ON Tenants(IsActive);
+    
+    PRINT '  ✓ Tenants creata';
+END
+GO
+
+-- Aggiungere TenantId a AspNetUsers se non esiste
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('AspNetUsers') AND name = 'TenantId')
+BEGIN
+    ALTER TABLE AspNetUsers ADD TenantId INT NULL;
+    CREATE INDEX IX_AspNetUsers_TenantId ON AspNetUsers(TenantId);
+    PRINT '  ✓ TenantId aggiunto a AspNetUsers';
+END
+GO
+
+PRINT '';
+PRINT '✅ Tabella Tenants completata';
+PRINT '';
+
+-- ================================================
 -- 3. TABELLE DOCUMENTI
 -- ================================================
 
@@ -208,6 +246,10 @@ BEGIN
         ActualCategory NVARCHAR(100) NULL,
         Visibility INT NOT NULL DEFAULT 0,  -- 0=Private, 1=Shared, 2=Organization, 3=Public
         
+        -- AI Tag Analysis Results
+        AITagsJson NVARCHAR(MAX) NULL,  -- JSON array of AI-detected tags with confidence scores
+        AIAnalysisDate DATETIME2(7) NULL,
+        
         -- Vector embedding (temporaneamente nvarchar(max), poi VECTOR(1536))
         -- Memorizzato come CSV: "0.1,0.2,0.3,..."
         EmbeddingVector NVARCHAR(MAX) NULL,
@@ -217,6 +259,7 @@ BEGIN
         LastAccessedAt DATETIME2(7) NULL,
         AccessCount INT NOT NULL DEFAULT 0,
         OwnerId NVARCHAR(450) NULL,  -- Nullable per documenti pubblici
+        TenantId INT NULL,  -- Multi-tenant support
         
         -- Nuovi campi per file processing avanzato
         PageCount INT NULL,
@@ -225,7 +268,9 @@ BEGIN
         ProcessingError NVARCHAR(MAX) NULL,
         
         CONSTRAINT FK_Documents_Owner FOREIGN KEY (OwnerId) 
-            REFERENCES AspNetUsers(Id) ON DELETE SET NULL
+            REFERENCES AspNetUsers(Id) ON DELETE SET NULL,
+        CONSTRAINT FK_Documents_Tenant FOREIGN KEY (TenantId)
+            REFERENCES Tenants(Id) ON DELETE SET NULL
     );
     
     -- Indici per performance
@@ -234,6 +279,7 @@ BEGIN
     CREATE INDEX IX_Documents_Visibility ON Documents(Visibility);
     CREATE INDEX IX_Documents_Category ON Documents(ActualCategory);
     CREATE INDEX IX_Documents_Status ON Documents(ProcessingStatus);
+    CREATE INDEX IX_Documents_TenantId ON Documents(TenantId);
     
     -- Full-text index per ricerca
     CREATE FULLTEXT CATALOG DocumentFullTextCatalog AS DEFAULT;
@@ -449,6 +495,77 @@ PRINT '';
 -- ================================================
 
 PRINT '🌱 Inserimento dati iniziali...';
+
+-- Tenant predefinito
+IF NOT EXISTS (SELECT * FROM Tenants WHERE Name = 'Default')
+BEGIN
+    INSERT INTO Tenants (Name, Description, IsActive, CreatedAt)
+    VALUES ('Default', 'Default tenant for the system', 1, GETUTCDATE());
+    PRINT '  ✓ Tenant predefinito creato';
+END
+GO
+
+-- Utente amministratore predefinito
+-- Password: Admin@123 (hashed)
+DECLARE @DefaultTenantId INT = (SELECT TOP 1 Id FROM Tenants WHERE Name = 'Default');
+DECLARE @AdminRoleId NVARCHAR(450);
+DECLARE @AdminUserId NVARCHAR(450) = NEWID();
+
+IF NOT EXISTS (SELECT * FROM AspNetUsers WHERE Email = 'admin@docn.local')
+BEGIN
+    -- Create admin user
+    INSERT INTO AspNetUsers (
+        Id, 
+        UserName, 
+        NormalizedUserName, 
+        Email, 
+        NormalizedEmail, 
+        EmailConfirmed,
+        PasswordHash,
+        SecurityStamp,
+        ConcurrencyStamp,
+        PhoneNumberConfirmed,
+        TwoFactorEnabled,
+        LockoutEnabled,
+        AccessFailedCount,
+        FirstName,
+        LastName,
+        CreatedAt,
+        IsActive,
+        TenantId
+    )
+    VALUES (
+        @AdminUserId,
+        'admin@docn.local',
+        'ADMIN@DOCN.LOCAL',
+        'admin@docn.local',
+        'ADMIN@DOCN.LOCAL',
+        1,
+        'AQAAAAIAAYagAAAAEJ8Z8sHfE9vXh3L3K0YqF7nP3xLZ2Q5fN7nN3T2fZ1yN3fK8L9mZ3sN2xR7T1fL8Q==', -- Admin@123
+        NEWID(),
+        NEWID(),
+        0,
+        0,
+        1,
+        0,
+        'Admin',
+        'User',
+        GETUTCDATE(),
+        1,
+        @DefaultTenantId
+    );
+    
+    -- Assign Admin role to the user
+    SET @AdminRoleId = (SELECT TOP 1 Id FROM AspNetRoles WHERE Name = 'Admin');
+    IF @AdminRoleId IS NOT NULL
+    BEGIN
+        INSERT INTO AspNetUserRoles (UserId, RoleId)
+        VALUES (@AdminUserId, @AdminRoleId);
+    END
+    
+    PRINT '  ✓ Utente amministratore predefinito creato (admin@docn.local / Admin@123)';
+END
+GO
 
 -- Configurazione AI predefinita
 IF NOT EXISTS (SELECT * FROM AIConfigurations WHERE ConfigurationName = 'Default Azure OpenAI')

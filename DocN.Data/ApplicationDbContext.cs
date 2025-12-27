@@ -12,6 +12,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
     }
 
+    public DbSet<Tenant> Tenants { get; set; }
     public DbSet<Document> Documents { get; set; }
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
     public DbSet<DocumentShare> DocumentShares { get; set; }
@@ -26,6 +27,26 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(modelBuilder);
 
+        // Tenant configuration
+        modelBuilder.Entity<Tenant>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.HasIndex(e => e.Name);
+        });
+
+        // ApplicationUser - Tenant relationship
+        modelBuilder.Entity<ApplicationUser>(entity =>
+        {
+            entity.HasOne(e => e.Tenant)
+                .WithMany(t => t.Users)
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasIndex(e => e.TenantId);
+        });
+
         // Document configuration
         modelBuilder.Entity<Document>(entity =>
         {
@@ -34,6 +55,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);
             entity.Property(e => e.ExtractedText).HasMaxLength(int.MaxValue);
             entity.Property(e => e.CategoryReasoning).HasMaxLength(2000);
+            
+            // AI Tags JSON field
+            entity.Property(e => e.AITagsJson).HasColumnType("nvarchar(max)");
             
             // Configure vector column for SQL Server 2025 native vector support
             // Using VECTOR(1536, FLOAT32) for text-embedding-ada-002 embeddings
@@ -57,12 +81,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => e.Visibility);
             entity.HasIndex(e => e.SuggestedCategory);
             entity.HasIndex(e => e.ActualCategory);
+            entity.HasIndex(e => e.TenantId);
             
             // Relationship with owner
             entity.HasOne(e => e.Owner)
                 .WithMany(u => u.Documents)
                 .HasForeignKey(e => e.OwnerId)
                 .OnDelete(DeleteBehavior.Cascade);
+            
+            // Relationship with tenant
+            entity.HasOne(e => e.Tenant)
+                .WithMany(t => t.Documents)
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // DocumentShare configuration
