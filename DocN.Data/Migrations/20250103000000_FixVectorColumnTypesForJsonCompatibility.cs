@@ -49,7 +49,11 @@ namespace DocN.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Revert to varbinary(max) if needed
+            // WARNING: Rolling back this migration will cause data loss
+            // JSON string data cannot be safely converted back to binary format
+            // Existing vector data will be lost during the conversion
+            
+            // Revert to varbinary(max) - DATA WILL BE LOST
             migrationBuilder.Sql(@"
                 IF EXISTS (
                     SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
@@ -58,6 +62,8 @@ namespace DocN.Data.Migrations
                     AND DATA_TYPE = 'nvarchar'
                 )
                 BEGIN
+                    -- Clear existing data to avoid conversion errors
+                    UPDATE Documents SET EmbeddingVector = NULL WHERE EmbeddingVector IS NOT NULL;
                     ALTER TABLE Documents ALTER COLUMN EmbeddingVector VARBINARY(MAX) NULL;
                 END
             ");
@@ -70,6 +76,8 @@ namespace DocN.Data.Migrations
                     AND DATA_TYPE = 'nvarchar'
                 )
                 BEGIN
+                    -- Clear existing data to avoid conversion errors
+                    UPDATE DocumentChunks SET ChunkEmbedding = NULL WHERE ChunkEmbedding IS NOT NULL;
                     ALTER TABLE DocumentChunks ALTER COLUMN ChunkEmbedding VARBINARY(MAX) NULL;
                 END
             ");

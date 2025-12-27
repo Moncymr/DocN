@@ -215,19 +215,4 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => new { e.DocumentId, e.ChunkIndex });
         });
     }
-    
-    // Helper methods for VECTOR type conversion
-    private static byte[] ConvertFloatArrayToBytes(float[] floats)
-    {
-        byte[] bytes = new byte[floats.Length * sizeof(float)];
-        Buffer.BlockCopy(floats, 0, bytes, 0, bytes.Length);
-        return bytes;
-    }
-    
-    private static float[] ConvertBytesToFloatArray(byte[] bytes)
-    {
-        float[] floats = new float[bytes.Length / sizeof(float)];
-        Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
-        return floats;
-    }
 }
