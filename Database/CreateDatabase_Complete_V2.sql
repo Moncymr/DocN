@@ -266,6 +266,9 @@ BEGIN
         ProcessingStatus NVARCHAR(50) NULL,  -- 'Pending', 'Processing', 'Completed', 'Failed'
         ProcessingError NVARCHAR(MAX) NULL,
         
+        -- User notes
+        Notes NVARCHAR(MAX) NULL,
+        
         CONSTRAINT FK_Documents_Owner FOREIGN KEY (OwnerId) 
             REFERENCES AspNetUsers(Id) ON DELETE SET NULL,
         CONSTRAINT FK_Documents_Tenant FOREIGN KEY (TenantId)
@@ -354,6 +357,8 @@ BEGIN
         ChunkEmbedding VECTOR(1536) NULL,  -- Vector embedding for semantic search (SQL Server 2025)
         TokenCount INT NULL,
         CreatedAt DATETIME2(7) NOT NULL DEFAULT GETUTCDATE(),
+        StartPosition INT NOT NULL DEFAULT 0,
+        EndPosition INT NOT NULL DEFAULT 0,
         
         CONSTRAINT FK_DocumentChunks_Document FOREIGN KEY (DocumentId)
             REFERENCES Documents(Id) ON DELETE CASCADE
