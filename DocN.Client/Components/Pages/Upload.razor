@@ -305,7 +305,7 @@
                                     📊 Documenti più vicini vettorialmente (basati sulla similarità del contenuto):
                                 </p>
                                 <div class="similar-documents-list">
-                                    @foreach (var doc in similarDocuments.Take(5))
+                                    @foreach (var doc in similarDocuments.Take(SIMILAR_DOCUMENTS_COUNT))
                                     {
                                         <div class="similar-doc-item">
                                             <div class="similar-doc-header">
@@ -862,10 +862,6 @@
         transform: translateY(-2px);
     }
 
-    .btn-secondary:hover:not(:disabled) {
-        background: #5a6268;
-    }
-
     .alert {
         padding: 1.25rem;
         border-radius: 8px;
@@ -1098,6 +1094,8 @@
     private const string STEP_GENERATING_EMBEDDINGS = "Generating vector embeddings...";
     private const string STEP_ANALYZING_AI = "Analyzing document with AI...";
     private const string STEP_COMPLETE = "Processing complete!";
+    private const int SIMILAR_DOCUMENTS_COUNT = 5;
+    private const double SIMILAR_DOCUMENTS_MIN_SIMILARITY = 0.3;
     
     private class UploadModel
     {
@@ -1298,8 +1296,8 @@
                                 similarDocuments = await SemanticRAGService.SearchDocumentsAsync(
                                     extractedText,
                                     currentUserId,
-                                    topK: 5,
-                                    minSimilarity: 0.3);
+                                    topK: SIMILAR_DOCUMENTS_COUNT,
+                                    minSimilarity: SIMILAR_DOCUMENTS_MIN_SIMILARITY);
                                 Console.WriteLine($"Found {similarDocuments?.Count ?? 0} similar documents");
                             }
                         }
