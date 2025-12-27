@@ -281,10 +281,14 @@ BEGIN
     CREATE INDEX IX_Documents_Status ON Documents(ProcessingStatus);
     CREATE INDEX IX_Documents_TenantId ON Documents(TenantId);
     
-    -- Full-text index per ricerca
-    CREATE FULLTEXT CATALOG DocumentFullTextCatalog AS DEFAULT;
+    -- Full-text catalog and index per ricerca
+    IF NOT EXISTS (SELECT * FROM sys.fulltext_catalogs WHERE name = 'DocumentFullTextCatalog')
+    BEGIN
+        CREATE FULLTEXT CATALOG DocumentFullTextCatalog AS DEFAULT;
+    END
+    
     CREATE FULLTEXT INDEX ON Documents(ExtractedText, FileName)
-        KEY INDEX PK__Document__3214EC074A8DB6ED ON DocumentFullTextCatalog;
+        KEY INDEX PK__Documents__3214EC07 ON DocumentFullTextCatalog;
     
     PRINT '  ✓ Documents creata con full-text search';
 END
@@ -529,7 +533,7 @@ END
 GO
 
 -- Utente amministratore predefinito
--- Password: Admin@123 (hashed)
+-- Password: Admin@123 (deve essere cambiata al primo login)
 DECLARE @DefaultTenantId INT = (SELECT TOP 1 Id FROM Tenants WHERE Name = 'Default');
 DECLARE @AdminRoleId NVARCHAR(450);
 DECLARE @AdminUserId NVARCHAR(450) = NEWID();
@@ -537,6 +541,9 @@ DECLARE @AdminUserId NVARCHAR(450) = NEWID();
 IF NOT EXISTS (SELECT * FROM AspNetUsers WHERE Email = 'admin@docn.local')
 BEGIN
     -- Create admin user
+    -- Note: PasswordHash is generated using ASP.NET Core Identity PasswordHasher
+    -- This is a default hash and should be changed immediately after first login
+    -- Password: Admin@123
     INSERT INTO AspNetUsers (
         Id, 
         UserName, 
@@ -564,7 +571,7 @@ BEGIN
         'admin@docn.local',
         'ADMIN@DOCN.LOCAL',
         1,
-        'AQAAAAIAAYagAAAAEJ8Z8sHfE9vXh3L3K0YqF7nP3xLZ2Q5fN7nN3T2fZ1yN3fK8L9mZ3sN2xR7T1fL8Q==', -- Admin@123
+        'AQAAAAIAAYagAAAAEJ8Z8sHfE9vXh3L3K0YqF7nP3xLZ2Q5fN7nN3T2fZ1yN3fK8L9mZ3sN2xR7T1fL8Q==',
         NEWID(),
         NEWID(),
         0,
@@ -586,7 +593,8 @@ BEGIN
         VALUES (@AdminUserId, @AdminRoleId);
     END
     
-    PRINT '  ✓ Utente amministratore predefinito creato (admin@docn.local / Admin@123)';
+    PRINT '  ✓ Utente amministratore predefinito creato (admin@docn.local)';
+    PRINT '  ⚠️  IMPORTANTE: Cambiare la password predefinita dopo il primo login!';
 END
 GO
 
@@ -861,20 +869,32 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
+    -- Retrieve top documents
     SELECT TOP (@TopDocuments)
-        'DOCUMENT' as SourceType, d.Id, NULL as ChunkId, d.FileName, 
-        d.ActualCategory, d.ExtractedText as Content, 0.85 as RelevanceScore, d.UploadedAt
+        'DOCUMENT' as SourceType, 
+        d.Id, 
+        NULL as ChunkId, 
+        d.FileName, 
+        d.ActualCategory, 
+        d.ExtractedText as Content, 
+        0.85 as RelevanceScore, 
+        d.UploadedAt
     FROM Documents d
     WHERE d.EmbeddingVector IS NOT NULL
       AND (d.OwnerId = @UserId OR d.Visibility = 3
            OR EXISTS (SELECT 1 FROM DocumentShares ds WHERE ds.DocumentId = d.Id AND ds.SharedWithUserId = @UserId))
-    ORDER BY d.UploadedAt DESC
+    ORDER BY d.UploadedAt DESC;
     
-    UNION ALL
-    
+    -- Retrieve top chunks
     SELECT TOP (@TopChunks)
-        'CHUNK' as SourceType, dc.DocumentId as Id, dc.Id as ChunkId, d.FileName,
-        d.ActualCategory, dc.ChunkText as Content, 0.80 as RelevanceScore, dc.CreatedAt as UploadedAt
+        'CHUNK' as SourceType, 
+        dc.DocumentId as Id, 
+        dc.Id as ChunkId, 
+        d.FileName,
+        d.ActualCategory, 
+        dc.ChunkText as Content, 
+        0.80 as RelevanceScore, 
+        dc.CreatedAt as UploadedAt
     FROM DocumentChunks dc
     INNER JOIN Documents d ON dc.DocumentId = d.Id
     WHERE dc.ChunkEmbedding IS NOT NULL

@@ -129,9 +129,8 @@ public class ApplicationSeeder
                 // Assign Admin role
                 await _userManager.AddToRoleAsync(user, "Admin");
                 
-                _logger.LogInformation("Created default admin user: {Email} with password: {Password}", 
-                    defaultEmail, defaultPassword);
-                _logger.LogWarning("⚠️  IMPORTANT: Change the default password after first login!");
+                _logger.LogInformation("Created default admin user: {Email}", defaultEmail);
+                _logger.LogWarning("⚠️  IMPORTANT: Change the default admin password after first login!");
             }
             else
             {

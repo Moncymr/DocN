@@ -2,6 +2,8 @@
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject ILogger<Search> Logger
 @rendermode InteractiveServer
 
 <PageTitle>Search - DocN</PageTitle>
@@ -276,7 +278,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Search error: {ex.Message}");
+            Logger.LogError(ex, "Error performing search for query: {Query}", searchQuery);
             searchResults = new List<SearchResult>();
         }
         finally
@@ -305,7 +307,8 @@
 
     private void ViewDocument(SearchResult result)
     {
-        // TODO: Implement document viewer or navigate to document details
+        // Navigate to documents page (could be enhanced to open document details)
+        Navigation.NavigateTo("/documents");
     }
 
     private string GetFileIcon(string fileName)
