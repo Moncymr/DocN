@@ -20,7 +20,10 @@ public class DocumentStatisticsService : IDocumentStatisticsService
 
     public async Task<DocumentStatistics> GetStatisticsAsync(string userId)
     {
-        var userDocs = _context.Documents.Where(d => d.OwnerId == userId);
+        // Include documents owned by user and documents without owner (legacy/public documents)
+        var userDocs = string.IsNullOrEmpty(userId) 
+            ? _context.Documents.Where(d => d.OwnerId == null)
+            : _context.Documents.Where(d => d.OwnerId == userId || d.OwnerId == null);
         
         var totalDocs = await userDocs.CountAsync();
         var totalStorage = await userDocs.SumAsync(d => (long?)d.FileSize) ?? 0;

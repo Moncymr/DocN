@@ -85,15 +85,16 @@ public class DocumentService : IDocumentService
         
         if (string.IsNullOrEmpty(userId))
         {
-            // If no user ID, return all public documents
+            // If no user ID, return all public documents and documents without owner
             query = query.Where(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
         }
         else
         {
-            // Get documents owned by user or shared with user
+            // Get documents owned by user, shared with user, or documents without an owner (legacy/public documents)
             var ownedDocs = _context.Documents.Where(d => d.OwnerId == userId);
             var sharedDocs = _context.Documents.Where(d => d.Shares.Any(s => s.SharedWithUserId == userId));
-            query = ownedDocs.Union(sharedDocs);
+            var unownedDocs = _context.Documents.Where(d => d.OwnerId == null);
+            query = ownedDocs.Union(sharedDocs).Union(unownedDocs);
         }
 
         var allDocs = await query
@@ -117,8 +118,10 @@ public class DocumentService : IDocumentService
         
         var ownedCount = await _context.Documents.CountAsync(d => d.OwnerId == userId);
         var sharedCount = await _context.Documents.CountAsync(d => d.Shares.Any(s => s.SharedWithUserId == userId));
+        var unownedCount = await _context.Documents.CountAsync(d => d.OwnerId == null);
         
-        return ownedCount + sharedCount;
+        // Avoid double-counting: unowned documents should be counted only once
+        return ownedCount + sharedCount + unownedCount;
     }
 
     public async Task<byte[]?> DownloadDocumentAsync(int documentId, string userId)
