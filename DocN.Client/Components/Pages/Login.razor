@@ -1,5 +1,6 @@
 @page "/login"
 @using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.WebUtilities
 @inject NavigationManager Navigation
 
 <PageTitle>Login - DocN</PageTitle>
@@ -275,8 +276,8 @@
     protected override void OnInitialized()
     {
         var uri = new Uri(Navigation.Uri);
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        var error = query["error"];
+        var queryParams = QueryHelpers.ParseQuery(uri.Query);
+        var error = queryParams.TryGetValue("error", out var errorValue) ? errorValue.ToString() : null;
 
         errorMessage = error switch
         {
