@@ -1174,8 +1174,9 @@
                 {
                     // Tag extraction failed - user can still enter manually
                     tagExtractionSucceeded = false;
-                    tagExtractionError = $"Errore nell'estrazione dei tag: {ex.Message}. Puoi inserirli manualmente.";
+                    tagExtractionError = "Errore nell'estrazione dei tag. Verifica la configurazione AI o inserisci i tag manualmente.";
                     Console.WriteLine($"Tag extraction exception: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
             }
 
@@ -1303,11 +1304,10 @@
             {
                 // Database save failed - file is on disk but not in database
                 errorMessage = $"⚠️ ERRORE CRITICO: Il file è stato salvato su disco ma NON nel database. " +
-                              $"Il file si trova in: {filePath}. " +
-                              $"Errore database: {dbEx.Message}. " +
+                              $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
                               $"Contattare l'amministratore per completare il salvataggio.";
                 
-                // Log the error with full details
+                // Log the error with full details for administrator
                 Console.WriteLine($"CRITICAL ERROR - File saved but DB failed:");
                 Console.WriteLine($"  File path: {filePath}");
                 Console.WriteLine($"  File name: {selectedFile.Name}");
@@ -1324,15 +1324,23 @@
             if (savedFilePath != null && File.Exists(savedFilePath))
             {
                 // File was created but something else went wrong
-                errorMessage = $"❌ Errore durante il salvataggio: {ex.Message}. Il file è stato salvato in {savedFilePath} ma potrebbero esserci problemi.";
+                errorMessage = $"❌ Errore durante il processo di salvataggio. Il file potrebbe essere stato salvato parzialmente. " +
+                              $"ID di riferimento: {Path.GetFileName(savedFilePath)}. Contattare l'amministratore.";
+                
+                // Log full details for debugging
+                Console.WriteLine($"Upload error - File saved but other issue: {ex.Message}");
+                Console.WriteLine($"  File path: {savedFilePath}");
+                Console.WriteLine($"  Stack trace: {ex.StackTrace}");
             }
             else
             {
                 // File was not saved
-                errorMessage = $"❌ Errore durante il salvataggio del file: {ex.Message}";
+                errorMessage = "❌ Errore durante il salvataggio del file. Riprovare o contattare l'amministratore se il problema persiste.";
+                
+                // Log full error details
+                Console.WriteLine($"Upload error - File not saved: {ex.Message}");
+                Console.WriteLine($"  Stack trace: {ex.StackTrace}");
             }
-            
-            Console.WriteLine($"Upload error: {ex.Message}");
         }
         finally
         {

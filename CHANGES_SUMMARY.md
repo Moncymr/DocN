@@ -20,19 +20,20 @@
 
 **Code Changes in `ProcessDocument()` method:**
 ```csharp
-// Before: Silent failure
+// Before: Silent failure with exception message exposed
 catch (Exception ex)
 {
     // Tag extraction failed - user can still enter manually
     Console.WriteLine($"Tag extraction exception: {ex.Message}");
 }
 
-// After: User notification
+// After: User notification without exposing sensitive details
 catch (Exception ex)
 {
     tagExtractionSucceeded = false;
-    tagExtractionError = $"Errore nell'estrazione dei tag: {ex.Message}. Puoi inserirli manualmente.";
+    tagExtractionError = "Errore nell'estrazione dei tag. Verifica la configurazione AI o inserisci i tag manualmente.";
     Console.WriteLine($"Tag extraction exception: {ex.Message}");
+    Console.WriteLine($"Stack trace: {ex.StackTrace}");
 }
 ```
 
@@ -71,20 +72,28 @@ try
 catch (Exception dbEx)
 {
     // Critical error - file exists but not in DB
+    // Only show filename (not full path) for security
     errorMessage = $"⚠️ ERRORE CRITICO: Il file è stato salvato su disco ma NON nel database. " +
-                  $"Il file si trova in: {filePath}. " +
-                  $"Errore database: {dbEx.Message}. " +
+                  $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
                   $"Contattare l'amministratore per completare il salvataggio.";
     
-    // Log full details for debugging
+    // Log full details for debugging (server-side only)
     Console.WriteLine($"CRITICAL ERROR - File saved but DB failed:");
     Console.WriteLine($"  File path: {filePath}");
-    // ... more logging ...
+    Console.WriteLine($"  Error: {dbEx.Message}");
+    Console.WriteLine($"  Stack trace: {dbEx.StackTrace}");
     
     // Don't redirect - keep user on page to see error
     return;
 }
 ```
+
+### Security Improvements
+
+The final implementation includes security hardening:
+- **No full path exposure**: Only filename shown to users, full path logged server-side
+- **No exception message exposure**: Generic user-friendly messages shown, detailed errors logged
+- **Separation of concerns**: User-facing messages vs. admin/debugging information
 
 ### 3. Enhanced Graphics and UI
 
