@@ -532,7 +532,10 @@ END
 GO
 
 -- Utente amministratore predefinito
--- Password: Admin@123 (deve essere cambiata al primo login)
+-- CREDENZIALI DI DEFAULT:
+--   Email: admin@docn.local
+--   Password: Admin@123 (NON Amministratore@123!)
+-- IMPORTANTE: Questa password deve essere cambiata al primo login!
 DECLARE @DefaultTenantId INT = (SELECT TOP 1 Id FROM Tenants WHERE Name = 'Default');
 DECLARE @AdminRoleId NVARCHAR(450);
 DECLARE @AdminUserId NVARCHAR(450) = NEWID();
@@ -540,9 +543,9 @@ DECLARE @AdminUserId NVARCHAR(450) = NEWID();
 IF NOT EXISTS (SELECT * FROM AspNetUsers WHERE Email = 'admin@docn.local')
 BEGIN
     -- Create admin user
-    -- Note: PasswordHash is generated using ASP.NET Core Identity PasswordHasher
-    -- This is a default hash and should be changed immediately after first login
-    -- Password: Admin@123
+    -- Note: PasswordHash is generated using ASP.NET Core Identity PasswordHasher v3
+    -- This hash corresponds to password: Admin@123
+    -- Format: {algorithm}{format}{iterations}{salt}{hash}
     INSERT INTO AspNetUsers (
         Id, 
         UserName, 
@@ -956,7 +959,7 @@ PRINT '     dotnet run --project DocN.Client';
 PRINT '';
 PRINT '  5. Login con utente predefinito:';
 PRINT '     Email: admin@docn.local';
-PRINT '     Password: Admin@123';
+PRINT '     Password: Admin@123  (NON "Amministratore@123"!)';
 PRINT '     ⚠️  IMPORTANTE: Cambiare la password dopo il primo login!';
 PRINT '';
 PRINT '  6. Esplorare funzionalità:';
