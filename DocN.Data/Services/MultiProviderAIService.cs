@@ -69,28 +69,48 @@ public class MultiProviderAIService : IMultiProviderAIService
         catch (Exception ex)
         {
             // Log the exception for debugging
-            Console.WriteLine($"Primary embedding provider failed: {ex.Message}");
+            Console.WriteLine($"Primary embedding provider ({_embeddingsSettings.Provider}) failed: {ex.Message}");
             
             // If primary fails and fallback is enabled, try alternatives
             if (_aiSettings.EnableFallback)
             {
-                // Try Gemini as fallback
-                try
+                // Try alternative providers, but skip the one that just failed
+                if (_embeddingsSettings.Provider != "Gemini")
                 {
-                    return await GenerateEmbeddingWithGeminiAsync(text);
-                }
-                catch (Exception ex2)
-                {
-                    Console.WriteLine($"Gemini fallback failed: {ex2.Message}");
-                    // Try OpenAI as last resort
                     try
                     {
+                        Console.WriteLine("Trying Gemini as fallback...");
+                        return await GenerateEmbeddingWithGeminiAsync(text);
+                    }
+                    catch (Exception ex2)
+                    {
+                        Console.WriteLine($"Gemini fallback failed: {ex2.Message}");
+                    }
+                }
+                
+                if (_embeddingsSettings.Provider != "OpenAI")
+                {
+                    try
+                    {
+                        Console.WriteLine("Trying OpenAI as fallback...");
                         return await GenerateEmbeddingWithOpenAIAsync(text);
                     }
                     catch (Exception ex3)
                     {
                         Console.WriteLine($"OpenAI fallback failed: {ex3.Message}");
-                        return null;
+                    }
+                }
+                
+                if (_embeddingsSettings.Provider != "AzureOpenAI")
+                {
+                    try
+                    {
+                        Console.WriteLine("Trying AzureOpenAI as fallback...");
+                        return await GenerateEmbeddingWithAzureOpenAIAsync(text);
+                    }
+                    catch (Exception ex4)
+                    {
+                        Console.WriteLine($"AzureOpenAI fallback failed: {ex4.Message}");
                     }
                 }
             }
@@ -131,7 +151,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         if (string.IsNullOrEmpty(_geminiSettings.ApiKey))
         {
             Console.WriteLine("Gemini API key is not configured");
-            return null;
+            throw new InvalidOperationException("Gemini API key not configured");
         }
 
         try
@@ -150,15 +170,19 @@ public class MultiProviderAIService : IMultiProviderAIService
             else
             {
                 Console.WriteLine("Gemini response was null or had no embedding values");
+                throw new InvalidOperationException("Gemini returned no embedding values");
             }
+        }
+        catch (System.Net.Http.HttpRequestException ex) when (ex.Message.Contains("Forbidden") || ex.Message.Contains("403"))
+        {
+            Console.WriteLine($"Gemini API key issue (possibly leaked or invalid): {ex.Message}");
+            throw new InvalidOperationException("Gemini API key is invalid or has been reported as leaked. Please use a different API key.", ex);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Gemini embedding error: {ex.Message}");
             throw; // Re-throw to allow fallback logic to work
         }
-
-        return null;
     }
 
     public async Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt)
@@ -175,27 +199,36 @@ public class MultiProviderAIService : IMultiProviderAIService
                 return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // If primary fails and fallback is enabled
+            Console.WriteLine($"Primary chat provider ({_aiSettings.Provider}) failed: {ex.Message}");
+            
+            // If primary fails and fallback is enabled, try the alternative provider
             if (_aiSettings.EnableFallback)
             {
                 try
                 {
-                    // Try the other provider as fallback
+                    // Try the other provider as fallback (not the one that just failed)
                     if (_aiSettings.Provider == "Gemini")
                     {
+                        Console.WriteLine("Trying OpenAI as fallback...");
                         return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt);
                     }
-                    else
+                    else if (_aiSettings.Provider == "OpenAI")
                     {
+                        Console.WriteLine("Trying Gemini as fallback...");
                         return await GenerateChatWithGeminiAsync(systemPrompt, userPrompt);
                     }
                 }
-                catch (Exception ex)
+                catch (Exception ex2)
                 {
-                    return $"Error: {ex.Message}";
+                    Console.WriteLine($"Fallback chat provider failed: {ex2.Message}");
+                    return $"Error: All AI providers failed. Primary: {ex.Message}, Fallback: {ex2.Message}";
                 }
+            }
+            else
+            {
+                return $"Error: {ex.Message}";
             }
         }
 
@@ -226,8 +259,13 @@ public class MultiProviderAIService : IMultiProviderAIService
             else
             {
                 Console.WriteLine("Gemini chat response was null");
-                return "No response from Gemini";
+                throw new InvalidOperationException("No response from Gemini");
             }
+        }
+        catch (System.Net.Http.HttpRequestException ex) when (ex.Message.Contains("Forbidden") || ex.Message.Contains("403"))
+        {
+            Console.WriteLine($"Gemini API key issue (possibly leaked or invalid): {ex.Message}");
+            throw new InvalidOperationException("Gemini API key is invalid or has been reported as leaked. Please use a different API key.", ex);
         }
         catch (Exception ex)
         {
