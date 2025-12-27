@@ -1103,8 +1103,9 @@
                 {
                     // Log but don't fail the whole process
                     embeddingGenerated = false;
-                    embeddingError = $"Error: {ex.Message}";
+                    embeddingError = "Errore nella generazione degli embeddings. Verifica la configurazione AI (Gemini/OpenAI/Azure OpenAI).";
                     Console.WriteLine($"Embedding generation exception: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
             }
 
@@ -1138,8 +1139,9 @@
                 {
                     // Category suggestion failed - user can still enter manually
                     suggestedCategory = null;
-                    categoryReasoning = $"Errore durante l'analisi: {ex.Message}. Verifica la configurazione AI.";
+                    categoryReasoning = "Errore durante l'analisi della categoria. Verifica la configurazione AI o inserisci manualmente una categoria.";
                     Console.WriteLine($"Category suggestion exception: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
             }
 
