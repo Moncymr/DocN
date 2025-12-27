@@ -204,6 +204,61 @@
                             </div>
                         }
                     }
+
+                    @* AI Tag Extraction Results *@
+                    @if (enableTagExtraction && processingComplete && tagExtractionAttempted)
+                    {
+                        @if (tagExtractionSucceeded)
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🏷️</span>
+                                    <span class="result-title">Estrazione Tag AI</span>
+                                    <span class="result-status success">✓ Successo</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="margin-bottom: 0.5rem;">✓ L'AI ha estratto i seguenti tag:</p>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem;">
+                                        @if (aiExtractedTags != null)
+                                        {
+                                            @foreach (var tag in aiExtractedTags)
+                                            {
+                                                <span class="extracted-tag">@tag</span>
+                                            }
+                                        }
+                                    </div>
+                                    <p style="margin-top: 1rem; color: #666; font-size: 0.875rem;">
+                                        ℹ️ I tag sono stati inseriti automaticamente nel campo Tag qui sotto. Puoi modificarli se necessario.
+                                    </p>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🏷️</span>
+                                    <span class="result-title">Estrazione Tag AI</span>
+                                    <span class="result-status" style="background: #f8d7da; color: #721c24;">❌ Fallito</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="color: #721c24; margin: 0 0 0.5rem 0; font-weight: 600;">
+                                        ❌ L'AI non è riuscita a estrarre i tag dal documento
+                                    </p>
+                                    @if (!string.IsNullOrEmpty(tagExtractionError))
+                                    {
+                                        <div class="reasoning-box" style="background: #f8d7da; border-left-color: #dc3545;">
+                                            <h4 style="color: #721c24;">⚠️ Errore</h4>
+                                            <p style="color: #721c24;">@tagExtractionError</p>
+                                        </div>
+                                    }
+                                    <p style="margin-top: 1rem; font-weight: 600; color: #721c24;">
+                                        👇 Inserisci manualmente i tag nel campo qui sotto
+                                    </p>
+                                </div>
+                            </div>
+                        }
+                    }
                 </div>
             }
 
@@ -727,21 +782,39 @@
     }
 
     .alert {
-        padding: 1rem;
-        border-radius: 5px;
+        padding: 1.25rem;
+        border-radius: 8px;
         margin-bottom: 1rem;
+        font-size: 1rem;
+        line-height: 1.6;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .alert-success {
-        background: #d4edda;
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
         color: #155724;
-        border: 1px solid #c3e6cb;
+        border: 2px solid #28a745;
+        border-left: 5px solid #28a745;
     }
 
     .alert-error {
-        background: #f8d7da;
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
         color: #721c24;
-        border: 1px solid #f5c6cb;
+        border: 2px solid #dc3545;
+        border-left: 5px solid #dc3545;
+        font-weight: 500;
     }
 
     .form-label {
@@ -824,6 +897,23 @@
         color: #1976d2;
         font-weight: 500;
     }
+    
+    .extracted-tag {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        color: white;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        box-shadow: 0 2px 5px rgba(72, 187, 120, 0.3);
+        transition: all 0.3s ease;
+    }
+    
+    .extracted-tag:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(72, 187, 120, 0.4);
+    }
 </style>
 
 @code {
@@ -863,6 +953,9 @@
     private float[]? embedding;
     private bool embeddingGenerated = false;
     private string? embeddingError;
+    private bool tagExtractionAttempted = false;
+    private bool tagExtractionSucceeded = false;
+    private string? tagExtractionError;
     
     // Processing options
     private bool enableTextExtraction = true;
@@ -893,6 +986,9 @@
         embedding = null;
         documentTags = null;
         aiExtractedTags = null;
+        tagExtractionAttempted = false;
+        tagExtractionSucceeded = false;
+        tagExtractionError = null;
 
         // Validate file size
         var maxSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
@@ -1007,8 +1103,9 @@
                 {
                     // Log but don't fail the whole process
                     embeddingGenerated = false;
-                    embeddingError = $"Error: {ex.Message}";
+                    embeddingError = "Errore nella generazione degli embeddings. Verifica la configurazione AI (Gemini/OpenAI/Azure OpenAI).";
                     Console.WriteLine($"Embedding generation exception: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
             }
 
@@ -1042,14 +1139,16 @@
                 {
                     // Category suggestion failed - user can still enter manually
                     suggestedCategory = null;
-                    categoryReasoning = $"Errore durante l'analisi: {ex.Message}. Verifica la configurazione AI.";
+                    categoryReasoning = "Errore durante l'analisi della categoria. Verifica la configurazione AI o inserisci manualmente una categoria.";
                     Console.WriteLine($"Category suggestion exception: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
             }
 
             // Step 4: AI tag extraction - always execute even if embeddings failed
             if (enableTagExtraction && !string.IsNullOrEmpty(extractedText))
             {
+                tagExtractionAttempted = true;
                 processingStep = "Extracting tags from document...";
                 StateHasChanged();
                 await Task.Delay(UI_UPDATE_DELAY_MS);
@@ -1062,17 +1161,24 @@
                     {
                         // Merge AI-extracted tags with any manually entered tags
                         documentTags = string.Join(", ", aiExtractedTags);
+                        tagExtractionSucceeded = true;
+                        tagExtractionError = null;
                         Console.WriteLine($"AI extracted {aiExtractedTags.Count} tags: {documentTags}");
                     }
                     else
                     {
+                        tagExtractionSucceeded = false;
+                        tagExtractionError = "L'AI non è riuscita a estrarre tag dal documento. Puoi inserirli manualmente.";
                         Console.WriteLine("No tags were extracted by AI");
                     }
                 }
                 catch (Exception ex)
                 {
                     // Tag extraction failed - user can still enter manually
+                    tagExtractionSucceeded = false;
+                    tagExtractionError = "Errore nell'estrazione dei tag. Verifica la configurazione AI o inserisci i tag manualmente.";
                     Console.WriteLine($"Tag extraction exception: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
             }
 
@@ -1081,7 +1187,9 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error processing document: {ex.Message}";
+            errorMessage = "Errore durante l'elaborazione del documento. Riprova o contatta l'amministratore.";
+            Console.WriteLine($"Document processing error: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
         }
         finally
         {
@@ -1111,6 +1219,7 @@
         isUploading = true;
         errorMessage = null;
         successMessage = null;
+        string? savedFilePath = null;
 
         try
         {
@@ -1141,6 +1250,7 @@
             // Save file
             var fileName = $"{Guid.NewGuid()}_{selectedFile.Name}";
             var filePath = Path.Combine(uploadPath, fileName);
+            savedFilePath = filePath;
 
             using (var stream = selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
             {
@@ -1185,16 +1295,56 @@
             }
 
             // Save to database
-            await DocumentService.CreateDocumentAsync(document);
-            successMessage = $"Document '{selectedFile.Name}' saved successfully to database!";
-            
-            // Wait a moment then redirect
-            await Task.Delay(2000);
-            Navigation.NavigateTo("/documents");
+            try
+            {
+                await DocumentService.CreateDocumentAsync(document);
+                successMessage = $"✅ Document '{selectedFile.Name}' saved successfully!";
+                
+                // Wait a moment then redirect
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/documents");
+            }
+            catch (Exception dbEx)
+            {
+                // Database save failed - file is on disk but not in database
+                errorMessage = $"⚠️ ERRORE CRITICO: Il file è stato salvato su disco ma NON nel database. " +
+                              $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
+                              $"Contattare l'amministratore per completare il salvataggio.";
+                
+                // Log the error with full details for administrator
+                Console.WriteLine($"CRITICAL ERROR - File saved but DB failed:");
+                Console.WriteLine($"  File path: {filePath}");
+                Console.WriteLine($"  File name: {selectedFile.Name}");
+                Console.WriteLine($"  Error: {dbEx.Message}");
+                Console.WriteLine($"  Stack trace: {dbEx.StackTrace}");
+                
+                // Don't redirect on error
+                return;
+            }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error saving document: {ex.Message}";
+            // File save or other error
+            if (savedFilePath != null && File.Exists(savedFilePath))
+            {
+                // File was created but something else went wrong
+                errorMessage = $"❌ Errore durante il processo di salvataggio. Il file potrebbe essere stato salvato parzialmente. " +
+                              $"ID di riferimento: {Path.GetFileName(savedFilePath)}. Contattare l'amministratore.";
+                
+                // Log full details for debugging
+                Console.WriteLine($"Upload error - File saved but other issue: {ex.Message}");
+                Console.WriteLine($"  File path: {savedFilePath}");
+                Console.WriteLine($"  Stack trace: {ex.StackTrace}");
+            }
+            else
+            {
+                // File was not saved
+                errorMessage = "❌ Errore durante il salvataggio del file. Riprovare o contattare l'amministratore se il problema persiste.";
+                
+                // Log full error details
+                Console.WriteLine($"Upload error - File not saved: {ex.Message}");
+                Console.WriteLine($"  Stack trace: {ex.StackTrace}");
+            }
         }
         finally
         {
