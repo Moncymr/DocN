@@ -21,16 +21,16 @@ public class DocArcContext : DbContext
         {
             entity.ToTable("Documents");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.FileName).IsRequired().HasMaxLength(500);
-            entity.Property(e => e.FilePath).HasMaxLength(1000);
+            entity.Property(e => e.FileName).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);
             entity.Property(e => e.ContentType).IsRequired();
             entity.Property(e => e.FileSize).IsRequired();
             entity.Property(e => e.ExtractedText).IsRequired();
             
             // Category fields
-            entity.Property(e => e.SuggestedCategory).HasMaxLength(200);
+            entity.Property(e => e.SuggestedCategory);
             entity.Property(e => e.CategoryReasoning).HasMaxLength(2000);
-            entity.Property(e => e.ActualCategory).HasMaxLength(200);
+            entity.Property(e => e.ActualCategory);
             
             // AI Tag Analysis Results
             entity.Property(e => e.AITagsJson).HasColumnType("nvarchar(max)");
@@ -48,15 +48,10 @@ public class DocArcContext : DbContext
             // Visibility management
             entity.Property(e => e.Visibility).IsRequired();
             
-            // Vector embedding
-            var vectorConverter = new ValueConverter<float[]?, string?>(
-                v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
-                v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
-            );
-            
+            // Vector embedding - use shared converter
             entity.Property(e => e.EmbeddingVector)
                 .HasColumnType("nvarchar(max)")
-                .HasConversion(vectorConverter)
+                .HasConversion(GetVectorConverter())
                 .IsRequired(false);
             
             // Metadata
@@ -78,15 +73,10 @@ public class DocArcContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ChunkText).IsRequired();
             
-            // Configure vector column for chunk embeddings
-            var chunkVectorConverter = new ValueConverter<float[]?, string?>(
-                v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
-                v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
-            );
-            
+            // Configure vector column for chunk embeddings - use shared converter
             entity.Property(e => e.ChunkEmbedding)
                 .HasColumnType("nvarchar(max)")
-                .HasConversion(chunkVectorConverter)
+                .HasConversion(GetVectorConverter())
                 .IsRequired(false);
             
             entity.Property(e => e.TokenCount).IsRequired(false);
@@ -104,5 +94,16 @@ public class DocArcContext : DbContext
             entity.HasIndex(e => e.DocumentId);
             entity.HasIndex(e => new { e.DocumentId, e.ChunkIndex });
         });
+    }
+    
+    /// <summary>
+    /// Shared value converter for float array to JSON string for VECTOR columns
+    /// </summary>
+    private static ValueConverter<float[]?, string?> GetVectorConverter()
+    {
+        return new ValueConverter<float[]?, string?>(
+            v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
+            v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
+        );
     }
 }
