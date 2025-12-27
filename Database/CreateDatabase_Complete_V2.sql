@@ -338,6 +338,29 @@ BEGIN
 END
 GO
 
+-- DocumentChunks (for RAG - chunk-level embeddings)
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='DocumentChunks' and xtype='U')
+BEGIN
+    CREATE TABLE DocumentChunks (
+        Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        DocumentId INT NOT NULL,
+        ChunkIndex INT NOT NULL,
+        ChunkText NVARCHAR(MAX) NOT NULL,
+        ChunkEmbedding NVARCHAR(MAX) NULL,  -- Vector embedding for semantic search
+        TokenCount INT NULL,
+        CreatedAt DATETIME2(7) NOT NULL DEFAULT GETUTCDATE(),
+        
+        CONSTRAINT FK_DocumentChunks_Document FOREIGN KEY (DocumentId)
+            REFERENCES Documents(Id) ON DELETE CASCADE
+    );
+    
+    CREATE INDEX IX_DocumentChunks_DocumentId ON DocumentChunks(DocumentId);
+    CREATE INDEX IX_DocumentChunks_DocumentChunkIndex ON DocumentChunks(DocumentId, ChunkIndex);
+    
+    PRINT '  ✓ DocumentChunks creata con support embedding vettoriali';
+END
+GO
+
 PRINT '';
 PRINT '✅ Tabelle documenti completate';
 PRINT '';
@@ -877,19 +900,23 @@ PRINT '🎉 DATABASE DOCN COMPLETATO CON SUCCESSO!';
 PRINT '================================================';
 PRINT '';
 PRINT '📋 RIEPILOGO TABELLE CREATE:';
+PRINT '  • 1 tabella Tenants (multi-tenant support)';
 PRINT '  • 6 tabelle Identity (autenticazione)';
-PRINT '  • 3 tabelle documenti (Documents, Shares, Tags)';
-PRINT '  • 1 tabella chunks (DocumentChunks con embeddings)';
+PRINT '  • 4 tabelle documenti (Documents, Shares, Tags, Chunks)';
 PRINT '  • 2 tabelle conversazioni (Conversations, Messages)';
 PRINT '  • 1 tabella configurazione (AIConfigurations)';
 PRINT '  • 1 tabella audit (AuditLogs)';
 PRINT '';
 PRINT '📊 FEATURES:';
+PRINT '  ✓ Multi-tenant con tenant predefinito';
+PRINT '  ✓ Utente amministratore predefinito (admin@docn.local)';
 PRINT '  ✓ Autenticazione completa con Identity';
 PRINT '  ✓ Gestione documenti con embedding vettoriali';
 PRINT '  ✓ Document chunking per RAG preciso';
+PRINT '  ✓ AI Tag Analysis per documenti';
 PRINT '  ✓ Sistema conversazionale con memoria';
 PRINT '  ✓ Ricerca ibrida (vector + full-text)';
+PRINT '  ✓ Ricerca semantica tramite vector similarity';
 PRINT '  ✓ Full-text search sui documenti';
 PRINT '  ✓ Audit logging completo';
 PRINT '  ✓ Views per analytics';
@@ -908,10 +935,19 @@ PRINT '';
 PRINT '  4. Avviare applicazione:';
 PRINT '     dotnet run --project DocN.Client';
 PRINT '';
-PRINT '  5. Registrare primo utente: http://localhost:5000/register';
+PRINT '  5. Login con utente predefinito:';
+PRINT '     Email: admin@docn.local';
+PRINT '     Password: Admin@123';
+PRINT '     ⚠️  IMPORTANTE: Cambiare la password dopo il primo login!';
+PRINT '';
+PRINT '  6. Esplorare funzionalità:';
+PRINT '     • Upload documenti: /upload';
+PRINT '     • Ricerca avanzata: /search (vector, hybrid, text)';
+PRINT '     • Chat AI: /chat';
+PRINT '     • Dashboard: /dashboard';
 PRINT '';
 PRINT '================================================';
-PRINT '📖 Documentazione: GUIDA_INSTALLAZIONE.md';
+PRINT '📖 Documentazione: Database/README.md';
 PRINT '================================================';
 PRINT '';
 
