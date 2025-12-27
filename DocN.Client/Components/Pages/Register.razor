@@ -1,10 +1,5 @@
 @page "/register"
-@rendermode InteractiveServer
-@using Microsoft.AspNetCore.Identity
-@using DocN.Data.Models
-@using System.ComponentModel.DataAnnotations
-@inject UserManager<ApplicationUser> UserManager
-@inject SignInManager<ApplicationUser> SignInManager
+@using Microsoft.AspNetCore.Components
 @inject NavigationManager Navigation
 
 <PageTitle>Register - DocN</PageTitle>
@@ -17,9 +12,7 @@
             <p class="auth-subtitle">Join DocN to manage your documents</p>
         </div>
 
-        <EditForm Model="@registerModel" OnValidSubmit="HandleRegister" FormName="registerForm">
-            <DataAnnotationsValidator />
-            
+        <form method="post" action="/account/register">
             @if (!string.IsNullOrEmpty(errorMessage))
             {
                 <div class="alert alert-error">
@@ -39,48 +32,35 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="firstName" class="form-label">First Name</label>
-                    <InputText id="firstName" @bind-Value="registerModel.FirstName" class="form-input" placeholder="John" autocomplete="given-name" />
-                    <ValidationMessage For="@(() => registerModel.FirstName)" class="validation-message" />
+                    <input type="text" id="firstName" name="firstName" class="form-input" placeholder="John" autocomplete="given-name" required />
                 </div>
 
                 <div class="form-group">
                     <label for="lastName" class="form-label">Last Name</label>
-                    <InputText id="lastName" @bind-Value="registerModel.LastName" class="form-input" placeholder="Doe" autocomplete="family-name" />
-                    <ValidationMessage For="@(() => registerModel.LastName)" class="validation-message" />
+                    <input type="text" id="lastName" name="lastName" class="form-input" placeholder="Doe" autocomplete="family-name" required />
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="email" class="form-label">Email</label>
-                <InputText id="email" @bind-Value="registerModel.Email" class="form-input" placeholder="your@email.com" autocomplete="email" />
-                <ValidationMessage For="@(() => registerModel.Email)" class="validation-message" />
+                <input type="email" id="email" name="email" class="form-input" placeholder="your@email.com" autocomplete="email" required />
             </div>
 
             <div class="form-group">
                 <label for="password" class="form-label">Password</label>
-                <InputText id="password" type="password" @bind-Value="registerModel.Password" class="form-input" placeholder="••••••••" autocomplete="new-password" />
-                <ValidationMessage For="@(() => registerModel.Password)" class="validation-message" />
+                <input type="password" id="password" name="password" class="form-input" placeholder="••••••••" autocomplete="new-password" minlength="6" required />
                 <div class="password-hint">At least 6 characters with uppercase, lowercase, and digit</div>
             </div>
 
             <div class="form-group">
                 <label for="confirmPassword" class="form-label">Confirm Password</label>
-                <InputText id="confirmPassword" type="password" @bind-Value="registerModel.ConfirmPassword" class="form-input" placeholder="••••••••" autocomplete="new-password" />
-                <ValidationMessage For="@(() => registerModel.ConfirmPassword)" class="validation-message" />
+                <input type="password" id="confirmPassword" name="confirmPassword" class="form-input" placeholder="••••••••" autocomplete="new-password" minlength="6" required />
             </div>
 
-            <button type="submit" class="btn btn-primary" disabled="@isLoading">
-                @if (isLoading)
-                {
-                    <span class="spinner"></span>
-                    <span>Creating account...</span>
-                }
-                else
-                {
-                    <span>Create Account</span>
-                }
+            <button type="submit" class="btn btn-primary">
+                <span>Create Account</span>
             </button>
-        </EditForm>
+        </form>
 
         <div class="auth-footer">
             <div class="auth-divider">
@@ -302,96 +282,34 @@
 </style>
 
 @code {
-    [SupplyParameterFromForm]
-    private RegisterModel registerModel { get; set; } = default!;
-    
     private string? errorMessage;
     private string? successMessage;
-    private bool isLoading = false;
 
     protected override void OnInitialized()
     {
-        registerModel ??= new();
-    }
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var error = query["error"];
+        var registered = query["registered"];
 
-    private async Task HandleRegister()
-    {
-        isLoading = true;
-        errorMessage = null;
-        successMessage = null;
-        StateHasChanged();
-
-        try
+        if (registered == "true")
         {
-            // Check if user already exists
-            var existingUser = await UserManager.FindByEmailAsync(registerModel.Email);
-            if (existingUser != null)
+            successMessage = "Account created successfully!";
+        }
+        else
+        {
+            errorMessage = error switch
             {
-                errorMessage = "An account with this email already exists.";
-                return;
-            }
-
-            var user = new ApplicationUser
-            {
-                UserName = registerModel.Email,
-                Email = registerModel.Email,
-                FirstName = registerModel.FirstName,
-                LastName = registerModel.LastName,
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true
+                "required" => "All fields are required.",
+                "mismatch" => "Passwords do not match.",
+                "exists" => "An account with this email already exists.",
+                "PasswordTooShort" => "Password must be at least 6 characters.",
+                "PasswordRequiresNonAlphanumeric" => "Password must contain at least one special character.",
+                "PasswordRequiresDigit" => "Password must contain at least one digit.",
+                "PasswordRequiresUpper" => "Password must contain at least one uppercase letter.",
+                "PasswordRequiresLower" => "Password must contain at least one lowercase letter.",
+                _ => error != null ? "An error occurred while creating your account." : null
             };
-
-            var result = await UserManager.CreateAsync(user, registerModel.Password);
-
-            if (result.Succeeded)
-            {
-                // Sign in the user
-                await SignInManager.SignInAsync(user, isPersistent: false);
-                
-                successMessage = "Account created successfully! Redirecting...";
-                StateHasChanged();
-                
-                await Task.Delay(1500);
-                Navigation.NavigateTo("/", forceLoad: true);
-            }
-            else
-            {
-                errorMessage = string.Join(" ", result.Errors.Select(e => e.Description));
-            }
         }
-        catch (Exception ex)
-        {
-            errorMessage = $"An error occurred while creating your account: {ex.Message}";
-            Console.WriteLine($"Registration error: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    public class RegisterModel
-    {
-        [Required(ErrorMessage = "First name is required")]
-        [StringLength(50, ErrorMessage = "First name cannot exceed 50 characters")]
-        public string FirstName { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Last name is required")]
-        [StringLength(50, ErrorMessage = "Last name cannot exceed 50 characters")]
-        public string LastName { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Email is required")]
-        [EmailAddress(ErrorMessage = "Invalid email address")]
-        public string Email { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Password is required")]
-        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
-        public string Password { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Please confirm your password")]
-        [Compare("Password", ErrorMessage = "Passwords do not match")]
-        public string ConfirmPassword { get; set; } = string.Empty;
     }
 }

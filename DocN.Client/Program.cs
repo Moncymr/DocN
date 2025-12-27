@@ -127,12 +127,116 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Logout endpoint
+// Authentication endpoints
 app.MapPost("/logout", async (SignInManager<ApplicationUser> signInManager) =>
 {
     await signInManager.SignOutAsync();
     return Results.Redirect("/");
 }).RequireAuthorization();
+
+app.MapPost("/account/login", async (
+    HttpContext context,
+    SignInManager<ApplicationUser> signInManager,
+    UserManager<ApplicationUser> userManager) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var email = form["email"].ToString();
+    var password = form["password"].ToString();
+    var rememberMe = form["rememberMe"].ToString() == "true";
+
+    if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+    {
+        return Results.Redirect("/login?error=invalid");
+    }
+
+    var user = await userManager.FindByEmailAsync(email);
+    if (user == null)
+    {
+        return Results.Redirect("/login?error=invalid");
+    }
+
+    var result = await signInManager.PasswordSignInAsync(
+        user.UserName!,
+        password,
+        rememberMe,
+        lockoutOnFailure: true
+    );
+
+    if (result.Succeeded)
+    {
+        // Update last login time
+        user.LastLoginAt = DateTime.UtcNow;
+        await userManager.UpdateAsync(user);
+        return Results.Redirect("/");
+    }
+    else if (result.IsLockedOut)
+    {
+        return Results.Redirect("/login?error=locked");
+    }
+    else if (result.RequiresTwoFactor)
+    {
+        return Results.Redirect("/login?error=2fa");
+    }
+    else
+    {
+        return Results.Redirect("/login?error=invalid");
+    }
+}).AllowAnonymous();
+
+app.MapPost("/account/register", async (
+    HttpContext context,
+    UserManager<ApplicationUser> userManager,
+    SignInManager<ApplicationUser> signInManager) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var firstName = form["firstName"].ToString();
+    var lastName = form["lastName"].ToString();
+    var email = form["email"].ToString();
+    var password = form["password"].ToString();
+    var confirmPassword = form["confirmPassword"].ToString();
+
+    if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password) || 
+        string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
+    {
+        return Results.Redirect("/register?error=required");
+    }
+
+    if (password != confirmPassword)
+    {
+        return Results.Redirect("/register?error=mismatch");
+    }
+
+    // Check if user already exists
+    var existingUser = await userManager.FindByEmailAsync(email);
+    if (existingUser != null)
+    {
+        return Results.Redirect("/register?error=exists");
+    }
+
+    var user = new ApplicationUser
+    {
+        UserName = email,
+        Email = email,
+        FirstName = firstName,
+        LastName = lastName,
+        CreatedAt = DateTime.UtcNow,
+        IsActive = true
+    };
+
+    var result = await userManager.CreateAsync(user, password);
+
+    if (result.Succeeded)
+    {
+        // Sign in the user
+        await signInManager.SignInAsync(user, isPersistent: false);
+        return Results.Redirect("/?registered=true");
+    }
+    else
+    {
+        var error = result.Errors.FirstOrDefault()?.Code ?? "unknown";
+        return Results.Redirect($"/register?error={error}");
+    }
+}).AllowAnonymous();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
