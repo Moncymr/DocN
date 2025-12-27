@@ -13,6 +13,8 @@ public interface IDocumentService
     Task<bool> ShareDocumentAsync(int documentId, string shareWithUserId, DocumentPermission permission, string currentUserId);
     Task<bool> UpdateDocumentVisibilityAsync(int documentId, DocumentVisibility visibility, string userId);
     Task<Document> CreateDocumentAsync(Document document);
+    Task<List<Document>> GetAllDocumentsAsync();
+    Task UpdateDocumentAsync(Document document);
 }
 
 public class DocumentService : IDocumentService
@@ -218,5 +220,18 @@ public class DocumentService : IDocumentService
         _context.Documents.Add(document);
         await _context.SaveChangesAsync();
         return document;
+    }
+
+    public async Task<List<Document>> GetAllDocumentsAsync()
+    {
+        return await _context.Documents
+            .Include(d => d.Tags)
+            .ToListAsync();
+    }
+
+    public async Task UpdateDocumentAsync(Document document)
+    {
+        _context.Documents.Update(document);
+        await _context.SaveChangesAsync();
     }
 }

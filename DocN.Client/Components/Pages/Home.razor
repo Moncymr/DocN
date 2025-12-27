@@ -1,10 +1,14 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDocumentService DocumentService
+@inject IMultiProviderAIService AIService
+@inject NavigationManager Navigation
 
 <PageTitle>DocN - Document Management</PageTitle>
 
 <div class="hero-section">
     <div class="hero-content">
-        <div class="hero-badge">✨ AI-Powered Document Management</div>
         <h1 class="hero-title">
             <span class="gradient-text">DocN</span>
         </h1>
@@ -28,7 +32,6 @@
             <div class="feature-icon">📤</div>
             <h3>Upload & Organizza</h3>
             <p>Carica documenti e ricevi suggerimenti di categoria automatici con spiegazione del ragionamento AI</p>
-            <div class="feature-highlight">AI-Powered</div>
         </div>
         
         <div class="feature-card">
@@ -67,10 +70,40 @@
         </div>
     </div>
 
+    @* Admin Section - Only visible to Admin users *@
+    @if (isAdmin)
+    {
+        <div class="admin-section">
+            <h3>🔧 Strumenti Amministratore</h3>
+            <div class="admin-card">
+                <div class="admin-icon">🧠</div>
+                <div class="admin-content">
+                    <h4>Ricalcola Embeddings</h4>
+                    <p>Rigenera gli embeddings vettoriali per tutti i documenti archiviati nel sistema, indipendentemente dalla visibilità.</p>
+                    <button class="btn btn-admin" @onclick="RecalculateAllEmbeddings" disabled="@isRecalculating">
+                        @if (isRecalculating)
+                        {
+                            <span>⏳ Elaborazione in corso... (@processedCount/@totalCount)</span>
+                        }
+                        else
+                        {
+                            <span>🔄 Ricalcola Tutti gli Embeddings</span>
+                        }
+                    </button>
+                    @if (!string.IsNullOrEmpty(recalculationMessage))
+                    {
+                        <div class="admin-message @(recalculationError ? "error" : "success")">
+                            @recalculationMessage
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="tech-stack">
         <h3>Tecnologie</h3>
         <div class="tech-badges">
-            <span class="tech-badge">.NET 10.0</span>
             <span class="tech-badge">Blazor Server</span>
             <span class="tech-badge">Entity Framework Core</span>
             <span class="tech-badge">SQL Server</span>
@@ -373,4 +406,168 @@
             grid-template-columns: 1fr;
         }
     }
+    
+    .admin-section {
+        margin: 3rem 0;
+        padding: 2rem;
+        background: linear-gradient(135deg, rgba(255, 107, 107, 0.05) 0%, rgba(255, 193, 7, 0.05) 100%);
+        border-radius: 15px;
+        border: 2px solid rgba(255, 107, 107, 0.2);
+    }
+    
+    .admin-section h3 {
+        margin: 0 0 1.5rem 0;
+        color: #d32f2f;
+        font-size: 1.8rem;
+    }
+    
+    .admin-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        display: flex;
+        gap: 2rem;
+        align-items: flex-start;
+    }
+    
+    .admin-icon {
+        font-size: 4rem;
+        flex-shrink: 0;
+    }
+    
+    .admin-content {
+        flex: 1;
+    }
+    
+    .admin-content h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.5rem;
+        color: #333;
+    }
+    
+    .admin-content p {
+        margin: 0 0 1.5rem 0;
+        color: #666;
+        line-height: 1.6;
+    }
+    
+    .btn-admin {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ffc107 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+    }
+    
+    .btn-admin:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+    }
+    
+    .btn-admin:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .admin-message {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+    
+    .admin-message.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .admin-message.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
 </style>
+
+@code {
+    private bool isAdmin = false;
+    private bool isRecalculating = false;
+    private int processedCount = 0;
+    private int totalCount = 0;
+    private string? recalculationMessage;
+    private bool recalculationError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAdmin = authState.User.IsInRole("Admin");
+    }
+
+    private async Task RecalculateAllEmbeddings()
+    {
+        isRecalculating = true;
+        recalculationMessage = null;
+        recalculationError = false;
+        processedCount = 0;
+        totalCount = 0;
+        StateHasChanged();
+
+        try
+        {
+            // Get all documents regardless of visibility
+            var allDocuments = await DocumentService.GetAllDocumentsAsync();
+            totalCount = allDocuments.Count;
+            
+            if (totalCount == 0)
+            {
+                recalculationMessage = "Nessun documento trovato nel sistema.";
+                recalculationError = true;
+                return;
+            }
+
+            foreach (var doc in allDocuments)
+            {
+                try
+                {
+                    if (!string.IsNullOrEmpty(doc.ExtractedText))
+                    {
+                        var embedding = await AIService.GenerateEmbeddingAsync(doc.ExtractedText);
+                        if (embedding != null && embedding.Length > 0)
+                        {
+                            doc.EmbeddingVector = embedding;
+                            await DocumentService.UpdateDocumentAsync(doc);
+                            processedCount++;
+                            StateHasChanged();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error processing document {doc.Id}: {ex.Message}");
+                    // Continue with next document
+                }
+            }
+
+            recalculationMessage = $"✅ Ricalcolo completato! {processedCount} su {totalCount} documenti elaborati con successo.";
+            recalculationError = false;
+        }
+        catch (Exception ex)
+        {
+            recalculationMessage = $"❌ Errore durante il ricalcolo: {ex.Message}";
+            recalculationError = true;
+            Console.WriteLine($"Recalculation error: {ex.Message}");
+        }
+        finally
+        {
+            isRecalculating = false;
+            StateHasChanged();
+        }
+    }
+}
+

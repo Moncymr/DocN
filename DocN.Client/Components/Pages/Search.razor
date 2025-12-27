@@ -11,8 +11,38 @@
 <div class="search-page">
     <!-- Header -->
     <div class="page-header">
-        <h1>🔍 Document Search</h1>
-        <p class="subtitle">Search your documents using vector similarity, full-text, or hybrid search</p>
+        <h1>🔍 Ricerca Documenti</h1>
+        <p class="subtitle">Cerca i tuoi documenti utilizzando ricerca vettoriale, full-text o ibrida</p>
+        
+        <!-- Explanation Section -->
+        <div class="search-explanation">
+            <h3>💡 Come Funziona la Ricerca</h3>
+            <div class="explanation-grid">
+                <div class="explanation-card">
+                    <div class="explanation-icon">⚡</div>
+                    <h4>Ricerca Ibrida</h4>
+                    <p><strong>Cosa fa:</strong> Combina ricerca vettoriale e full-text per risultati ottimali.</p>
+                    <p><strong>Come funziona:</strong> Analizza semanticamente il contenuto con embeddings AI e cerca anche le parole chiave esatte. I risultati sono ordinati per rilevanza combinata.</p>
+                    <p class="best-for">✅ Migliore per la maggior parte delle ricerche</p>
+                </div>
+                
+                <div class="explanation-card">
+                    <div class="explanation-icon">🧠</div>
+                    <h4>Ricerca Vettoriale</h4>
+                    <p><strong>Cosa fa:</strong> Trova documenti simili per significato, non solo per parole esatte.</p>
+                    <p><strong>Come funziona:</strong> Converte la query in un vettore usando AI e calcola la similarità coseno con gli embeddings dei documenti. Trova documenti correlati anche se usano parole diverse.</p>
+                    <p class="best-for">✅ Ideale per ricerche semantiche e concettuali</p>
+                </div>
+                
+                <div class="explanation-card">
+                    <div class="explanation-icon">📝</div>
+                    <h4>Ricerca Full-Text</h4>
+                    <p><strong>Cosa fa:</strong> Cerca parole chiave esatte nel contenuto dei documenti.</p>
+                    <p><strong>Come funziona:</strong> Usa l'indicizzazione full-text del database SQL Server per trovare documenti che contengono le parole esatte della query.</p>
+                    <p class="best-for">✅ Perfetta per termini tecnici o nomi specifici</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Search Box -->
@@ -20,7 +50,7 @@
         <div class="search-input-group">
             <input type="text" 
                    class="search-input-large" 
-                   placeholder="Enter your search query..."
+                   placeholder="Inserisci la tua query di ricerca..."
                    @bind="searchQuery"
                    @onkeyup="HandleKeyPress" />
             <button class="btn-search" @onclick="PerformSearch" disabled="@isSearching">
@@ -30,7 +60,7 @@
                 }
                 else
                 {
-                    <span>🔍 Search</span>
+                    <span>🔍 Cerca</span>
                 }
             </button>
         </div>
@@ -39,30 +69,30 @@
         <div class="search-type-selector">
             <button class="type-btn @(searchType == "hybrid" ? "active" : "")" 
                     @onclick='() => SetSearchType("hybrid")'>
-                ⚡ Hybrid Search
-                <small>Best results</small>
+                ⚡ Ricerca Ibrida
+                <small>Migliori risultati</small>
             </button>
             <button class="type-btn @(searchType == "vector" ? "active" : "")" 
                     @onclick='() => SetSearchType("vector")'>
-                🧠 Vector Search
-                <small>Semantic similarity</small>
+                🧠 Ricerca Vettoriale
+                <small>Similarità semantica</small>
             </button>
             <button class="type-btn @(searchType == "text" ? "active" : "")" 
                     @onclick='() => SetSearchType("text")'>
-                📝 Text Search
-                <small>Keyword matching</small>
+                📝 Ricerca Testo
+                <small>Corrispondenza parole chiave</small>
             </button>
         </div>
 
         <!-- Advanced Filters -->
         <div class="advanced-filters">
             <details>
-                <summary>⚙️ Advanced Filters</summary>
+                <summary>⚙️ Filtri Avanzati</summary>
                 <div class="filter-content">
                     <div class="filter-item">
-                        <label>Category:</label>
+                        <label>Categoria:</label>
                         <select @bind="categoryFilter" class="filter-select">
-                            <option value="">All Categories</option>
+                            <option value="">Tutte le Categorie</option>
                             @foreach (var category in categories)
                             {
                                 <option value="@category">@category</option>
@@ -70,13 +100,25 @@
                         </select>
                     </div>
                     <div class="filter-item">
-                        <label>Max Results:</label>
+                        <label>Massimo Risultati:</label>
                         <input type="number" @bind="topK" min="5" max="50" class="filter-input" />
                     </div>
                     <div class="filter-item">
-                        <label>Min Similarity:</label>
-                        <input type="range" @bind="minSimilarity" min="0.5" max="1.0" step="0.05" class="filter-range" />
-                        <span class="range-value">@minSimilarity.ToString("F2")</span>
+                        <label>
+                            <span class="filter-label-highlight">⭐ Similarità Minima:</span>
+                            <span class="filter-help">Imposta quanto devono essere simili i risultati (0.5 = abbastanza simile, 1.0 = molto simile)</span>
+                        </label>
+                        <div class="similarity-control">
+                            <input type="range" @bind="minSimilarity" @bind:after="StateHasChanged" min="0.5" max="1.0" step="0.05" class="filter-range-enhanced" />
+                            <span class="range-value-enhanced">@minSimilarity.ToString("F2")</span>
+                        </div>
+                        <div class="similarity-indicator">
+                            <span class="indicator-label">Permissivo</span>
+                            <div class="indicator-bar">
+                                <div class="indicator-fill" style="width: @(((minSimilarity - 0.5) / 0.5) * 100)%"></div>
+                            </div>
+                            <span class="indicator-label">Rigoroso</span>
+                        </div>
                     </div>
                 </div>
             </details>
@@ -855,5 +897,178 @@
 
     .icon {
         margin-right: 0.3rem;
+    }
+    
+    /* Explanation Section */
+    .search-explanation {
+        margin: 2rem 0;
+        padding: 2rem;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        border-radius: 15px;
+        text-align: left;
+    }
+    
+    .search-explanation h3 {
+        margin: 0 0 1.5rem 0;
+        color: #667eea;
+        font-size: 1.5rem;
+    }
+    
+    .explanation-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .explanation-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+    
+    .explanation-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    }
+    
+    .explanation-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .explanation-card h4 {
+        margin: 0 0 1rem 0;
+        color: #333;
+        font-size: 1.2rem;
+    }
+    
+    .explanation-card p {
+        margin: 0.5rem 0;
+        color: #666;
+        line-height: 1.6;
+        font-size: 0.95rem;
+    }
+    
+    .explanation-card p strong {
+        color: #667eea;
+        font-weight: 600;
+    }
+    
+    .best-for {
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: #e8f5e9;
+        color: #2e7d32;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    
+    /* Enhanced Similarity Slider */
+    .filter-label-highlight {
+        font-weight: 700;
+        color: #667eea;
+        font-size: 1.05rem;
+    }
+    
+    .filter-help {
+        display: block;
+        font-size: 0.85rem;
+        color: #999;
+        margin-top: 0.25rem;
+        font-weight: normal;
+    }
+    
+    .similarity-control {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .filter-range-enhanced {
+        flex: 1;
+        height: 8px;
+        border-radius: 10px;
+        background: linear-gradient(to right, #ffc107 0%, #48bb78 50%, #667eea 100%);
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+    
+    .filter-range-enhanced::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: white;
+        border: 4px solid #667eea;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .filter-range-enhanced::-webkit-slider-thumb:hover {
+        transform: scale(1.2);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .filter-range-enhanced::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: white;
+        border: 4px solid #667eea;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .filter-range-enhanced::-moz-range-thumb:hover {
+        transform: scale(1.2);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .range-value-enhanced {
+        min-width: 50px;
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+    }
+    
+    .similarity-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+    }
+    
+    .indicator-label {
+        font-size: 0.85rem;
+        color: #999;
+        font-weight: 600;
+    }
+    
+    .indicator-bar {
+        flex: 1;
+        height: 6px;
+        background: #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .indicator-fill {
+        height: 100%;
+        background: linear-gradient(to right, #ffc107, #48bb78, #667eea);
+        transition: width 0.3s ease;
+        border-radius: 10px;
     }
 </style>
