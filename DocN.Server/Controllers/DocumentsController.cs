@@ -137,27 +137,21 @@ public class DocumentsController : ControllerBase
     {
         try
         {
-            // Get all unique categories from documents (both ActualCategory and SuggestedCategory)
-            var actualCategories = await _context.Documents
-                .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
-                .Select(d => d.ActualCategory!)
-                .Distinct()
+            // Get all unique categories from documents in a single query
+            var categories = await _context.Documents
+                .Select(d => new { d.ActualCategory, d.SuggestedCategory })
                 .ToListAsync();
 
-            var suggestedCategories = await _context.Documents
-                .Where(d => !string.IsNullOrEmpty(d.SuggestedCategory) && string.IsNullOrEmpty(d.ActualCategory))
-                .Select(d => d.SuggestedCategory!)
+            // Process in memory to get unique categories
+            var uniqueCategories = categories
+                .SelectMany(d => new[] { d.ActualCategory, d.SuggestedCategory })
+                .Where(c => !string.IsNullOrEmpty(c) && c != "Uncategorized")
                 .Distinct()
-                .ToListAsync();
-
-            // Combine and return unique categories
-            var categories = actualCategories.Union(suggestedCategories)
-                .Where(c => c != "Uncategorized")
                 .OrderBy(c => c)
                 .ToList();
 
-            _logger.LogInformation("Retrieved {Count} unique categories", categories.Count);
-            return Ok(categories);
+            _logger.LogInformation("Retrieved {Count} unique categories", uniqueCategories.Count);
+            return Ok(uniqueCategories);
         }
         catch (Exception ex)
         {
