@@ -30,17 +30,20 @@ public class DocumentStatisticsService : IDocumentStatisticsService
         }
         else
         {
-            // Get user's tenant
+            // Get user's tenant once upfront to avoid repeated queries
             var user = await _context.Users.FindAsync(userId);
             var userTenantId = user?.TenantId;
             
             // Get documents owned by user, shared with user, OR in the same tenant (if user has a tenant)
-            userDocs = _context.Documents.Where(d => 
-                d.OwnerId == userId ||  // Owned by user
-                d.OwnerId == null ||    // No owner (accessible to all in tenant)
-                d.Shares.Any(s => s.SharedWithUserId == userId) ||  // Shared with user
-                (userTenantId != null && d.TenantId == userTenantId) // Same tenant
-            );
+            // Use Include to avoid N+1 query issues with Shares
+            userDocs = _context.Documents
+                .Include(d => d.Shares)
+                .Where(d => 
+                    d.OwnerId == userId ||  // Owned by user
+                    d.OwnerId == null ||    // No owner (accessible to all in tenant)
+                    d.Shares.Any(s => s.SharedWithUserId == userId) ||  // Shared with user
+                    (userTenantId != null && d.TenantId == userTenantId) // Same tenant
+                );
         }
         
         var totalDocs = await userDocs.CountAsync();
