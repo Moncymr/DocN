@@ -289,7 +289,9 @@ BEGIN
     CREATE FULLTEXT INDEX ON Documents(ExtractedText, FileName)
         KEY INDEX PK__Documents__3214EC07 ON DocumentFullTextCatalog;
     
-    PRINT '  ✓ Documents creata con full-text search';
+    PRINT '  ✓ Documents creata con full-text search e tipo VECTOR(1536)';
+    PRINT '  ℹ️  NOTA: EF Core non supporta nativamente VECTOR, usa varbinary(max) nei migration';
+    PRINT '      Se usi EF Core migrations, aggiungi manualmente: ALTER COLUMN EmbeddingVector VECTOR(1536)';
 END
 GO
 
@@ -360,7 +362,8 @@ BEGIN
     CREATE INDEX IX_DocumentChunks_DocumentId ON DocumentChunks(DocumentId);
     CREATE INDEX IX_DocumentChunks_DocumentChunkIndex ON DocumentChunks(DocumentId, ChunkIndex);
     
-    PRINT '  ✓ DocumentChunks creata con support embedding vettoriali';
+    PRINT '  ✓ DocumentChunks creata con tipo VECTOR(1536) per embeddings';
+    PRINT '  ℹ️  NOTA: EF Core usa varbinary(max), ALTER manualmente se necessario';
 END
 GO
 

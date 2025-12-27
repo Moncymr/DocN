@@ -60,15 +60,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.AITagsJson).HasColumnType("nvarchar(max)");
             
             // Configure vector column for SQL Server 2025 native VECTOR type
-            // VECTOR(1536) for text-embedding-ada-002 embeddings
-            // We store as binary representation of float array
+            // Note: Using varbinary(max) as intermediate type since EF Core doesn't support VECTOR natively
+            // The actual column type in database should be VECTOR(1536)
+            // We convert float[] to byte[] for storage
             var vectorConverter = new ValueConverter<float[]?, byte[]?>(
                 v => v == null ? null : ConvertFloatArrayToBytes(v),
                 v => v == null ? null : ConvertBytesToFloatArray(v)
             );
             
             entity.Property(e => e.EmbeddingVector)
-                .HasColumnType("VECTOR(1536)")  // SQL Server 2025 native VECTOR type
+                .HasColumnType("varbinary(max)")  // Use varbinary as EF Core compatible type
                 .HasConversion(vectorConverter)
                 .IsRequired(false);
             
@@ -187,15 +188,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ChunkText).IsRequired();
             
-            // Configure vector column for chunk embeddings - SQL Server 2025 VECTOR type
-            // VECTOR(1536) for text-embedding-ada-002 embeddings
+            // Configure vector column for chunk embeddings
+            // Note: Using varbinary(max) as intermediate type since EF Core doesn't support VECTOR natively
+            // The actual column type in database should be VECTOR(1536)
             var chunkVectorConverter = new ValueConverter<float[]?, byte[]?>(
                 v => v == null ? null : ConvertFloatArrayToBytes(v),
                 v => v == null ? null : ConvertBytesToFloatArray(v)
             );
             
             entity.Property(e => e.ChunkEmbedding)
-                .HasColumnType("VECTOR(1536)")  // SQL Server 2025 native VECTOR type
+                .HasColumnType("varbinary(max)")  // Use varbinary as EF Core compatible type
                 .HasConversion(chunkVectorConverter)
                 .IsRequired(false);
             

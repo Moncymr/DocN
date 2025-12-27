@@ -31,8 +31,9 @@ public class ApplicationSeeder
     {
         try
         {
-            // Ensure database is created
-            await _context.Database.MigrateAsync();
+            // Note: MigrateAsync is commented out because EF Core doesn't support VECTOR type yet
+            // Use the SQL script Database/CreateDatabase_Complete_V2.sql to create the database
+            // await _context.Database.MigrateAsync();
             
             // Seed default tenant
             var defaultTenant = await SeedDefaultTenantAsync();
