@@ -16,15 +16,15 @@
     <!-- Header con ricerca e controlli -->
     <div class="page-header">
         <div class="header-left">
-            <h1>📚 My Documents</h1>
-            <p class="subtitle">@totalDocuments documents in your library</p>
+            <h1>📚 I Miei Documenti</h1>
+            <p class="subtitle">@totalDocuments documenti nella tua libreria</p>
         </div>
         
         <div class="header-right">
             <div class="search-box">
                 <span class="search-icon">🔍</span>
                 <input type="text" 
-                       placeholder="Search documents..." 
+                       placeholder="Cerca documenti..." 
                        @bind="searchQuery" 
                        @bind:event="oninput"
                        @onkeyup="HandleSearch" 
@@ -34,18 +34,18 @@
             <div class="view-toggle">
                 <button class="toggle-btn @(viewMode == "list" ? "active" : "")" 
                         @onclick='() => SetViewMode("list")'
-                        title="List View">
+                        title="Vista Lista">
                     ☰
                 </button>
                 <button class="toggle-btn @(viewMode == "grid" ? "active" : "")" 
                         @onclick='() => SetViewMode("grid")'
-                        title="Grid View">
+                        title="Vista Griglia">
                     ⊞
                 </button>
             </div>
             
             <button class="btn-upload" @onclick="GoToUpload">
-                <span>➕ Upload</span>
+                <span>➕ Carica</span>
             </button>
         </div>
     </div>
@@ -53,9 +53,9 @@
     <!-- Filtri -->
     <div class="filters-bar">
         <div class="filter-group">
-            <label>Category:</label>
+            <label>Categoria:</label>
             <select @bind="selectedCategory" @bind:after="ApplyFilters" class="filter-select">
-                <option value="">All Categories</option>
+                <option value="">Tutte le Categorie</option>
                 @foreach (var category in categories)
                 {
                     <option value="@category">@category</option>
@@ -64,21 +64,21 @@
         </div>
         
         <div class="filter-group">
-            <label>Sort by:</label>
+            <label>Ordina per:</label>
             <select @bind="sortBy" @bind:after="ApplyFilters" class="filter-select">
-                <option value="date-desc">Newest First</option>
-                <option value="date-asc">Oldest First</option>
-                <option value="name-asc">Name (A-Z)</option>
-                <option value="name-desc">Name (Z-A)</option>
-                <option value="size-desc">Largest First</option>
-                <option value="access-desc">Most Accessed</option>
+                <option value="date-desc">Più Recenti</option>
+                <option value="date-asc">Più Vecchi</option>
+                <option value="name-asc">Nome (A-Z)</option>
+                <option value="name-desc">Nome (Z-A)</option>
+                <option value="size-desc">Più Grandi</option>
+                <option value="access-desc">Più Consultati</option>
             </select>
         </div>
         
         @if (!string.IsNullOrEmpty(searchQuery) || !string.IsNullOrEmpty(selectedCategory))
         {
             <button class="btn-clear-filters" @onclick="ClearFilters">
-                ✕ Clear Filters
+                ✕ Cancella Filtri
             </button>
         }
     </div>
@@ -88,7 +88,7 @@
     {
         <div class="loading-state">
             <div class="spinner-large"></div>
-            <p>Loading your documents...</p>
+            <p>Caricamento documenti in corso...</p>
         </div>
     }
     <!-- Empty State -->
@@ -96,17 +96,17 @@
     {
         <div class="empty-state">
             <div class="empty-icon">📭</div>
-            <h3>No documents found</h3>
+            <h3>Nessun documento trovato</h3>
             @if (!string.IsNullOrEmpty(searchQuery) || !string.IsNullOrEmpty(selectedCategory))
             {
-                <p>Try adjusting your filters or search terms</p>
-                <button class="btn-secondary" @onclick="ClearFilters">Clear Filters</button>
+                <p>Prova ad aggiustare i filtri o i termini di ricerca</p>
+                <button class="btn-secondary" @onclick="ClearFilters">Cancella Filtri</button>
             }
             else
             {
-                <p>Upload your first document to get started!</p>
+                <p>Carica il tuo primo documento per iniziare!</p>
                 <button class="btn-primary" @onclick="GoToUpload">
-                    ➕ Upload Document
+                    ➕ Carica Documento
                 </button>
             }
         </div>
@@ -129,7 +129,7 @@
                             <div class="doc-meta">
                                 <span class="meta-item">
                                     <span class="meta-icon">📂</span>
-                                    @(doc.ActualCategory ?? "Uncategorized")
+                                    @(doc.ActualCategory ?? "Senza Categoria")
                                 </span>
                                 <span class="meta-item">
                                     <span class="meta-icon">📊</span>
@@ -137,11 +137,11 @@
                                 </span>
                                 <span class="meta-item">
                                     <span class="meta-icon">📅</span>
-                                    @doc.UploadedAt.ToString("MMM dd, yyyy")
+                                    @doc.UploadedAt.ToString("dd MMM yyyy")
                                 </span>
                                 <span class="meta-item">
                                     <span class="meta-icon">👁️</span>
-                                    @doc.AccessCount views
+                                    @doc.AccessCount visualizzazioni
                                 </span>
                                 @if (!string.IsNullOrEmpty(doc.AITagsJson))
                                 {
@@ -150,7 +150,7 @@
                                     {
                                         <span class="meta-item">
                                             <span class="meta-icon">🏷️</span>
-                                            @tags.Count AI tags
+                                            @tags.Count tag AI
                                         </span>
                                     }
                                 }
@@ -159,7 +159,7 @@
                         
                         <div class="doc-badges">
                             <span class="badge badge-@doc.Visibility.ToString().ToLower()">
-                                @GetVisibilityIcon(doc.Visibility) @doc.Visibility
+                                @GetVisibilityIcon(doc.Visibility) @GetVisibilityLabel(doc.Visibility)
                             </span>
                         </div>
                         
@@ -167,19 +167,19 @@
                             <button class="action-btn" 
                                     @onclick:stopPropagation="true"
                                     @onclick="() => DownloadDocument(doc)" 
-                                    title="Download">
+                                    title="Scarica">
                                 ⬇️
                             </button>
                             <button class="action-btn" 
                                     @onclick:stopPropagation="true"
                                     @onclick="() => ShareDocument(doc)" 
-                                    title="Share">
+                                    title="Condividi">
                                 🔗
                             </button>
                             <button class="action-btn action-primary" 
                                     @onclick:stopPropagation="true"
                                     @onclick="() => ViewDocumentDetails(doc)" 
-                                    title="View Details">
+                                    title="Vedi Dettagli">
                                 👁️
                             </button>
                         </div>
@@ -205,32 +205,32 @@
                             <h4 class="doc-title" title="@doc.FileName">@TruncateText(doc.FileName, 30)</h4>
                             <p class="doc-category">
                                 <span class="category-icon">📂</span>
-                                @(doc.ActualCategory ?? "Uncategorized")
+                                @(doc.ActualCategory ?? "Senza Categoria")
                             </p>
                             <div class="doc-stats">
-                                <span title="File Size">📊 @FormatFileSize(doc.FileSize)</span>
-                                <span title="Views">👁️ @doc.AccessCount</span>
+                                <span title="Dimensione File">📊 @FormatFileSize(doc.FileSize)</span>
+                                <span title="Visualizzazioni">👁️ @doc.AccessCount</span>
                             </div>
-                            <p class="doc-date">@doc.UploadedAt.ToString("MMM dd, yyyy")</p>
+                            <p class="doc-date">@doc.UploadedAt.ToString("dd MMM yyyy")</p>
                         </div>
                         
                         <div class="card-actions">
                             <button class="action-btn-small" 
                                     @onclick:stopPropagation="true"
                                     @onclick="() => DownloadDocument(doc)" 
-                                    title="Download">
+                                    title="Scarica">
                                 ⬇️
                             </button>
                             <button class="action-btn-small" 
                                     @onclick:stopPropagation="true"
                                     @onclick="() => ShareDocument(doc)" 
-                                    title="Share">
+                                    title="Condividi">
                                 🔗
                             </button>
                             <button class="action-btn-small" 
                                     @onclick:stopPropagation="true"
                                     @onclick="() => ViewDocumentDetails(doc)" 
-                                    title="Details">
+                                    title="Dettagli">
                                 ℹ️
                             </button>
                         </div>
@@ -246,7 +246,7 @@
                 <button class="page-btn" 
                         disabled="@(currentPage == 1)" 
                         @onclick="PreviousPage">
-                    ← Previous
+                    ← Precedente
                 </button>
                 
                 <div class="page-numbers">
@@ -263,7 +263,7 @@
                 <button class="page-btn" 
                         disabled="@(currentPage == totalPages)" 
                         @onclick="NextPage">
-                    Next →
+                    Successivo →
                 </button>
             </div>
         }
@@ -275,7 +275,7 @@
         <div class="details-overlay" @onclick="CloseDetailsPanel"></div>
         <div class="details-panel @(showDetailsPanel ? "open" : "")">
             <div class="panel-header">
-                <h3>📄 Document Details</h3>
+                <h3>📄 Dettagli Documento</h3>
                 <button class="btn-close" @onclick="CloseDetailsPanel">✕</button>
             </div>
             
@@ -286,33 +286,33 @@
                 </div>
                 
                 <div class="detail-section">
-                    <h5>📋 Information</h5>
+                    <h5>📋 Informazioni</h5>
                     <dl class="detail-list">
-                        <dt>Category:</dt>
-                        <dd>@(selectedDocument.ActualCategory ?? "Uncategorized")</dd>
+                        <dt>Categoria:</dt>
+                        <dd>@(selectedDocument.ActualCategory ?? "Senza Categoria")</dd>
                         
-                        <dt>File Size:</dt>
+                        <dt>Dimensione:</dt>
                         <dd>@FormatFileSize(selectedDocument.FileSize)</dd>
                         
-                        <dt>Type:</dt>
+                        <dt>Tipo:</dt>
                         <dd>@selectedDocument.ContentType</dd>
                         
-                        <dt>Uploaded:</dt>
-                        <dd>@selectedDocument.UploadedAt.ToString("MMMM dd, yyyy 'at' HH:mm")</dd>
+                        <dt>Caricato il:</dt>
+                        <dd>@selectedDocument.UploadedAt.ToString("dd MMMM yyyy 'alle' HH:mm")</dd>
                         
-                        <dt>Views:</dt>
-                        <dd>@selectedDocument.AccessCount times</dd>
+                        <dt>Visualizzazioni:</dt>
+                        <dd>@selectedDocument.AccessCount volte</dd>
                         
                         @if (selectedDocument.LastAccessedAt.HasValue)
                         {
-                            <dt>Last Accessed:</dt>
-                            <dd>@selectedDocument.LastAccessedAt.Value.ToString("MMMM dd, yyyy")</dd>
+                            <dt>Ultimo Accesso:</dt>
+                            <dd>@selectedDocument.LastAccessedAt.Value.ToString("dd MMMM yyyy")</dd>
                         }
                         
-                        <dt>Visibility:</dt>
+                        <dt>Visibilità:</dt>
                         <dd>
                             <span class="badge badge-@selectedDocument.Visibility.ToString().ToLower()">
-                                @GetVisibilityIcon(selectedDocument.Visibility) @selectedDocument.Visibility
+                                @GetVisibilityIcon(selectedDocument.Visibility) @GetVisibilityLabel(selectedDocument.Visibility)
                             </span>
                         </dd>
                     </dl>
@@ -321,7 +321,7 @@
                 @if (!string.IsNullOrEmpty(selectedDocument.CategoryReasoning))
                 {
                     <div class="detail-section">
-                        <h5>💡 AI Classification Reasoning</h5>
+                        <h5>💡 Motivazione Classificazione AI</h5>
                         <p class="reasoning-text">@selectedDocument.CategoryReasoning</p>
                     </div>
                 }
@@ -329,7 +329,7 @@
                 @if (!string.IsNullOrEmpty(selectedDocument.AITagsJson))
                 {
                     <div class="detail-section">
-                        <h5>🏷️ AI Tag Analysis</h5>
+                        <h5>🏷️ Analisi Tag AI</h5>
                         <div class="ai-tags-container">
                             @{
                                 var tags = ParseAITags(selectedDocument.AITagsJson);
@@ -337,7 +337,7 @@
                                 {
                                     foreach (var tag in tags)
                                     {
-                                        <span class="ai-tag" style="opacity: @(0.5 + tag.Confidence * 0.5)" title="Confidence: @((tag.Confidence * 100).ToString("F0"))%">
+                                        <span class="ai-tag" style="opacity: @(0.5 + tag.Confidence * 0.5)" title="Confidenza: @((tag.Confidence * 100).ToString("F0"))%">
                                             @tag.Name
                                             <span class="tag-confidence">@((tag.Confidence * 100).ToString("F0"))%</span>
                                         </span>
@@ -345,14 +345,14 @@
                                 }
                                 else
                                 {
-                                    <p class="text-muted">No AI tags available</p>
+                                    <p class="text-muted">Nessun tag AI disponibile</p>
                                 }
                             }
                         </div>
                         @if (selectedDocument.AIAnalysisDate.HasValue)
                         {
                             <p class="analysis-date">
-                                <small>Analysis performed: @selectedDocument.AIAnalysisDate.Value.ToString("MMM dd, yyyy")</small>
+                                <small>Analisi eseguita: @selectedDocument.AIAnalysisDate.Value.ToString("dd MMM yyyy")</small>
                             </p>
                         }
                     </div>
@@ -361,7 +361,7 @@
                 @if (!string.IsNullOrEmpty(selectedDocument.ExtractedText))
                 {
                     <div class="detail-section">
-                        <h5>📝 Content Preview</h5>
+                        <h5>📝 Anteprima Contenuto</h5>
                         <div class="content-preview">
                             @TruncateText(selectedDocument.ExtractedText, 500)
                         </div>
@@ -370,13 +370,13 @@
                 
                 <div class="detail-actions">
                     <button class="btn-action btn-download" @onclick="() => DownloadDocument(selectedDocument)">
-                        ⬇️ Download
+                        ⬇️ Scarica
                     </button>
                     <button class="btn-action btn-share" @onclick="() => ShareDocument(selectedDocument)">
-                        🔗 Share
+                        🔗 Condividi
                     </button>
                     <button class="btn-action btn-delete" @onclick="() => DeleteDocument(selectedDocument)">
-                        🗑️ Delete
+                        🗑️ Elimina
                     </button>
                 </div>
             </div>
@@ -1329,7 +1329,7 @@
     private async Task DeleteDocument(Document doc)
     {
         // Confirm deletion
-        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to delete '{doc.FileName}'?");
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Sei sicuro di voler eliminare '{doc.FileName}'?");
         if (confirmed)
         {
             // TODO: Implement delete
@@ -1405,6 +1405,18 @@
             DocumentVisibility.Organization => "🏢",
             DocumentVisibility.Public => "🌐",
             _ => "📄"
+        };
+    }
+
+    private string GetVisibilityLabel(DocumentVisibility visibility)
+    {
+        return visibility switch
+        {
+            DocumentVisibility.Private => "Privato",
+            DocumentVisibility.Shared => "Condiviso",
+            DocumentVisibility.Organization => "Organizzazione",
+            DocumentVisibility.Public => "Pubblico",
+            _ => "Sconosciuto"
         };
     }
 

@@ -6,11 +6,11 @@
 <PageTitle>Dashboard - DocN</PageTitle>
 
 <div class="dashboard-container">
-    <h2>📊 Document Dashboard</h2>
+    <h2>📊 Dashboard Documenti</h2>
 
     @if (isLoading)
     {
-        <div class="loading">Loading statistics...</div>
+        <div class="loading">Caricamento statistiche...</div>
     }
     else if (stats != null)
     {
@@ -19,7 +19,7 @@
                 <div class="stat-icon">📄</div>
                 <div class="stat-info">
                     <h3>@stats.TotalDocuments</h3>
-                    <p>Total Documents</p>
+                    <p>Documenti Totali</p>
                 </div>
             </div>
 
@@ -27,7 +27,7 @@
                 <div class="stat-icon">💾</div>
                 <div class="stat-info">
                     <h3>@FormatBytes(stats.TotalStorageBytes)</h3>
-                    <p>Total Storage</p>
+                    <p>Spazio Totale</p>
                 </div>
             </div>
 
@@ -35,7 +35,7 @@
                 <div class="stat-icon">📅</div>
                 <div class="stat-info">
                     <h3>@stats.DocumentsUploadedToday</h3>
-                    <p>Uploaded Today</p>
+                    <p>Caricati Oggi</p>
                 </div>
             </div>
 
@@ -43,14 +43,14 @@
                 <div class="stat-icon">📈</div>
                 <div class="stat-info">
                     <h3>@stats.DocumentsUploadedThisWeek</h3>
-                    <p>This Week</p>
+                    <p>Questa Settimana</p>
                 </div>
             </div>
         </div>
 
         <div class="charts-grid">
             <div class="chart-card">
-                <h3>Documents by Category</h3>
+                <h3>Documenti per Categoria</h3>
                 @if (stats.DocumentsByCategory.Any())
                 {
                     <div class="category-list">
@@ -68,12 +68,12 @@
                 }
                 else
                 {
-                    <p class="empty-message">No categories yet</p>
+                    <p class="empty-message">Nessuna categoria ancora</p>
                 }
             </div>
 
             <div class="chart-card">
-                <h3>Documents by Type</h3>
+                <h3>Documenti per Tipo</h3>
                 @if (stats.DocumentsByType.Any())
                 {
                     <div class="type-list">
@@ -89,7 +89,7 @@
                 }
                 else
                 {
-                    <p class="empty-message">No documents yet</p>
+                    <p class="empty-message">Nessun documento ancora</p>
                 }
             </div>
         </div>
@@ -97,14 +97,14 @@
         @if (stats.MostAccessedDocuments.Any())
         {
             <div class="section">
-                <h3>🔥 Most Accessed Documents</h3>
+                <h3>🔥 Documenti Più Consultati</h3>
                 <div class="table-container">
                     <table class="documents-table">
                         <thead>
                             <tr>
-                                <th>Document</th>
-                                <th>Access Count</th>
-                                <th>Last Accessed</th>
+                                <th>Documento</th>
+                                <th>Visualizzazioni</th>
+                                <th>Ultimo Accesso</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -113,7 +113,7 @@
                                 <tr>
                                     <td>@doc.FileName</td>
                                     <td>@doc.AccessCount</td>
-                                    <td>@doc.LastAccessedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>@doc.LastAccessedAt.ToString("dd MMM yyyy HH:mm")</td>
                                 </tr>
                             }
                         </tbody>
@@ -125,14 +125,14 @@
         @if (stats.OptimizationSuggestions.Any())
         {
             <div class="section">
-                <h3>💡 Optimization Suggestions</h3>
+                <h3>💡 Suggerimenti di Ottimizzazione</h3>
                 <div class="suggestions-list">
                     @foreach (var suggestion in stats.OptimizationSuggestions)
                     {
                         <div class="suggestion-card">
                             <div class="suggestion-header">
                                 <strong>@suggestion.Category</strong>
-                                <span class="doc-count">@suggestion.DocumentCount documents</span>
+                                <span class="doc-count">@suggestion.DocumentCount documenti</span>
                             </div>
                             <div class="suggestion-body">
                                 <p class="suggestion-text">💡 @suggestion.Suggestion</p>
