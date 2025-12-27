@@ -19,7 +19,7 @@ public class DocArcContext : DbContext
 
         modelBuilder.Entity<Document>(entity =>
         {
-            entity.ToTable("Documents");
+            entity.ToTable("Documenti"); // Map to Documenti table in database
             entity.HasKey(e => e.Id);
             entity.Property(e => e.FileName).IsRequired().HasMaxLength(255);
             entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);

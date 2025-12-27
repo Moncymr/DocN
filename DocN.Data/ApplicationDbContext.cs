@@ -50,6 +50,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // Document configuration
         modelBuilder.Entity<Document>(entity =>
         {
+            entity.ToTable("Documenti"); // Map to Documenti table in database
             entity.HasKey(e => e.Id);
             entity.Property(e => e.FileName).IsRequired().HasMaxLength(255);
             entity.Property(e => e.FilePath).IsRequired().HasMaxLength(500);
