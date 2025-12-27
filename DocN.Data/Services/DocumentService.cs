@@ -116,12 +116,14 @@ public class DocumentService : IDocumentService
             return await _context.Documents.CountAsync(d => d.Visibility == DocumentVisibility.Public || d.OwnerId == null);
         }
         
-        var ownedCount = await _context.Documents.CountAsync(d => d.OwnerId == userId);
-        var sharedCount = await _context.Documents.CountAsync(d => d.Shares.Any(s => s.SharedWithUserId == userId));
-        var unownedCount = await _context.Documents.CountAsync(d => d.OwnerId == null);
+        // Use a single query with distinct to avoid double-counting
+        // This includes: owned documents, shared documents, and unowned documents
+        var query = _context.Documents.Where(d => 
+            d.OwnerId == userId || 
+            d.OwnerId == null || 
+            d.Shares.Any(s => s.SharedWithUserId == userId));
         
-        // Avoid double-counting: unowned documents should be counted only once
-        return ownedCount + sharedCount + unownedCount;
+        return await query.CountAsync();
     }
 
     public async Task<byte[]?> DownloadDocumentAsync(int documentId, string userId)
