@@ -10,6 +10,7 @@ public class DocArcContext : DbContext
     }
 
     public DbSet<Document> Documents { get; set; }
+    public DbSet<DocumentChunk> DocumentChunks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +26,25 @@ public class DocArcContext : DbContext
             entity.Property(e => e.ActualCategory).HasMaxLength(200);
             entity.Property(e => e.EmbeddingVector).IsRequired(false); // Vector is optional
             entity.Property(e => e.UploadedAt).IsRequired();
+        });
+
+        // DocumentChunk configuration
+        modelBuilder.Entity<DocumentChunk>(entity =>
+        {
+            entity.ToTable("DocumentChunks");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ChunkText).IsRequired();
+            entity.Property(e => e.ChunkEmbedding).IsRequired(false);
+            
+            // Relationship with Document
+            entity.HasOne(e => e.Document)
+                .WithMany()
+                .HasForeignKey(e => e.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.DocumentId);
+            entity.HasIndex(e => new { e.DocumentId, e.ChunkIndex });
         });
     }
 }
