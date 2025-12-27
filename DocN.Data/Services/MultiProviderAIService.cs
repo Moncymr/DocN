@@ -13,8 +13,10 @@ public interface IMultiProviderAIService
 {
     Task<float[]?> GenerateEmbeddingAsync(string text);
     Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt);
-    Task<(string Category, string Reasoning)> SuggestCategoryAsync(string fileName, string extractedText);
+    Task<(string Category, string Reasoning, string Provider)> SuggestCategoryAsync(string fileName, string extractedText);
     Task<List<string>> ExtractTagsAsync(string extractedText);
+    string GetCurrentChatProvider();
+    string GetCurrentEmbeddingProvider();
 }
 
 public class MultiProviderAIService : IMultiProviderAIService
@@ -311,8 +313,9 @@ public class MultiProviderAIService : IMultiProviderAIService
         return completion.Value.Content[0].Text;
     }
 
-    public async Task<(string Category, string Reasoning)> SuggestCategoryAsync(string fileName, string extractedText)
+    public async Task<(string Category, string Reasoning, string Provider)> SuggestCategoryAsync(string fileName, string extractedText)
     {
+        var provider = GetCurrentChatProvider();
         try
         {
             // Get existing categories from database
@@ -329,22 +332,23 @@ public class MultiProviderAIService : IMultiProviderAIService
 
             var systemPrompt = @"You are a document classification expert. Your task is to ALWAYS suggest a specific, meaningful category for documents.
 NEVER return 'Uncategorized' or generic categories. Analyze the content and propose a descriptive category name.
-Examples of good categories: 'Financial Reports', 'Legal Contracts', 'Technical Documentation', 'Marketing Materials', 'Meeting Minutes', etc.";
+Examples of good categories: 'Financial Reports', 'Legal Contracts', 'Technical Documentation', 'Marketing Materials', 'Meeting Minutes', etc.
+Always respond in Italian.";
             
-            var userPrompt = $@"Analyze this document and suggest the BEST POSSIBLE category for it. Also explain your reasoning.
+            var userPrompt = $@"Analizza questo documento e suggerisci la MIGLIORE categoria possibile. Spiega anche la tua motivazione.
 
-File name: {fileName}
-Content preview: {TruncateText(extractedText, 500)}
+Nome file: {fileName}
+Anteprima contenuto: {TruncateText(extractedText, 500)}
 
 {categoriesHint}
 
-IMPORTANT: You MUST suggest a specific category. If no existing category fits perfectly, propose a new descriptive category name based on the document content.
-Do NOT use generic terms like 'Uncategorized', 'General', or 'Other'.
+IMPORTANTE: DEVI suggerire una categoria specifica. Se nessuna categoria esistente si adatta perfettamente, proponi un nuovo nome di categoria descrittivo basato sul contenuto del documento.
+NON usare termini generici come 'Uncategorized', 'General' o 'Other'.
 
-Respond in JSON format:
+Rispondi in formato JSON:
 {{
-    ""category"": ""specific category name"",
-    ""reasoning"": ""detailed explanation of why this category fits, mentioning specific keywords, content type, or patterns you identified""
+    ""category"": ""nome categoria specifico"",
+    ""reasoning"": ""spiegazione dettagliata del motivo per cui questa categoria si adatta, menzionando parole chiave specifiche, tipo di contenuto o pattern identificati""
 }}";
 
             var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
@@ -380,7 +384,7 @@ Respond in JSON format:
             
             // Validate that we got a meaningful category
             var category = result?.Category?.Trim() ?? string.Empty;
-            var reasoning = result?.Reasoning?.Trim() ?? "No reasoning provided";
+            var reasoning = result?.Reasoning?.Trim() ?? "Nessuna motivazione fornita";
             
             // If AI still returned generic/empty category, infer from filename or content
             if (string.IsNullOrEmpty(category) || 
@@ -393,13 +397,13 @@ Respond in JSON format:
                 reasoning = $"Categoria inferita dal nome file o contenuto. {reasoning}";
             }
             
-            return (category, reasoning);
+            return (category, reasoning, provider);
         }
         catch (Exception ex)
         {
             // Even on error, try to return something meaningful instead of "Uncategorized"
             var inferredCategory = InferCategoryFromFileNameOrContent(fileName, extractedText);
-            return (inferredCategory, $"Errore nell'analisi AI: {ex.Message}. Categoria inferita dal nome del file.");
+            return (inferredCategory, $"Errore nell'analisi AI: {ex.Message}. Categoria inferita dal nome del file.", provider);
         }
     }
     
@@ -528,5 +532,15 @@ Respond in JSON format:
     private class TagsResponse
     {
         public List<string> Tags { get; set; } = new List<string>();
+    }
+
+    public string GetCurrentChatProvider()
+    {
+        return _aiSettings?.Provider ?? "Unknown";
+    }
+
+    public string GetCurrentEmbeddingProvider()
+    {
+        return _embeddingsSettings?.Provider ?? "Unknown";
     }
 }
