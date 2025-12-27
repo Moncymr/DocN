@@ -11,7 +11,7 @@ namespace DocN.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Fix Documents.EmbeddingVector column type from nvarchar(max) to varbinary(max)
-            // This addresses the SqlException: varbinary is incompatible with vector error
+            // This addresses the SqlException: type mismatch when saving binary data to nvarchar column
             migrationBuilder.AlterColumn<byte[]>(
                 name: "EmbeddingVector",
                 table: "Documents",
