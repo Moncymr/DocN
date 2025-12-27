@@ -42,10 +42,29 @@ public class MultiProviderAIService : IMultiProviderAIService
         
         _openAISettings = new OpenAISettings();
         _configuration.GetSection("OpenAI").Bind(_openAISettings);
+        
+        // Log configuration for debugging
+        Console.WriteLine("=== MultiProviderAIService Configuration ===");
+        Console.WriteLine($"AI Provider: {_aiSettings.Provider}");
+        Console.WriteLine($"AI EnableFallback: {_aiSettings.EnableFallback}");
+        Console.WriteLine($"Gemini ApiKey: {(string.IsNullOrEmpty(_geminiSettings.ApiKey) ? "NOT SET" : $"SET ({_geminiSettings.ApiKey.Length} chars)")}");
+        Console.WriteLine($"Embeddings Provider: {_embeddingsSettings.Provider}");
+        Console.WriteLine($"Embeddings ApiKey: {(string.IsNullOrEmpty(_embeddingsSettings.ApiKey) ? "NOT SET" : $"SET ({_embeddingsSettings.ApiKey.Length} chars)")}");
+        Console.WriteLine($"Embeddings Model: {_embeddingsSettings.Model}");
+        Console.WriteLine("==========================================");
     }
 
     public async Task<float[]?> GenerateEmbeddingAsync(string text)
     {
+        Console.WriteLine($"GenerateEmbeddingAsync called. Provider: {_embeddingsSettings.Provider}, Text length: {text?.Length ?? 0}");
+        
+        // Handle null or empty text
+        if (string.IsNullOrEmpty(text))
+        {
+            Console.WriteLine("Text is null or empty, cannot generate embedding");
+            throw new ArgumentException("Text cannot be null or empty", nameof(text));
+        }
+        
         // Truncate very long text to avoid API limits
         if (text.Length > 10000)
         {
@@ -57,21 +76,31 @@ public class MultiProviderAIService : IMultiProviderAIService
         {
             if (_embeddingsSettings.Provider == "AzureOpenAI")
             {
+                Console.WriteLine("Using AzureOpenAI for embeddings");
                 return await GenerateEmbeddingWithAzureOpenAIAsync(text);
             }
             else if (_embeddingsSettings.Provider == "OpenAI")
             {
+                Console.WriteLine("Using OpenAI for embeddings");
                 return await GenerateEmbeddingWithOpenAIAsync(text);
             }
             else if (_embeddingsSettings.Provider == "Gemini")
             {
+                Console.WriteLine("Using Gemini for embeddings");
                 return await GenerateEmbeddingWithGeminiAsync(text);
+            }
+            else
+            {
+                Console.WriteLine($"Unknown embeddings provider: {_embeddingsSettings.Provider}");
+                throw new InvalidOperationException($"Unknown embeddings provider: {_embeddingsSettings.Provider}");
             }
         }
         catch (Exception ex)
         {
             // Log the exception for debugging
             Console.WriteLine($"Primary embedding provider ({_embeddingsSettings.Provider}) failed: {ex.Message}");
+            Console.WriteLine($"Exception type: {ex.GetType().Name}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
             
             // If primary fails and fallback is enabled, try alternatives
             if (_aiSettings.EnableFallback)
@@ -122,20 +151,22 @@ public class MultiProviderAIService : IMultiProviderAIService
                 }
                 
                 // All fallback attempts failed
+                Console.WriteLine($"All embedding providers failed. Errors: {string.Join("; ", errors)}");
                 throw new InvalidOperationException($"All embedding providers failed. Errors: {string.Join("; ", errors)}");
             }
             
             // Fallback is disabled, throw the original exception
             throw;
         }
-
-        throw new InvalidOperationException("No embedding provider configured.");
     }
 
     private async Task<float[]?> GenerateEmbeddingWithAzureOpenAIAsync(string text)
     {
         if (string.IsNullOrEmpty(_embeddingsSettings.Endpoint) || string.IsNullOrEmpty(_embeddingsSettings.ApiKey))
-            return null;
+        {
+            Console.WriteLine($"AzureOpenAI embeddings not configured. Endpoint: {(string.IsNullOrEmpty(_embeddingsSettings.Endpoint) ? "MISSING" : "SET")}, ApiKey: {(string.IsNullOrEmpty(_embeddingsSettings.ApiKey) ? "MISSING" : "SET")}");
+            throw new InvalidOperationException("AzureOpenAI embeddings not configured (missing Endpoint or ApiKey)");
+        }
 
         var azureClient = new AzureOpenAIClient(
             new Uri(_embeddingsSettings.Endpoint), 
@@ -150,7 +181,10 @@ public class MultiProviderAIService : IMultiProviderAIService
     private async Task<float[]?> GenerateEmbeddingWithOpenAIAsync(string text)
     {
         if (string.IsNullOrEmpty(_openAISettings.ApiKey))
-            return null;
+        {
+            Console.WriteLine("OpenAI API key is not configured");
+            throw new InvalidOperationException("OpenAI API key not configured");
+        }
 
         var openAIClient = new OpenAI.OpenAIClient(_openAISettings.ApiKey);
         var embeddingClient = openAIClient.GetEmbeddingClient("text-embedding-ada-002");
