@@ -1318,6 +1318,9 @@
                 Console.WriteLine($"  Error: {dbEx.Message}");
                 Console.WriteLine($"  Stack trace: {dbEx.StackTrace}");
                 
+                // Force UI update to show error message
+                StateHasChanged();
+                
                 // Don't redirect on error
                 return;
             }
@@ -1345,6 +1348,9 @@
                 Console.WriteLine($"Upload error - File not saved: {ex.Message}");
                 Console.WriteLine($"  Stack trace: {ex.StackTrace}");
             }
+            
+            // Force UI update to show error message
+            StateHasChanged();
         }
         finally
         {

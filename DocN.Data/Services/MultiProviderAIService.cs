@@ -5,6 +5,7 @@ using Azure;
 using DocN.Data.Models;
 using OpenAI.Embeddings;
 using OpenAI.Chat;
+using System.IO;
 
 namespace DocN.Data.Services;
 
@@ -324,33 +325,130 @@ public class MultiProviderAIService : IMultiProviderAIService
 
             var categoriesHint = existingCategories.Any()
                 ? $"Existing categories in the system: {string.Join(", ", existingCategories)}. You can suggest one of these or propose a new category if none fit."
-                : "This is a new system, suggest an appropriate category.";
+                : "This is a new system. You MUST suggest an appropriate category based on the document content.";
 
-            var systemPrompt = "You are a document classification expert. Analyze documents and suggest appropriate categories with clear reasoning.";
+            var systemPrompt = @"You are a document classification expert. Your task is to ALWAYS suggest a specific, meaningful category for documents.
+NEVER return 'Uncategorized' or generic categories. Analyze the content and propose a descriptive category name.
+Examples of good categories: 'Financial Reports', 'Legal Contracts', 'Technical Documentation', 'Marketing Materials', 'Meeting Minutes', etc.";
             
-            var userPrompt = $@"Analyze this document and suggest the best category for it. Also explain your reasoning.
+            var userPrompt = $@"Analyze this document and suggest the BEST POSSIBLE category for it. Also explain your reasoning.
 
 File name: {fileName}
 Content preview: {TruncateText(extractedText, 500)}
 
 {categoriesHint}
 
+IMPORTANT: You MUST suggest a specific category. If no existing category fits perfectly, propose a new descriptive category name based on the document content.
+Do NOT use generic terms like 'Uncategorized', 'General', or 'Other'.
+
 Respond in JSON format:
 {{
-    ""category"": ""suggested category name"",
+    ""category"": ""specific category name"",
     ""reasoning"": ""detailed explanation of why this category fits, mentioning specific keywords, content type, or patterns you identified""
 }}";
 
             var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
             
+            // Clean up response - sometimes AI adds markdown code blocks
+            response = response.Trim();
+            if (response.StartsWith("```json"))
+            {
+                response = response.Substring(7);
+                if (response.EndsWith("```"))
+                    response = response.Substring(0, response.Length - 3);
+            }
+            else if (response.StartsWith("```"))
+            {
+                response = response.Substring(3);
+                if (response.EndsWith("```"))
+                    response = response.Substring(0, response.Length - 3);
+            }
+            response = response.Trim();
+            
             // Parse JSON response
-            var result = System.Text.Json.JsonSerializer.Deserialize<CategorySuggestion>(response);
-            return (result?.Category ?? "Uncategorized", result?.Reasoning ?? "No reasoning provided");
+            CategorySuggestion? result = null;
+            try
+            {
+                result = System.Text.Json.JsonSerializer.Deserialize<CategorySuggestion>(response, 
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // If JSON parsing fails, try to extract category from response text
+                Console.WriteLine($"Failed to parse JSON response: {response}");
+            }
+            
+            // Validate that we got a meaningful category
+            var category = result?.Category?.Trim() ?? string.Empty;
+            var reasoning = result?.Reasoning?.Trim() ?? "No reasoning provided";
+            
+            // If AI still returned generic/empty category, infer from filename or content
+            if (string.IsNullOrEmpty(category) || 
+                category.Equals("Uncategorized", StringComparison.OrdinalIgnoreCase) ||
+                category.Equals("General", StringComparison.OrdinalIgnoreCase) ||
+                category.Equals("Other", StringComparison.OrdinalIgnoreCase))
+            {
+                // Try to infer from file extension or name
+                category = InferCategoryFromFileNameOrContent(fileName, extractedText);
+                reasoning = $"Categoria inferita dal nome file o contenuto. {reasoning}";
+            }
+            
+            return (category, reasoning);
         }
         catch (Exception ex)
         {
-            return ("Uncategorized", $"Error: {ex.Message}");
+            // Even on error, try to return something meaningful instead of "Uncategorized"
+            var inferredCategory = InferCategoryFromFileNameOrContent(fileName, extractedText);
+            return (inferredCategory, $"Errore nell'analisi AI: {ex.Message}. Categoria inferita dal nome del file.");
         }
+    }
+    
+    private string InferCategoryFromFileNameOrContent(string fileName, string extractedText)
+    {
+        // Try to infer category from file name
+        var lowerFileName = fileName.ToLowerInvariant();
+        
+        // Check for common document type patterns in filename
+        if (lowerFileName.Contains("contract") || lowerFileName.Contains("contratto"))
+            return "Legal Contracts";
+        if (lowerFileName.Contains("invoice") || lowerFileName.Contains("fattura"))
+            return "Financial Documents";
+        if (lowerFileName.Contains("report") || lowerFileName.Contains("rapporto"))
+            return "Reports";
+        if (lowerFileName.Contains("meeting") || lowerFileName.Contains("minutes") || lowerFileName.Contains("verbale"))
+            return "Meeting Minutes";
+        if (lowerFileName.Contains("proposal") || lowerFileName.Contains("proposta"))
+            return "Proposals";
+        if (lowerFileName.Contains("manual") || lowerFileName.Contains("manuale") || lowerFileName.Contains("guide"))
+            return "Documentation";
+        if (lowerFileName.Contains("letter") || lowerFileName.Contains("lettera"))
+            return "Correspondence";
+        
+        // Check file extension to infer document type
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        if (extension == ".pdf")
+            return "PDF Documents";
+        if (extension == ".docx" || extension == ".doc")
+            return "Word Documents";
+        if (extension == ".xlsx" || extension == ".xls")
+            return "Spreadsheets";
+        if (extension == ".txt")
+            return "Text Documents";
+        
+        // Try to infer from content if available
+        if (!string.IsNullOrEmpty(extractedText))
+        {
+            var lowerContent = extractedText.ToLowerInvariant();
+            if (lowerContent.Contains("contract") || lowerContent.Contains("agreement"))
+                return "Legal Documents";
+            if (lowerContent.Contains("invoice") || lowerContent.Contains("payment"))
+                return "Financial Documents";
+            if (lowerContent.Contains("meeting") || lowerContent.Contains("agenda"))
+                return "Meeting Documents";
+        }
+        
+        // Last resort - use file extension based category
+        return $"{extension.TrimStart('.')} Files";
     }
 
     public async Task<List<string>> ExtractTagsAsync(string extractedText)
@@ -371,8 +469,36 @@ Respond in JSON format:
 
             var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
             
+            // Clean up response - sometimes AI adds markdown code blocks
+            response = response.Trim();
+            if (response.StartsWith("```json"))
+            {
+                response = response.Substring(7);
+                if (response.EndsWith("```"))
+                    response = response.Substring(0, response.Length - 3);
+            }
+            else if (response.StartsWith("```"))
+            {
+                response = response.Substring(3);
+                if (response.EndsWith("```"))
+                    response = response.Substring(0, response.Length - 3);
+            }
+            response = response.Trim();
+            
             // Parse JSON response
-            var result = System.Text.Json.JsonSerializer.Deserialize<TagsResponse>(response);
+            TagsResponse? result = null;
+            try
+            {
+                result = System.Text.Json.JsonSerializer.Deserialize<TagsResponse>(response, 
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (System.Text.Json.JsonException jsonEx)
+            {
+                // If JSON parsing fails, log it
+                Console.WriteLine($"Failed to parse tags JSON response: {response}");
+                Console.WriteLine($"JSON error: {jsonEx.Message}");
+            }
+            
             return result?.Tags ?? new List<string>();
         }
         catch (Exception ex)
