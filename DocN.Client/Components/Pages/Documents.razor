@@ -143,6 +143,17 @@
                                     <span class="meta-icon">👁️</span>
                                     @doc.AccessCount views
                                 </span>
+                                @if (!string.IsNullOrEmpty(doc.AITagsJson))
+                                {
+                                    var tags = ParseAITags(doc.AITagsJson);
+                                    if (tags != null && tags.Any())
+                                    {
+                                        <span class="meta-item">
+                                            <span class="meta-icon">🏷️</span>
+                                            @tags.Count AI tags
+                                        </span>
+                                    }
+                                }
                             </div>
                         </div>
                         
@@ -312,6 +323,38 @@
                     <div class="detail-section">
                         <h5>💡 AI Classification Reasoning</h5>
                         <p class="reasoning-text">@selectedDocument.CategoryReasoning</p>
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(selectedDocument.AITagsJson))
+                {
+                    <div class="detail-section">
+                        <h5>🏷️ AI Tag Analysis</h5>
+                        <div class="ai-tags-container">
+                            @{
+                                var tags = ParseAITags(selectedDocument.AITagsJson);
+                                if (tags != null && tags.Any())
+                                {
+                                    foreach (var tag in tags)
+                                    {
+                                        <span class="ai-tag" style="opacity: @(0.5 + tag.Confidence * 0.5)" title="Confidence: @((tag.Confidence * 100).ToString("F0"))%">
+                                            @tag.Name
+                                            <span class="tag-confidence">@((tag.Confidence * 100).ToString("F0"))%</span>
+                                        </span>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="text-muted">No AI tags available</p>
+                                }
+                            }
+                        </div>
+                        @if (selectedDocument.AIAnalysisDate.HasValue)
+                        {
+                            <p class="analysis-date">
+                                <small>Analysis performed: @selectedDocument.AIAnalysisDate.Value.ToString("MMM dd, yyyy")</small>
+                            </p>
+                        }
                     </div>
                 }
                 
@@ -957,6 +1000,50 @@
         font-size: 0.9rem;
     }
 
+    .ai-tags-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+
+    .ai-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+
+    .ai-tag:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .tag-confidence {
+        font-size: 0.75rem;
+        opacity: 0.9;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+    }
+
+    .analysis-date {
+        margin-top: 0.8rem;
+        color: #888;
+        font-size: 0.85rem;
+    }
+
+    .text-muted {
+        color: #999;
+        font-style: italic;
+    }
+
     .detail-actions {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -1286,6 +1373,27 @@
     private string GetFileIcon(string fileName)
     {
         return FileProcessingService.GetFileIcon(fileName);
+    }
+
+    private class AITag
+    {
+        public string Name { get; set; } = string.Empty;
+        public double Confidence { get; set; }
+    }
+
+    private List<AITag>? ParseAITags(string? aiTagsJson)
+    {
+        if (string.IsNullOrEmpty(aiTagsJson))
+            return null;
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<AITag>>(aiTagsJson);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string GetVisibilityIcon(DocumentVisibility visibility)
