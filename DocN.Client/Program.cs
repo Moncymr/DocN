@@ -144,7 +144,7 @@ app.MapPost("/account/login", async (
     var password = form["password"].ToString();
     var rememberMe = form["rememberMe"].ToString() == "true";
 
-    if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
     {
         return Results.Redirect("/login?error=invalid");
     }
@@ -195,8 +195,8 @@ app.MapPost("/account/register", async (
     var password = form["password"].ToString();
     var confirmPassword = form["confirmPassword"].ToString();
 
-    if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password) || 
-        string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password) || 
+        string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
     {
         return Results.Redirect("/register?error=required");
     }
@@ -233,7 +233,8 @@ app.MapPost("/account/register", async (
     }
     else
     {
-        var error = result.Errors.FirstOrDefault()?.Code ?? "unknown";
+        // Get the first error code, or use a generic error if none found
+        var error = result.Errors.FirstOrDefault()?.Code ?? "RegistrationFailed";
         return Results.Redirect($"/register?error={error}");
     }
 }).AllowAnonymous();
