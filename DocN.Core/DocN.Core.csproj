@@ -17,6 +17,8 @@
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.1" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.1" />
     <PackageReference Include="Mscc.GenerativeAI" Version="2.1.0" />
+    <!-- Override vulnerable transitive dependency Newtonsoft.Json 9.0.1 with patched version -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     
     <!-- Semantic Kernel and Agent Framework - using latest versions -->
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.29.0" />
