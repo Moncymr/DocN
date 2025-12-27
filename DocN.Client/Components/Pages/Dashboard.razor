@@ -1,6 +1,7 @@
 @page "/dashboard"
 @inject IDocumentStatisticsService StatisticsService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<Dashboard> Logger
 @rendermode InteractiveServer
 
 <PageTitle>Dashboard - DocN</PageTitle>
@@ -19,7 +20,14 @@
             <p>@errorMessage</p>
         </div>
     }
-    else if (stats != null)
+    else if (!string.IsNullOrEmpty(infoMessage))
+    {
+        <div class="alert alert-info">
+            <strong>ℹ️ Informazione</strong>
+            <p>@infoMessage</p>
+        </div>
+    }
+    else if (stats != null && stats.TotalDocuments > 0)
     {
         <div class="stats-grid">
             <div class="stat-card">
@@ -150,6 +158,13 @@
                 </div>
             </div>
         }
+    }
+    else
+    {
+        <div class="alert alert-info">
+            <strong>ℹ️ Benvenuto</strong>
+            <p>Inizia caricando alcuni documenti per visualizzare le statistiche del dashboard.</p>
+        </div>
     }
 </div>
 
@@ -368,6 +383,13 @@
         border-left: 5px solid #dc3545;
     }
 
+    .alert-info {
+        background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+        color: #0c5460;
+        border: 2px solid #17a2b8;
+        border-left: 5px solid #17a2b8;
+    }
+
     .alert strong {
         display: block;
         margin-bottom: 0.5rem;
@@ -379,6 +401,7 @@
     private bool isLoading = true;
     private string currentUserId = string.Empty;
     private string errorMessage = string.Empty;
+    private string infoMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -392,6 +415,7 @@
     {
         isLoading = true;
         errorMessage = string.Empty;
+        infoMessage = string.Empty;
         
         try
         {
@@ -400,13 +424,13 @@
             // Check if we got valid stats but no documents
             if (stats != null && stats.TotalDocuments == 0)
             {
-                errorMessage = "Nessun documento trovato. Carica alcuni documenti per vedere le statistiche.";
+                infoMessage = "Nessun documento trovato. Carica alcuni documenti per vedere le statistiche.";
             }
         }
         catch (Exception ex)
         {
             errorMessage = "Si è verificato un errore durante il caricamento delle statistiche. Riprova più tardi o contatta l'amministratore.";
-            Console.WriteLine($"Dashboard error: {ex}");
+            Logger.LogError(ex, "Error loading dashboard statistics for user {UserId}", currentUserId);
         }
         finally
         {

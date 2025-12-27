@@ -22,7 +22,7 @@ if (string.IsNullOrEmpty(connectionString))
 {
     if (builder.Environment.IsDevelopment())
     {
-        connectionString = "Server=NTSPJ-060-02\\SQL2025;Database=DocumentArchive;Trusted_Connection=True;MultipleActiveResultSets=true";
+        connectionString = "Server=NTSPJ-060-02\\SQL2025;Database=DocumentArchive;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=True";
     }
     else
     {
