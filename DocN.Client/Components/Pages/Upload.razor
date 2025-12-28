@@ -1253,6 +1253,7 @@
     private const string STEP_EXTRACTING_TEXT = "Extracting text from file...";
     private const string STEP_GENERATING_EMBEDDINGS = "Generating vector embeddings...";
     private const string STEP_ANALYZING_AI = "Analyzing document with AI...";
+    private const string STEP_EXTRACTING_METADATA = "Estrazione metadati dal documento...";
     private const string STEP_COMPLETE = "Processing complete!";
     private const int SIMILAR_DOCUMENTS_COUNT = 5;
     private const double SIMILAR_DOCUMENTS_MIN_SIMILARITY = 0.3;
@@ -1337,6 +1338,10 @@
         tagExtractionAttempted = false;
         tagExtractionSucceeded = false;
         tagExtractionError = null;
+        metadataExtractionAttempted = false;
+        metadataExtractionSucceeded = false;
+        metadataExtractionError = null;
+        extractedMetadata = null;
 
         // Validate file size
         var maxSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
@@ -1670,7 +1675,7 @@
             if (enableMetadataExtraction && !string.IsNullOrEmpty(extractedText))
             {
                 metadataExtractionAttempted = true;
-                processingStep = "Estrazione metadati dal documento...";
+                processingStep = STEP_EXTRACTING_METADATA;
                 StateHasChanged();
                 await Task.Delay(UI_UPDATE_DELAY_MS);
 
