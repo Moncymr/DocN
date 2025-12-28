@@ -1,5 +1,5 @@
 ﻿@page "/"
-@inject HttpClient Http
+@inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 
 <PageTitle>DocN - Document Management</PageTitle>
@@ -56,33 +56,33 @@
             <div class="feature-highlight">Smart Search</div>
         </a>
         
-        <div class="feature-card">
-            <div class="feature-icon">👥</div>
-            <h3>Collaborazione</h3>
-            <p>Condividi documenti con controlli di visibilità e permessi granulari</p>
-            <div class="feature-highlight">Team Ready</div>
-        </div>
+        <a href="/chat" class="feature-card clickable">
+            <div class="feature-icon">💬</div>
+            <h3>Chat AI</h3>
+            <p>Interagisci con i tuoi documenti usando l'intelligenza artificiale conversazionale</p>
+            <div class="feature-highlight">AI Powered</div>
+        </a>
         
-        <div class="feature-card">
+        <a href="/dashboard" class="feature-card clickable">
             <div class="feature-icon">📊</div>
             <h3>Analytics</h3>
             <p>Monitora l'utilizzo, visualizza statistiche e ricevi suggerimenti di ottimizzazione</p>
             <div class="feature-highlight">Insights</div>
-        </div>
+        </a>
         
-        <div class="feature-card">
+        <a href="/config" class="feature-card clickable">
             <div class="feature-icon">🤖</div>
             <h3>Multi-Provider</h3>
             <p>Supporto per Gemini, OpenAI e Azure OpenAI con fallback automatico</p>
             <div class="feature-highlight">Flessibile</div>
-        </div>
+        </a>
         
-        <div class="feature-card">
+        <a href="/login" class="feature-card clickable">
             <div class="feature-icon">🔒</div>
             <h3>Sicurezza</h3>
             <p>Gestione identità ASP.NET Core con controlli di accesso basati su ruoli</p>
             <div class="feature-highlight">Enterprise</div>
-        </div>
+        </a>
     </div>
 
     <div class="tech-stack">
@@ -111,7 +111,8 @@
 
         try
         {
-            var response = await Http.PostAsync("/documents/recreate-embeddings", null);
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var response = await httpClient.PostAsync("documents/recreate-embeddings", null);
             
             if (response.IsSuccessStatusCode)
             {
@@ -251,14 +252,14 @@
     }
     
     .btn-accent {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #f7931e 0%, #ff6b35 100%);
         color: white;
         border: none;
     }
     
     .btn-accent:hover {
         transform: translateY(-3px) scale(1.02);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 8px 25px rgba(247, 147, 30, 0.4);
     }
     
     .btn-accent:disabled {
