@@ -10,6 +10,8 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using DocumentFormat.OpenXml.Spreadsheet;
 using DocumentFormat.OpenXml.Presentation;
 using ClosedXML.Excel;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 
 namespace DocN.Data.Services;
 
@@ -748,7 +750,7 @@ public class FileProcessingService : IFileProcessingService
 
     /// <summary>
     /// Elabora un'immagine
-    /// Attualmente estrae metadata di base. OCR può essere implementato con Tesseract.NET
+    /// Estrae metadata EXIF e informazioni di base (dimensioni, formato, ecc.)
     /// </summary>
     private async Task ProcessImageAsync(Stream stream, string fileName, FileProcessingResult result)
     {
@@ -756,24 +758,183 @@ public class FileProcessingService : IFileProcessingService
         {
             _logger.LogInformation("Elaborazione immagine: {FileName}", fileName);
 
-            // For now: placeholder indicating image file with basic info
-            var extension = Path.GetExtension(fileName).ToLowerInvariant();
-            result.ExtractedText = $"[Immagine: {fileName}]\n\nTipo: {extension}\nFormato supportato per archiviazione.";
-            result.Success = true;
-            
-            // Metadata dell'immagine
-            result.Metadata["OriginalFileName"] = fileName;
-            result.Metadata["FileType"] = "Image";
-            result.Metadata["Extension"] = extension;
-            result.Metadata["ProcessingNote"] = "File immagine archiviato. Per OCR futuro: implementare Tesseract.NET";
-            
-            // Note: Per implementare OCR in futuro:
-            // 1. Usare SixLabors.ImageSharp per caricare e pre-processare l'immagine
-            // 2. Applicare pre-processing (grayscale, contrasto, deskew)
-            // 3. Usare Tesseract.NET per OCR
-            // 4. Post-processare il testo estratto
-            
-            _logger.LogInformation("Immagine elaborata: {FileName} (metadata estratti, OCR non implementato)", fileName);
+            // Create a temporary file to work with ImageSharp (needs seekable stream)
+            var tempFile = Path.Combine(Path.GetTempPath(), $"img_{Path.GetRandomFileName()}.tmp");
+            try
+            {
+                // Copy stream to temp file
+                using (var fileStream = File.Create(tempFile))
+                {
+                    await stream.CopyToAsync(fileStream);
+                }
+
+                // Load image to extract metadata
+                using var image = await Image.LoadAsync(tempFile);
+                var extension = Path.GetExtension(fileName).ToLowerInvariant();
+                
+                // Build extracted text with image information
+                var textBuilder = new StringBuilder();
+                textBuilder.AppendLine($"[Immagine: {fileName}]");
+                textBuilder.AppendLine($"Formato: {image.Metadata.DecodedImageFormat?.Name ?? extension}");
+                textBuilder.AppendLine($"Dimensioni: {image.Width} x {image.Height} pixels");
+                textBuilder.AppendLine($"Proporzioni: {(double)image.Width / image.Height:F2}:1");
+                
+                // Extract basic metadata
+                result.Metadata["OriginalFileName"] = fileName;
+                result.Metadata["FileType"] = "Image";
+                result.Metadata["Extension"] = extension;
+                result.Metadata["Format"] = image.Metadata.DecodedImageFormat?.Name ?? "Unknown";
+                result.Metadata["Width"] = image.Width.ToString();
+                result.Metadata["Height"] = image.Height.ToString();
+                result.Metadata["AspectRatio"] = $"{(double)image.Width / image.Height:F2}:1";
+                result.Metadata["HorizontalResolution"] = image.Metadata.HorizontalResolution.ToString();
+                result.Metadata["VerticalResolution"] = image.Metadata.VerticalResolution.ToString();
+                
+                // Extract EXIF metadata if available
+                if (image.Metadata.ExifProfile != null)
+                {
+                    var exif = image.Metadata.ExifProfile;
+                    textBuilder.AppendLine("\n[Metadati EXIF]");
+                    
+                    // Camera information
+                    if (exif.TryGetValue(ExifTag<string>.Make, out var makeValue) && makeValue?.Value != null)
+                    {
+                        var make = makeValue.Value;
+                        var model = "";
+                        if (exif.TryGetValue(ExifTag<string>.Model, out var modelValue) && modelValue?.Value != null)
+                        {
+                            model = modelValue.Value;
+                        }
+                        
+                        if (!string.IsNullOrEmpty(make) || !string.IsNullOrEmpty(model))
+                        {
+                            var camera = $"{make} {model}".Trim();
+                            textBuilder.AppendLine($"Fotocamera: {camera}");
+                            result.Metadata["Camera"] = camera;
+                        }
+                    }
+                    
+                    // Date taken
+                    string? dateTaken = null;
+                    if (exif.TryGetValue(ExifTag<string>.DateTimeOriginal, out var dateTimeOrigValue) && dateTimeOrigValue?.Value != null)
+                    {
+                        dateTaken = dateTimeOrigValue.Value;
+                    }
+                    else if (exif.TryGetValue(ExifTag<string>.DateTime, out var dateTimeValue) && dateTimeValue?.Value != null)
+                    {
+                        dateTaken = dateTimeValue.Value;
+                    }
+                    
+                    if (dateTaken != null)
+                    {
+                        textBuilder.AppendLine($"Data scatto: {dateTaken}");
+                        result.Metadata["DateTaken"] = dateTaken;
+                    }
+                    
+                    // Software
+                    if (exif.TryGetValue(ExifTag<string>.Software, out var softwareValue) && softwareValue?.Value != null)
+                    {
+                        textBuilder.AppendLine($"Software: {softwareValue.Value}");
+                        result.Metadata["Software"] = softwareValue.Value;
+                    }
+                    
+                    // GPS coordinates
+                    try
+                    {
+                        if (exif.TryGetValue(ExifTag<Rational[]>.GPSLatitude, out var gpsLatValue) &&
+                            exif.TryGetValue(ExifTag<string>.GPSLatitudeRef, out var gpsLatRefValue) &&
+                            exif.TryGetValue(ExifTag<Rational[]>.GPSLongitude, out var gpsLongValue) &&
+                            exif.TryGetValue(ExifTag<string>.GPSLongitudeRef, out var gpsLongRefValue) &&
+                            gpsLatValue?.Value != null && gpsLongValue?.Value != null)
+                        {
+                            var gpsLat = gpsLatValue.Value;
+                            var gpsLatRef = gpsLatRefValue?.Value;
+                            var gpsLong = gpsLongValue.Value;
+                            var gpsLongRef = gpsLongRefValue?.Value;
+                            
+                            var lat = ConvertGpsToDecimal(gpsLat, gpsLatRef);
+                            var lng = ConvertGpsToDecimal(gpsLong, gpsLongRef);
+                            textBuilder.AppendLine($"Coordinate GPS: {lat:F6}, {lng:F6}");
+                            result.Metadata["GPS_Latitude"] = lat.ToString("F6");
+                            result.Metadata["GPS_Longitude"] = lng.ToString("F6");
+                        }
+                    }
+                    catch { /* GPS data not available or invalid */ }
+                    
+                    // Camera settings
+                    try
+                    {
+                        if (exif.TryGetValue(ExifTag<ushort[]>.ISOSpeedRatings, out var isoValue) &&
+                            isoValue?.Value != null && isoValue.Value.Length > 0)
+                        {
+                            textBuilder.AppendLine($"ISO: {isoValue.Value[0]}");
+                            result.Metadata["ISO"] = isoValue.Value[0].ToString();
+                        }
+                    }
+                    catch { /* ISO not available */ }
+                    
+                    try
+                    {
+                        var fNumberValue = exif.TryGetValue(ExifTag<Rational>.FNumber, out var fNumber);
+                        if (fNumberValue && fNumber?.Value != null)
+                        {
+                            textBuilder.AppendLine($"Apertura: f/{fNumber.Value.ToDouble():F1}");
+                            result.Metadata["Aperture"] = $"f/{fNumber.Value.ToDouble():F1}";
+                        }
+                    }
+                    catch { /* F-number not available */ }
+                    
+                    try
+                    {
+                        var exposureTimeResult = exif.TryGetValue(ExifTag<Rational>.ExposureTime, out var exposureTime);
+                        if (exposureTimeResult && exposureTime?.Value != null)
+                        {
+                            textBuilder.AppendLine($"Tempo esposizione: {exposureTime.Value}s");
+                            result.Metadata["ExposureTime"] = $"{exposureTime.Value}s";
+                        }
+                    }
+                    catch { /* Exposure time not available */ }
+                    
+                    try
+                    {
+                        var focalLengthResult = exif.TryGetValue(ExifTag<Rational>.FocalLength, out var focalLength);
+                        if (focalLengthResult && focalLength?.Value != null)
+                        {
+                            textBuilder.AppendLine($"Lunghezza focale: {focalLength.Value.ToDouble():F1}mm");
+                            result.Metadata["FocalLength"] = $"{focalLength.Value.ToDouble():F1}mm";
+                        }
+                    }
+                    catch { /* Focal length not available */ }
+                    
+                    _logger.LogInformation("EXIF data estratti per {FileName}", fileName);
+                }
+                else
+                {
+                    textBuilder.AppendLine("\nNessun metadato EXIF disponibile.");
+                    _logger.LogInformation("Nessun EXIF data disponibile per {FileName}", fileName);
+                }
+                
+                textBuilder.AppendLine("\nNota: Per estrarre testo dall'immagine, implementare OCR con Tesseract.NET in futuro.");
+                
+                result.ExtractedText = textBuilder.ToString();
+                result.Success = true;
+                
+                _logger.LogInformation("Immagine elaborata con successo: {FileName} ({Width}x{Height})", 
+                    fileName, image.Width, image.Height);
+            }
+            finally
+            {
+                // Clean up temp file
+                try
+                {
+                    if (File.Exists(tempFile))
+                        File.Delete(tempFile);
+                }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogWarning(cleanupEx, "Impossibile eliminare il file temporaneo: {TempFile}", tempFile);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -781,6 +942,28 @@ public class FileProcessingService : IFileProcessingService
             result.Success = false;
             result.ErrorMessage = $"Errore durante l'elaborazione dell'immagine: {ex.Message}";
         }
+    }
+    
+    /// <summary>
+    /// Converte coordinate GPS da formato EXIF a decimale
+    /// </summary>
+    private double ConvertGpsToDecimal(Rational[] coordinate, string? reference)
+    {
+        if (coordinate == null || coordinate.Length < 3)
+            return 0;
+            
+        var degrees = coordinate[0].ToDouble();
+        var minutes = coordinate[1].ToDouble();
+        var seconds = coordinate[2].ToDouble();
+        
+        var result = degrees + (minutes / 60.0) + (seconds / 3600.0);
+        
+        // Apply negative sign for South/West
+        if (reference != null && (reference.Equals("S", StringComparison.OrdinalIgnoreCase) || 
+                                  reference.Equals("W", StringComparison.OrdinalIgnoreCase)))
+            result = -result;
+            
+        return result;
     }
 
     /// <summary>

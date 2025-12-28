@@ -1399,6 +1399,31 @@
                         // Capture metadata from processing result
                         pageCount = processingResult.PageCount;
                         detectedLanguage = processingResult.DetectedLanguage;
+                        
+                        // Store the extracted metadata from file processing (Word, PDF, Images, etc.)
+                        if (processingResult.Metadata != null && processingResult.Metadata.Any())
+                        {
+                            // Initialize or merge with existing metadata
+                            if (extractedMetadata == null)
+                            {
+                                extractedMetadata = new Dictionary<string, string>(processingResult.Metadata);
+                            }
+                            else
+                            {
+                                // Merge metadata, file processing metadata takes precedence for duplicates
+                                foreach (var kvp in processingResult.Metadata)
+                                {
+                                    extractedMetadata[kvp.Key] = kvp.Value;
+                                }
+                            }
+                            
+                            metadataExtractionSucceeded = true;
+                            Console.WriteLine($"File processing extracted {processingResult.Metadata.Count} metadata fields from {selectedFile.Name}");
+                            foreach (var kvp in processingResult.Metadata)
+                            {
+                                Console.WriteLine($"  {kvp.Key}: {kvp.Value}");
+                            }
+                        }
                     }
                     else
                     {
