@@ -105,8 +105,9 @@ DocN/
    ```
 
 5. **Accedi all'applicazione**
-   - Naviga su: https://localhost:7114
+   - Naviga su: https://localhost:7114 (URL predefinito in sviluppo)
    - Prima registrazione: l'utente diventa admin
+   - Nota: La porta può variare in base alla configurazione in `launchSettings.json`
 
 ### Configurazione OCR (Opzionale)
 

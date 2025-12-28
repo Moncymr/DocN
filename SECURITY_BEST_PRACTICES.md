@@ -312,7 +312,7 @@ public class SecureFileService
 ```sql
 -- Master key
 USE master;
-CREATE MASTER KEY ENCRYPTION BY PASSWORD = 'StrongPassword123!';
+CREATE MASTER KEY ENCRYPTION BY PASSWORD = 'YOUR_STRONG_PASSWORD_HERE';
 
 -- Certificate
 CREATE CERTIFICATE TDECert WITH SUBJECT = 'DocN TDE Certificate';
@@ -336,13 +336,13 @@ Per dati sensibili nei documenti:
 public class EncryptionService : IEncryptionService
 {
     private readonly byte[] _key;
-    private readonly byte[] _iv;
     
     public string Encrypt(string plainText)
     {
         using var aes = Aes.Create();
         aes.Key = _key;
-        aes.IV = _iv;
+        // IMPORTANT: Generate a new random IV for each encryption
+        aes.GenerateIV();
         
         using var encryptor = aes.CreateEncryptor();
         using var ms = new MemoryStream();
@@ -352,7 +352,14 @@ public class EncryptionService : IEncryptionService
         sw.Write(plainText);
         sw.Close();
         
-        return Convert.ToBase64String(ms.ToArray());
+        // Prepend IV to ciphertext for later decryption
+        var iv = aes.IV;
+        var cipherText = ms.ToArray();
+        var result = new byte[iv.Length + cipherText.Length];
+        Buffer.BlockCopy(iv, 0, result, 0, iv.Length);
+        Buffer.BlockCopy(cipherText, 0, result, iv.Length, cipherText.Length);
+        
+        return Convert.ToBase64String(result);
     }
     
     public string Decrypt(string cipherText)
@@ -361,10 +368,16 @@ public class EncryptionService : IEncryptionService
         
         using var aes = Aes.Create();
         aes.Key = _key;
-        aes.IV = _iv;
+        
+        // Extract IV from the beginning of ciphertext
+        var iv = new byte[aes.IV.Length];
+        var cipher = new byte[buffer.Length - iv.Length];
+        Buffer.BlockCopy(buffer, 0, iv, 0, iv.Length);
+        Buffer.BlockCopy(buffer, iv.Length, cipher, 0, cipher.Length);
+        aes.IV = iv;
         
         using var decryptor = aes.CreateDecryptor();
-        using var ms = new MemoryStream(buffer);
+        using var ms = new MemoryStream(cipher);
         using var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read);
         using var sr = new StreamReader(cs);
         

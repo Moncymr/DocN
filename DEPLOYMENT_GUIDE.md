@@ -260,7 +260,7 @@ volumes:
 ### .env.example
 
 ```bash
-SQL_PASSWORD=YourStrong!Password123
+SQL_PASSWORD=CHANGE_THIS_STRONG_PASSWORD_HERE
 GEMINI_API_KEY=your-gemini-api-key-here
 OPENAI_API_KEY=your-openai-api-key-here
 ```
@@ -476,7 +476,7 @@ az sql server create \
   --resource-group docn-rg \
   --location eastus \
   --admin-user sqladmin \
-  --admin-password "YourPassword123!"
+  --admin-password "YOUR_SECURE_PASSWORD_HERE"
 
 az sql db create \
   --name DocN \
