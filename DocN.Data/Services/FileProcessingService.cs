@@ -12,6 +12,7 @@ using DocumentFormat.OpenXml.Presentation;
 using ClosedXML.Excel;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
+using DocN.Core.Interfaces;
 
 namespace DocN.Data.Services;
 
@@ -182,6 +183,7 @@ public class FileProcessingService : IFileProcessingService
 {
     private readonly ILogger<FileProcessingService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly IOCRService _ocrService;
 
     // Dizionario estensioni supportate -> tipo file
     private static readonly Dictionary<string, FileType> _extensionMap = new()
@@ -246,10 +248,12 @@ public class FileProcessingService : IFileProcessingService
 
     public FileProcessingService(
         ILogger<FileProcessingService> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IOCRService ocrService)
     {
         _logger = logger;
         _configuration = configuration;
+        _ocrService = ocrService;
     }
 
     /// <inheritdoc/>
@@ -923,7 +927,67 @@ public class FileProcessingService : IFileProcessingService
                     _logger.LogInformation("Nessun EXIF data disponibile per {FileName}", fileName);
                 }
                 
-                textBuilder.AppendLine("\nNota: Per estrarre testo dall'immagine, implementare OCR con Tesseract.NET in futuro.");
+                // *** OCR Text Extraction ***
+                // Extract text from the image using Tesseract OCR
+                if (_ocrService.IsAvailable())
+                {
+                    _logger.LogInformation("Attempting OCR text extraction from image: {FileName}", fileName);
+                    textBuilder.AppendLine("\n[Testo estratto con OCR]");
+                    
+                    try
+                    {
+                        // Reset stream position for OCR processing
+                        if (stream.CanSeek)
+                        {
+                            stream.Position = 0;
+                        }
+                        else
+                        {
+                            // If stream is not seekable, we need to create a new one from the image
+                            var memStream = new MemoryStream();
+                            await image.SaveAsPngAsync(memStream);
+                            memStream.Position = 0;
+                            stream = memStream;
+                        }
+                        
+                        // Get language setting from configuration (default to Italian)
+                        var ocrLanguage = _configuration["Tesseract:Language"] ?? "ita";
+                        
+                        var ocrText = await _ocrService.ExtractTextFromImageAsync(stream, ocrLanguage);
+                        
+                        if (!string.IsNullOrWhiteSpace(ocrText))
+                        {
+                            textBuilder.AppendLine(ocrText);
+                            result.Metadata["OCR_Enabled"] = "true";
+                            result.Metadata["OCR_Language"] = ocrLanguage;
+                            result.Metadata["OCR_CharCount"] = ocrText.Length.ToString();
+                            _logger.LogInformation(
+                                "OCR text extracted successfully from {FileName}: {CharCount} characters", 
+                                fileName, 
+                                ocrText.Length);
+                        }
+                        else
+                        {
+                            textBuilder.AppendLine("Nessun testo rilevato nell'immagine.");
+                            result.Metadata["OCR_Enabled"] = "true";
+                            result.Metadata["OCR_Result"] = "No text detected";
+                            _logger.LogInformation("No text detected in image: {FileName}", fileName);
+                        }
+                    }
+                    catch (Exception ocrEx)
+                    {
+                        _logger.LogWarning(ocrEx, "OCR extraction failed for {FileName}", fileName);
+                        textBuilder.AppendLine("Errore durante l'estrazione OCR.");
+                        result.Metadata["OCR_Enabled"] = "true";
+                        result.Metadata["OCR_Error"] = ocrEx.Message;
+                    }
+                }
+                else
+                {
+                    textBuilder.AppendLine("\nOCR non disponibile. Installare Tesseract e i dati linguistici per abilitare l'estrazione di testo dalle immagini.");
+                    result.Metadata["OCR_Enabled"] = "false";
+                    _logger.LogInformation("OCR not available for {FileName}", fileName);
+                }
                 
                 result.ExtractedText = textBuilder.ToString();
                 result.Success = true;

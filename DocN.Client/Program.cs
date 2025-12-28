@@ -95,6 +95,7 @@ builder.Services.AddScoped<DocN.Data.Services.IEmbeddingService, EmbeddingServic
 builder.Services.AddScoped<DocN.Data.Services.ICategoryService, CategoryService>();
 builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService>();
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
+builder.Services.AddScoped<IOCRService, TesseractOCRService>();
 builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
 
 // Configure Semantic Kernel for RAG Service (only if AI services are configured)
