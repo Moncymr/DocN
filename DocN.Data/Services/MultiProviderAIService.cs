@@ -258,9 +258,15 @@ public class MultiProviderAIService : IMultiProviderAIService
         try
         {
             var gemini = new GoogleAI(apiKey);
+            // Ensure model name has proper format - add "models/" prefix if not present
             var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
+            if (!modelName.StartsWith("models/"))
+            {
+                modelName = $"models/{modelName}";
+            }
             var model = gemini.GenerativeModel(model: modelName);
             
+            Console.WriteLine($"[Gemini] Attempting to generate embedding with model: {modelName}");
             var response = await model.EmbedContent(text);
             
             if (response?.Embedding?.Values != null)
@@ -286,6 +292,17 @@ public class MultiProviderAIService : IMultiProviderAIService
         {
             Console.WriteLine($"Problema con l'API key di Gemini (potrebbe essere non valida o segnalata): {ex.Message}");
             throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
+        }
+        catch (System.Net.Http.HttpRequestException ex) when (
+            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.BadRequest) || 
+            ex.Message.Contains("BadRequest") || 
+            ex.Message.Contains("400") ||
+            ex.Message.Contains("INVALID_ARGUMENT"))
+        {
+            var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
+            Console.WriteLine($"Errore nel formato del modello Gemini embedding. Modello richiesto: {modelName}");
+            Console.WriteLine($"Errore dettagliato: {ex.Message}");
+            throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'text-embedding-004'). Errore: {ex.Message}", ex);
         }
         catch (Exception ex)
         {
@@ -370,10 +387,16 @@ public class MultiProviderAIService : IMultiProviderAIService
         try
         {
             var gemini = new GoogleAI(apiKey);
+            // Ensure model name has proper format - add "models/" prefix if not present
             var modelName = config.GeminiChatModel ?? "gemini-1.5-flash";
+            if (!modelName.StartsWith("models/"))
+            {
+                modelName = $"models/{modelName}";
+            }
             var model = gemini.GenerativeModel(model: modelName);
             
             var fullPrompt = $"{systemPrompt}\n\n{userPrompt}";
+            Console.WriteLine($"[Gemini] Attempting to generate chat with model: {modelName}");
             var response = await model.GenerateContent(fullPrompt);
             
             if (response?.Text != null)
@@ -394,6 +417,17 @@ public class MultiProviderAIService : IMultiProviderAIService
         {
             Console.WriteLine($"Problema con l'API key di Gemini (potrebbe essere non valida o segnalata): {ex.Message}");
             throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
+        }
+        catch (System.Net.Http.HttpRequestException ex) when (
+            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.BadRequest) || 
+            ex.Message.Contains("BadRequest") || 
+            ex.Message.Contains("400") ||
+            ex.Message.Contains("INVALID_ARGUMENT"))
+        {
+            var modelName = config.GeminiChatModel ?? "gemini-1.5-flash";
+            Console.WriteLine($"Errore nel formato del modello Gemini. Modello richiesto: {modelName}");
+            Console.WriteLine($"Errore dettagliato: {ex.Message}");
+            throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'gemini-1.5-flash', 'gemini-2.0-flash-exp'). Errore: {ex.Message}", ex);
         }
         catch (Exception ex)
         {
