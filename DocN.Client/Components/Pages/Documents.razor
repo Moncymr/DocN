@@ -1662,8 +1662,7 @@
 
     private string FormatMetadataKey(string key)
     {
-        // Convert snake_case to Title Case
-        return string.Join(" ", key.Split('_'))
-            .Replace("_", " ");
+        // Convert snake_case to space-separated words
+        return string.Join(" ", key.Split('_'));
     }
 }
