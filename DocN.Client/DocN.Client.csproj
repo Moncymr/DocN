@@ -17,4 +17,8 @@
     <ProjectReference Include="..\DocN.Data\DocN.Data.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="ESEMPIO DOCUMENTI\" />
+  </ItemGroup>
+
 </Project>
