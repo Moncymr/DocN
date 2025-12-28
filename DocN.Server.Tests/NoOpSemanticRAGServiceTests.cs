@@ -48,7 +48,7 @@ public class NoOpSemanticRAGServiceTests : IDisposable
         var userId = "test-user";
 
         // Act
-        var result = await _service.SearchDocumentsWithEmbeddingAsync(queryEmbedding!, userId);
+        var result = await _service.SearchDocumentsWithEmbeddingAsync(queryEmbedding, userId);
 
         // Assert
         Assert.NotNull(result);

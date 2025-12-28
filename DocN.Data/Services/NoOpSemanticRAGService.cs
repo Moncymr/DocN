@@ -117,6 +117,7 @@ public class NoOpSemanticRAGService : ISemanticRAGService
 
             // Combine document-level and chunk-level results
             var results = new List<RelevantDocumentResult>();
+            var existingDocIds = new HashSet<int>();
 
             // Add chunk-based results (higher priority)
             foreach (var (chunk, score) in scoredChunks.OrderByDescending(x => x.score).Take(topK))
@@ -132,16 +133,18 @@ public class NoOpSemanticRAGService : ISemanticRAGService
                     RelevantChunk = chunk.ChunkText,
                     ChunkIndex = chunk.ChunkIndex
                 });
+                existingDocIds.Add(chunk.DocumentId);
             }
 
             // Add document-level results if we don't have enough chunks
             if (results.Count < topK)
             {
-                var remaining = topK - results.Count;
-                var existingDocIds = new HashSet<int>(results.Select(r => r.DocumentId));
-                
-                foreach (var (doc, score) in scoredDocs.OrderByDescending(x => x.score).Take(remaining))
+                foreach (var (doc, score) in scoredDocs.OrderByDescending(x => x.score))
                 {
+                    // Stop if we've reached topK results
+                    if (results.Count >= topK)
+                        break;
+                        
                     // Avoid duplicates
                     if (existingDocIds.Contains(doc.Id))
                         continue;
@@ -174,7 +177,12 @@ public class NoOpSemanticRAGService : ISemanticRAGService
     private double CalculateCosineSimilarity(float[] vector1, float[] vector2)
     {
         if (vector1.Length != vector2.Length)
+        {
+            _logger.LogWarning(
+                "Vector dimension mismatch: vector1 has {Length1} dimensions, vector2 has {Length2} dimensions",
+                vector1.Length, vector2.Length);
             return 0;
+        }
 
         double dotProduct = 0;
         double magnitude1 = 0;
