@@ -580,7 +580,8 @@ public class FileProcessingService : IFileProcessingService
                         
                         foreach (var cell in row.Cells())
                         {
-                            var cellValue = cell.GetValue<string>();
+                            // Use GetFormattedString to preserve Excel cell formatting (dates, numbers, etc.)
+                            var cellValue = cell.GetFormattedString();
                             rowData.Add(cellValue);
                             rowText.Append(cellValue);
                             rowText.Append("\t");
@@ -799,8 +800,20 @@ public class FileProcessingService : IFileProcessingService
             {
                 try
                 {
+                    // Use XmlReader with secure settings to prevent XXE attacks
+                    var settings = new XmlReaderSettings
+                    {
+                        DtdProcessing = DtdProcessing.Prohibit,
+                        XmlResolver = null,
+                        MaxCharactersFromEntities = 1024,
+                        MaxCharactersInDocument = 10_000_000
+                    };
+                    
+                    using var stringReader = new StringReader(content);
+                    using var xmlReader = XmlReader.Create(stringReader, settings);
+                    
                     var xmlDoc = new XmlDocument();
-                    xmlDoc.LoadXml(content);
+                    xmlDoc.Load(xmlReader);
                     
                     // Format XML with indentation
                     using var stringWriter = new StringWriter();
@@ -816,22 +829,21 @@ public class FileProcessingService : IFileProcessingService
                     
                     // Extract XML metadata
                     result.Metadata["RootElement"] = xmlDoc.DocumentElement?.Name ?? "Unknown";
-                    result.Metadata["Encoding"] = reader.CurrentEncoding.WebName;
                 }
                 catch
                 {
                     // If XML parsing fails, use raw content
                     result.ExtractedText = content;
-                    result.Metadata["Encoding"] = reader.CurrentEncoding.WebName;
                     result.Metadata["XMLParsingNote"] = "XML non valido, contenuto raw estratto";
                 }
             }
             else
             {
                 result.ExtractedText = content;
-                result.Metadata["Encoding"] = reader.CurrentEncoding.WebName;
             }
             
+            // Set encoding metadata for all text files
+            result.Metadata["Encoding"] = reader.CurrentEncoding.WebName;
             result.Success = true;
             
             _logger.LogInformation("File testo elaborato: {Chars} caratteri, Tipo: {FileType}", 
