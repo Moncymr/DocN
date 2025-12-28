@@ -1380,7 +1380,7 @@
                         embeddingError = null;
                         Console.WriteLine($"Embedding generated successfully: {embedding!.Length} dimensions");
                         
-                        // Step 2.5: Search for similar documents
+                        // Step 2.5: Search for similar documents using the generated embedding
                         try
                         {
                             processingStep = "Ricerca documenti simili...";
@@ -1390,8 +1390,9 @@
                             if (!string.IsNullOrEmpty(currentUserId))
                             {
                                 Console.WriteLine($"Searching for similar documents. UserId: {currentUserId}, MinSimilarity: {SIMILAR_DOCUMENTS_MIN_SIMILARITY}");
-                                similarDocuments = await SemanticRAGService.SearchDocumentsAsync(
-                                    extractedText,
+                                // Use the embedding we already generated instead of regenerating it from text
+                                similarDocuments = await SemanticRAGService.SearchDocumentsWithEmbeddingAsync(
+                                    embedding!,
                                     currentUserId,
                                     topK: SIMILAR_DOCUMENTS_COUNT,
                                     minSimilarity: SIMILAR_DOCUMENTS_MIN_SIMILARITY);

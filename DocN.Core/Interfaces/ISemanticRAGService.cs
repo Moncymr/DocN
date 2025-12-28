@@ -51,6 +51,20 @@ public interface ISemanticRAGService
         string userId,
         int topK = 10,
         double minSimilarity = 0.7);
+
+    /// <summary>
+    /// Search documents using a pre-generated embedding vector
+    /// </summary>
+    /// <param name="queryEmbedding">Pre-generated embedding vector to search with</param>
+    /// <param name="userId">User ID for access control</param>
+    /// <param name="topK">Number of results to return</param>
+    /// <param name="minSimilarity">Minimum similarity threshold (0-1)</param>
+    /// <returns>List of relevant documents with similarity scores</returns>
+    Task<List<RelevantDocumentResult>> SearchDocumentsWithEmbeddingAsync(
+        float[] queryEmbedding,
+        string userId,
+        int topK = 10,
+        double minSimilarity = 0.7);
 }
 
 /// <summary>

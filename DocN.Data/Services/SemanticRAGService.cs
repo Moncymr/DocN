@@ -360,6 +360,118 @@ Always cite your sources using [Document N] format where N is the document numbe
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<List<RelevantDocumentResult>> SearchDocumentsWithEmbeddingAsync(
+        float[] queryEmbedding,
+        string userId,
+        int topK = 10,
+        double minSimilarity = 0.7)
+    {
+        try
+        {
+            _logger.LogDebug("Searching documents with pre-generated embedding for user: {UserId}", userId);
+
+            if (queryEmbedding == null || queryEmbedding.Length == 0)
+            {
+                _logger.LogWarning("Query embedding is null or empty");
+                return new List<RelevantDocumentResult>();
+            }
+
+            // Get all documents with embeddings for the user
+            var documents = await _context.Documents
+                .Where(d => d.OwnerId == userId && d.EmbeddingVector != null)
+                .ToListAsync();
+
+            _logger.LogDebug("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
+
+            // Calculate similarity scores for documents
+            var scoredDocs = new List<(Document doc, double score)>();
+            foreach (var doc in documents)
+            {
+                if (doc.EmbeddingVector == null) continue;
+
+                var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
+                _logger.LogDebug("Document {FileName} (ID: {Id}) similarity: {Similarity:P2}", doc.FileName, doc.Id, similarity);
+                
+                if (similarity >= minSimilarity)
+                {
+                    scoredDocs.Add((doc, similarity));
+                }
+            }
+
+            _logger.LogDebug("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
+
+            // Get chunks for better precision
+            var chunks = await _context.DocumentChunks
+                .Include(c => c.Document)
+                .Where(c => c.Document!.OwnerId == userId && c.ChunkEmbedding != null)
+                .ToListAsync();
+
+            var scoredChunks = new List<(DocumentChunk chunk, double score)>();
+            foreach (var chunk in chunks)
+            {
+                if (chunk.ChunkEmbedding == null) continue;
+
+                var similarity = CalculateCosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
+                if (similarity >= minSimilarity)
+                {
+                    scoredChunks.Add((chunk, similarity));
+                }
+            }
+
+            // Combine document-level and chunk-level results
+            var results = new List<RelevantDocumentResult>();
+
+            // Add chunk-based results (higher priority)
+            foreach (var (chunk, score) in scoredChunks.OrderByDescending(x => x.score).Take(topK))
+            {
+                if (chunk.Document == null) continue;
+
+                results.Add(new RelevantDocumentResult
+                {
+                    DocumentId = chunk.DocumentId,
+                    FileName = chunk.Document.FileName,
+                    Category = chunk.Document.ActualCategory,
+                    SimilarityScore = score,
+                    RelevantChunk = chunk.ChunkText,
+                    ChunkIndex = chunk.ChunkIndex
+                });
+            }
+
+            // Add document-level results if we don't have enough chunks
+            if (results.Count < topK)
+            {
+                var remaining = topK - results.Count;
+                var existingDocIds = new HashSet<int>(results.Select(r => r.DocumentId));
+                
+                foreach (var (doc, score) in scoredDocs.OrderByDescending(x => x.score).Take(remaining))
+                {
+                    // Avoid duplicates using HashSet for O(1) lookup
+                    if (existingDocIds.Contains(doc.Id))
+                        continue;
+
+                    results.Add(new RelevantDocumentResult
+                    {
+                        DocumentId = doc.Id,
+                        FileName = doc.FileName,
+                        Category = doc.ActualCategory,
+                        SimilarityScore = score,
+                        ExtractedText = doc.ExtractedText
+                    });
+                    existingDocIds.Add(doc.Id);
+                }
+            }
+
+            _logger.LogDebug("Returning {Count} total results", results.Count);
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching documents with embedding for user: {UserId}", userId);
+            return new List<RelevantDocumentResult>();
+        }
+    }
+
     /// <summary>
     /// Generate answer using Semantic Kernel with document context
     /// </summary>

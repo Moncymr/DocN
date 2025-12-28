@@ -44,4 +44,14 @@ public class NoOpSemanticRAGService : ISemanticRAGService
         // Return empty list when AI services are not configured
         return Task.FromResult(new List<RelevantDocumentResult>());
     }
+
+    public Task<List<RelevantDocumentResult>> SearchDocumentsWithEmbeddingAsync(
+        float[] queryEmbedding,
+        string userId,
+        int topK = 10,
+        double minSimilarity = 0.7)
+    {
+        // Return empty list when AI services are not configured
+        return Task.FromResult(new List<RelevantDocumentResult>());
+    }
 }
