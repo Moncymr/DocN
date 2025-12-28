@@ -1492,8 +1492,30 @@
                 }
             }
 
-            // Step 3: AI category analysis
-            if (enableAICategory && !string.IsNullOrEmpty(extractedText))
+            // Step 2.7: Suggest category from similar documents if found
+            if (similarDocuments != null && similarDocuments.Any())
+            {
+                var mostSimilarDoc = similarDocuments.First(); // Already ordered by similarity
+                if (!string.IsNullOrEmpty(mostSimilarDoc.Category))
+                {
+                    // Use the category from the most similar document
+                    suggestedCategory = mostSimilarDoc.Category;
+                    categoryReasoning = $"Categoria suggerita basata su documento simile: '{mostSimilarDoc.FileName}' " +
+                                       $"(Similarità: {mostSimilarDoc.SimilarityScore:P1}). " +
+                                       $"Trovati {similarDocuments.Count} documenti simili nella stessa categoria.";
+                    aiProvider = "Similarity-Based";
+                    
+                    Console.WriteLine($"[CATEGORY] Category suggested from similar document: '{suggestedCategory}'");
+                    Console.WriteLine($"[CATEGORY] Most similar document: '{mostSimilarDoc.FileName}' (Score: {mostSimilarDoc.SimilarityScore:P2})");
+                }
+                else
+                {
+                    Console.WriteLine($"[CATEGORY] Most similar document has no category assigned");
+                }
+            }
+
+            // Step 3: AI category analysis (skip if already suggested from similar documents)
+            if (enableAICategory && !string.IsNullOrEmpty(extractedText) && string.IsNullOrEmpty(suggestedCategory))
             {
                 processingStep = STEP_ANALYZING_AI;
                 StateHasChanged();
@@ -1527,6 +1549,10 @@
                     Console.WriteLine($"Category suggestion exception: {ex.Message}");
                     Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
+            }
+            else if (enableAICategory && !string.IsNullOrEmpty(suggestedCategory))
+            {
+                Console.WriteLine($"[CATEGORY] Skipping AI category analysis - category already suggested from similar documents");
             }
 
             // Step 4: AI tag extraction - always execute even if embeddings failed
