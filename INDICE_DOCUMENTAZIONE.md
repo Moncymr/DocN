@@ -102,6 +102,7 @@
     - Microsoft Agent Framework implementation
     - Chart RAG e visualizzazioni
     - Best practices e ottimizzazioni
+    - **🚀 Quick Start RAG (5 minuti)** - Linea 773
     - **Tempo lettura:** 45 minuti
     - **Riferimento:** Guida completa all'uso delle funzionalità di ricerca e AI
 
@@ -160,10 +161,11 @@ Per Security Officers, Compliance Managers:
 ### Path 5: RAG & AI Features (1.5 ore) ⭐ NUOVO
 Per Developers, AI Engineers che vogliono implementare/usare funzionalità RAG:
 
-1. ✅ **Guida Ricerca e RAG** (in questo documento) - Sezione completa
-2. ✅ **MULTI_PROVIDER_CONFIG.md** - Configurazione AI providers
-3. ✅ **VECTOR_TYPE_GUIDE.md** - Setup embeddings e vettori
-4. ✅ **API_DOCUMENTATION.md** - Endpoint RAG e Search
+1. ✅ **🚀 Quick Start RAG (5 minuti)** - Linea 773 di questo documento - Per iniziare subito!
+2. ✅ **Guida Ricerca e RAG** (in questo documento) - Sezione completa (linea 239)
+3. ✅ **MULTI_PROVIDER_CONFIG.md** - Configurazione AI providers
+4. ✅ **VECTOR_TYPE_GUIDE.md** - Setup embeddings e vettori
+5. ✅ **API_DOCUMENTATION.md** - Endpoint RAG e Search
 
 **Output:** Sistema RAG funzionante con esempi pratici
 
