@@ -1383,16 +1383,23 @@
                         // Log embedding vector details for debugging
                         Console.WriteLine($"=== EMBEDDING VECTOR DEBUG INFO ===");
                         Console.WriteLine($"File: {selectedFile.Name}");
+                        Console.WriteLine($"User ID: {currentUserId}");
                         Console.WriteLine($"Embedding Length: {embedding.Length}");
-                        Console.WriteLine($"First 10 values: [{string.Join(", ", embedding.Take(10).Select(v => v.ToString("F6")))}]");
-                        Console.WriteLine($"Last 10 values: [{string.Join(", ", embedding.Skip(Math.Max(0, embedding.Length - 10)).Select(v => v.ToString("F6")))}]");
+                        Console.WriteLine($"First 10 values: [{string.Join(", ", embedding.Take(10).Select(v => v.ToString("F8")))}]");
+                        Console.WriteLine($"Values 11-20: [{string.Join(", ", embedding.Skip(10).Take(10).Select(v => v.ToString("F8")))}]");
+                        Console.WriteLine($"Last 10 values: [{string.Join(", ", embedding.Skip(Math.Max(0, embedding.Length - 10)).Select(v => v.ToString("F8")))}]");
                         
                         // Calculate and log statistics
                         var mean = embedding.Average();
                         var stdDev = Math.Sqrt(embedding.Select(v => Math.Pow(v - mean, 2)).Average());
                         var min = embedding.Min();
                         var max = embedding.Max();
-                        Console.WriteLine($"Statistics: Mean={mean:F6}, StdDev={stdDev:F6}, Min={min:F6}, Max={max:F6}");
+                        var sum = embedding.Sum();
+                        var magnitude = Math.Sqrt(embedding.Select(v => (double)v * v).Sum());
+                        Console.WriteLine($"Statistics:");
+                        Console.WriteLine($"  Mean={mean:F8}, StdDev={stdDev:F8}");
+                        Console.WriteLine($"  Min={min:F8}, Max={max:F8}");
+                        Console.WriteLine($"  Sum={sum:F8}, Magnitude={magnitude:F8}");
                         Console.WriteLine($"=== END EMBEDDING VECTOR DEBUG INFO ===");
                         
                         // Step 2.5: Search for similar documents using the generated embedding

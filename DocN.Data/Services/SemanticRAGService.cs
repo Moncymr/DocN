@@ -382,35 +382,52 @@ Always cite your sources using [Document N] format where N is the document numbe
                 .Where(d => d.OwnerId == userId && d.EmbeddingVector != null)
                 .ToListAsync();
 
-            _logger.LogDebug("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
+            _logger.LogInformation("=== SIMILARITY SEARCH DEBUG ===");
+            _logger.LogInformation("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
+            _logger.LogInformation("Minimum similarity threshold: {Threshold:P0}", minSimilarity);
             
             // Log query embedding details for debugging
-            _logger.LogDebug("Query embedding length: {Length}, First 5 values: [{Values}]",
-                queryEmbedding.Length,
-                string.Join(", ", queryEmbedding.Take(5).Select(v => v.ToString("F6"))));
+            _logger.LogInformation("Query embedding - Length: {Length}", queryEmbedding.Length);
+            _logger.LogInformation("Query embedding - First 10 values: [{Values}]",
+                string.Join(", ", queryEmbedding.Take(10).Select(v => v.ToString("F8"))));
+            _logger.LogInformation("Query embedding - Last 10 values: [{Values}]",
+                string.Join(", ", queryEmbedding.Skip(Math.Max(0, queryEmbedding.Length - 10)).Select(v => v.ToString("F8"))));
 
             // Calculate similarity scores for documents
             var scoredDocs = new List<(Document doc, double score)>();
+            int comparisonCount = 0;
             foreach (var doc in documents)
             {
-                if (doc.EmbeddingVector == null) continue;
+                if (doc.EmbeddingVector == null)
+                {
+                    _logger.LogWarning("Document {FileName} (ID: {Id}) has NULL embedding vector - skipping", doc.FileName, doc.Id);
+                    continue;
+                }
 
-                // Log document embedding details for debugging
-                _logger.LogDebug("Comparing with document {FileName}: embedding length {Length}, First 5 values: [{Values}]",
-                    doc.FileName,
-                    doc.EmbeddingVector.Length,
-                    string.Join(", ", doc.EmbeddingVector.Take(5).Select(v => v.ToString("F6"))));
+                comparisonCount++;
+                _logger.LogInformation("--- Comparison #{Count}: Document {FileName} (ID: {Id}) ---", comparisonCount, doc.FileName, doc.Id);
+                _logger.LogInformation("  Document embedding - Length: {Length}", doc.EmbeddingVector.Length);
+                _logger.LogInformation("  Document embedding - First 10 values: [{Values}]",
+                    string.Join(", ", doc.EmbeddingVector.Take(10).Select(v => v.ToString("F8"))));
+                _logger.LogInformation("  Document embedding - Last 10 values: [{Values}]",
+                    string.Join(", ", doc.EmbeddingVector.Skip(Math.Max(0, doc.EmbeddingVector.Length - 10)).Select(v => v.ToString("F8"))));
 
                 var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
-                _logger.LogDebug("Document {FileName} (ID: {Id}) similarity: {Similarity:P2}", doc.FileName, doc.Id, similarity);
+                _logger.LogInformation("  Calculated similarity: {Similarity} ({SimilarityPercent:P2})", similarity, similarity);
                 
                 if (similarity >= minSimilarity)
                 {
+                    _logger.LogInformation("  ✓ MATCH - Above threshold! Adding to results.");
                     scoredDocs.Add((doc, similarity));
+                }
+                else
+                {
+                    _logger.LogInformation("  ✗ NO MATCH - Below threshold of {Threshold:P0}", minSimilarity);
                 }
             }
 
-            _logger.LogDebug("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
+            _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
+            _logger.LogInformation("=== END SIMILARITY SEARCH DEBUG ===");
 
             // Get chunks for better precision
             var chunks = await _context.DocumentChunks
