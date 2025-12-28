@@ -333,7 +333,8 @@ public class FileProcessingService : IFileProcessingService
             _logger.LogInformation("Elaborazione PDF in corso...");
 
             // Create a temporary file to work with iText7 (it needs seekable stream)
-            var tempFile = Path.GetTempFileName();
+            // Use secure random filename to prevent predictable temporary file attacks
+            var tempFile = Path.Combine(Path.GetTempPath(), $"pdf_{Path.GetRandomFileName()}.tmp");
             try
             {
                 // Copy stream to temp file
