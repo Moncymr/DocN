@@ -360,9 +360,27 @@
                                     <span class="result-status" style="background: #e2e8f0; color: #4a5568;">ℹ️ Nessuno trovato</span>
                                 </div>
                                 <div class="result-content">
-                                    <p style="color: #4a5568; margin: 0;">
-                                        ℹ️ Nessun documento simile trovato nel tuo archivio. Questo potrebbe essere il primo documento di questo tipo oppure non ci sono documenti sufficientemente simili (soglia minima: @($"{SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0}")).
+                                    <p style="color: #4a5568; margin: 0 0 0.5rem 0;">
+                                        ℹ️ Nessun documento simile trovato tra i documenti <strong>già salvati</strong> nel tuo archivio.
                                     </p>
+                                    <p style="color: #718096; margin: 0.5rem 0; font-size: 0.9rem;">
+                                        💡 <strong>Nota:</strong> La ricerca confronta questo documento con i file già presenti nel database. 
+                                    </p>
+                                    <div style="background: #edf2f7; padding: 1rem; border-radius: 8px; margin-top: 1rem; border-left: 3px solid #4299e1;">
+                                        <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: #2d3748;">🔍 Debug Info:</p>
+                                        <p style="margin: 0; font-size: 0.875rem; color: #4a5568;">
+                                            Se hai caricato lo stesso file in precedenza:
+                                        </p>
+                                        <ul style="margin: 0.5rem 0 0 1.5rem; font-size: 0.875rem; color: #4a5568;">
+                                            <li>Assicurati di averlo salvato cliccando "Salva Documento"</li>
+                                            <li>Verifica che il file precedente avesse embeddings generati</li>
+                                            <li>Controlla di essere autenticato con lo stesso utente</li>
+                                            <li>Controlla la console del browser (F12) per log di debug</li>
+                                        </ul>
+                                        <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; color: #718096;">
+                                            <em>Soglia di similarità minima: @($"{SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0}"). Con file identici dovremmo vedere ~100% di similarità.</em>
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         }
@@ -1371,12 +1389,28 @@
                             
                             if (!string.IsNullOrEmpty(currentUserId))
                             {
+                                Console.WriteLine($"Searching for similar documents. UserId: {currentUserId}, MinSimilarity: {SIMILAR_DOCUMENTS_MIN_SIMILARITY}");
                                 similarDocuments = await SemanticRAGService.SearchDocumentsAsync(
                                     extractedText,
                                     currentUserId,
                                     topK: SIMILAR_DOCUMENTS_COUNT,
                                     minSimilarity: SIMILAR_DOCUMENTS_MIN_SIMILARITY);
-                                Console.WriteLine($"Found {similarDocuments?.Count ?? 0} similar documents");
+                                Console.WriteLine($"Search completed. Found {similarDocuments?.Count ?? 0} similar documents");
+                                if (similarDocuments != null && similarDocuments.Any())
+                                {
+                                    foreach (var doc in similarDocuments)
+                                    {
+                                        Console.WriteLine($"  - {doc.FileName} (Similarity: {doc.SimilarityScore:P2})");
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine("  No similar documents found or result was null");
+                                }
+                            }
+                            else
+                            {
+                                Console.WriteLine("Cannot search for similar documents: currentUserId is empty");
                             }
                         }
                         catch (Exception simEx)
