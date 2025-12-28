@@ -17,6 +17,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
     public DbSet<DocumentShare> DocumentShares { get; set; }
     public DbSet<DocumentTag> DocumentTags { get; set; }
+    public DbSet<SimilarDocument> SimilarDocuments { get; set; }
     public DbSet<AIConfiguration> AIConfigurations { get; set; }
     
     // Conversazioni e messaggi per RAG
@@ -213,6 +214,32 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // Indexes for performance
             entity.HasIndex(e => e.DocumentId);
             entity.HasIndex(e => new { e.DocumentId, e.ChunkIndex });
+        });
+
+        // SimilarDocument configuration
+        modelBuilder.Entity<SimilarDocument>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SimilarityScore).IsRequired();
+            entity.Property(e => e.RelevantChunk).HasMaxLength(1000);
+            entity.Property(e => e.Rank).IsRequired();
+            
+            // Relationship with source document
+            entity.HasOne(e => e.SourceDocument)
+                .WithMany()
+                .HasForeignKey(e => e.SourceDocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Relationship with similar document (no cascade to avoid cycles)
+            entity.HasOne(e => e.SimilarDocumentRef)
+                .WithMany()
+                .HasForeignKey(e => e.SimilarDocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.SourceDocumentId);
+            entity.HasIndex(e => new { e.SourceDocumentId, e.Rank });
+            entity.HasIndex(e => new { e.SourceDocumentId, e.SimilarityScore });
         });
     }
     

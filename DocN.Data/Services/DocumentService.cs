@@ -1,4 +1,5 @@
 using DocN.Data.Models;
+using DocN.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocN.Data.Services;
@@ -13,6 +14,7 @@ public interface IDocumentService
     Task<bool> ShareDocumentAsync(int documentId, string shareWithUserId, DocumentPermission permission, string currentUserId);
     Task<bool> UpdateDocumentVisibilityAsync(int documentId, DocumentVisibility visibility, string userId);
     Task<Document> CreateDocumentAsync(Document document);
+    Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments);
 }
 
 public class DocumentService : IDocumentService
@@ -218,5 +220,41 @@ public class DocumentService : IDocumentService
         _context.Documents.Add(document);
         await _context.SaveChangesAsync();
         return document;
+    }
+
+    public async Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments)
+    {
+        if (similarDocuments == null || !similarDocuments.Any())
+            return;
+
+        // Remove any existing similar document relationships for this source document
+        var existingRelationships = await _context.SimilarDocuments
+            .Where(sd => sd.SourceDocumentId == sourceDocumentId)
+            .ToListAsync();
+        
+        if (existingRelationships.Any())
+        {
+            _context.SimilarDocuments.RemoveRange(existingRelationships);
+        }
+
+        // Add new similar document relationships
+        int rank = 1;
+        foreach (var similar in similarDocuments.Take(5))  // Limit to top 5
+        {
+            var similarDoc = new SimilarDocument
+            {
+                SourceDocumentId = sourceDocumentId,
+                SimilarDocumentId = similar.DocumentId,
+                SimilarityScore = similar.SimilarityScore,
+                RelevantChunk = similar.RelevantChunk,
+                ChunkIndex = similar.ChunkIndex,
+                AnalyzedAt = DateTime.UtcNow,
+                Rank = rank++
+            };
+            
+            _context.SimilarDocuments.Add(similarDoc);
+        }
+
+        await _context.SaveChangesAsync();
     }
 }

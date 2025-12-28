@@ -12,6 +12,7 @@ public class DocArcContext : DbContext
 
     public DbSet<Document> Documents { get; set; }
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
+    public DbSet<SimilarDocument> SimilarDocuments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -93,6 +94,35 @@ public class DocArcContext : DbContext
             // Indexes for performance
             entity.HasIndex(e => e.DocumentId);
             entity.HasIndex(e => new { e.DocumentId, e.ChunkIndex });
+        });
+
+        // SimilarDocument configuration
+        modelBuilder.Entity<SimilarDocument>(entity =>
+        {
+            entity.ToTable("SimilarDocuments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SimilarityScore).IsRequired();
+            entity.Property(e => e.RelevantChunk).HasMaxLength(1000).IsRequired(false);
+            entity.Property(e => e.ChunkIndex).IsRequired(false);
+            entity.Property(e => e.AnalyzedAt).IsRequired();
+            entity.Property(e => e.Rank).IsRequired();
+            
+            // Relationship with source document
+            entity.HasOne(e => e.SourceDocument)
+                .WithMany()
+                .HasForeignKey(e => e.SourceDocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Relationship with similar document (no cascade to avoid cycles)
+            entity.HasOne(e => e.SimilarDocumentRef)
+                .WithMany()
+                .HasForeignKey(e => e.SimilarDocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.SourceDocumentId);
+            entity.HasIndex(e => new { e.SourceDocumentId, e.Rank });
+            entity.HasIndex(e => new { e.SourceDocumentId, e.SimilarityScore });
         });
     }
     

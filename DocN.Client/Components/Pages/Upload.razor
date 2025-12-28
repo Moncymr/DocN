@@ -1555,6 +1555,13 @@
             try
             {
                 await DocumentService.CreateDocumentAsync(document);
+                
+                // Save similar documents if they were found
+                if (similarDocuments != null && similarDocuments.Any())
+                {
+                    await DocumentService.SaveSimilarDocumentsAsync(document.Id, similarDocuments);
+                }
+                
                 successMessage = $"✅ Document '{selectedFile.Name}' saved successfully!";
                 
                 // Wait a moment then redirect
