@@ -1,6 +1,9 @@
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using iText.Kernel.Pdf;
+using iText.Kernel.Pdf.Canvas.Parser;
+using iText.Kernel.Pdf.Canvas.Parser.Listener;
 
 namespace DocN.Data.Services;
 
@@ -321,42 +324,100 @@ public class FileProcessingService : IFileProcessingService
 
     /// <summary>
     /// Elabora un file PDF
-    /// Supporta PDF con testo, PDF scansionati (con OCR), estrazione immagini
+    /// Supporta PDF con testo, estrazione metadata, conteggio pagine
     /// </summary>
     private async Task ProcessPdfAsync(Stream stream, FileProcessingResult result)
     {
         try
         {
-            // TODO: Implementare con libreria PDF
-            // Opzioni:
-            // 1. PdfPig (free, open source) - Raccomandato
-            // 2. iTextSharp (AGPL license)
-            // 3. PDFium.NET (wrapper di PDFium di Google)
-            
             _logger.LogInformation("Elaborazione PDF in corso...");
 
-            // Per ora: estrazione testo basilare
-            // In produzione: usare PdfPig o simili
-            using var reader = new StreamReader(stream);
-            result.ExtractedText = await reader.ReadToEndAsync();
-            
-            result.Success = true;
-            result.PageCount = 1; // TODO: contare pagine reali
-            
-            // TODO: Implementare
-            // - Estrazione testo da ogni pagina
-            // - OCR per PDF scansionati (con Tesseract)
-            // - Estrazione immagini
-            // - Estrazione tabelle
-            // - Estrazione metadata (autore, data creazione, ecc.)
-            
-            _logger.LogInformation("PDF elaborato: {Chars} caratteri", result.ExtractedText.Length);
+            // Create a temporary file to work with iText7 (it needs seekable stream)
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                // Copy stream to temp file
+                using (var fileStream = File.Create(tempFile))
+                {
+                    await stream.CopyToAsync(fileStream);
+                }
+
+                // Open PDF document
+                using var pdfReader = new PdfReader(tempFile);
+                using var pdfDocument = new PdfDocument(pdfReader);
+                
+                var textBuilder = new StringBuilder();
+                int pageCount = pdfDocument.GetNumberOfPages();
+                
+                _logger.LogInformation("PDF has {PageCount} pages", pageCount);
+
+                // Extract text from each page
+                for (int i = 1; i <= pageCount; i++)
+                {
+                    try
+                    {
+                        var page = pdfDocument.GetPage(i);
+                        var strategy = new LocationTextExtractionStrategy();
+                        var pageText = PdfTextExtractor.GetTextFromPage(page, strategy);
+                        
+                        if (!string.IsNullOrWhiteSpace(pageText))
+                        {
+                            textBuilder.AppendLine($"--- Page {i} ---");
+                            textBuilder.AppendLine(pageText);
+                            textBuilder.AppendLine();
+                        }
+                    }
+                    catch (Exception pageEx)
+                    {
+                        _logger.LogWarning(pageEx, "Errore nell'estrazione testo dalla pagina {PageNumber}", i);
+                        textBuilder.AppendLine($"[Error extracting text from page {i}]");
+                    }
+                }
+
+                result.ExtractedText = textBuilder.ToString();
+                result.PageCount = pageCount;
+                
+                // Extract metadata
+                var info = pdfDocument.GetDocumentInfo();
+                if (info != null)
+                {
+                    if (!string.IsNullOrEmpty(info.GetTitle()))
+                        result.Metadata["Title"] = info.GetTitle();
+                    if (!string.IsNullOrEmpty(info.GetAuthor()))
+                        result.Metadata["Author"] = info.GetAuthor();
+                    if (!string.IsNullOrEmpty(info.GetSubject()))
+                        result.Metadata["Subject"] = info.GetSubject();
+                    if (!string.IsNullOrEmpty(info.GetKeywords()))
+                        result.Metadata["Keywords"] = info.GetKeywords();
+                    if (!string.IsNullOrEmpty(info.GetCreator()))
+                        result.Metadata["Creator"] = info.GetCreator();
+                    if (!string.IsNullOrEmpty(info.GetProducer()))
+                        result.Metadata["Producer"] = info.GetProducer();
+                }
+
+                result.Success = true;
+                _logger.LogInformation("PDF elaborato con successo: {Pages} pagine, {Chars} caratteri estratti", 
+                    pageCount, result.ExtractedText.Length);
+            }
+            finally
+            {
+                // Clean up temp file
+                try
+                {
+                    if (File.Exists(tempFile))
+                        File.Delete(tempFile);
+                }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogWarning(cleanupEx, "Impossibile eliminare il file temporaneo: {TempFile}", tempFile);
+                }
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore elaborazione PDF");
             result.Success = false;
-            result.ErrorMessage = ex.Message;
+            result.ErrorMessage = $"Errore durante l'elaborazione del PDF: {ex.Message}";
         }
     }
 
