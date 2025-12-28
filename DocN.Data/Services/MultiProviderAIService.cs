@@ -583,6 +583,8 @@ Rispondi in formato JSON:
     {
         try
         {
+            // Note: This method uses GenerateChatCompletionAsync which automatically
+            // determines the correct provider based on TagExtractionProvider configuration
             var systemPrompt = "You are a tag extraction expert. Extract 5-10 relevant keywords or tags from documents.";
             
             var userPrompt = $@"Extract 5-10 relevant tags or keywords from this document.
@@ -655,21 +657,32 @@ Respond in JSON format:
         public List<string> Tags { get; set; } = new List<string>();
     }
 
-    public string GetCurrentChatProvider()
+    public async Task<string> GetCurrentChatProviderAsync()
     {
-        var config = GetActiveConfigurationAsync().GetAwaiter().GetResult();
+        var config = await GetActiveConfigurationAsync();
         if (config == null) return "Nessuno";
         
         var provider = config.ChatProvider ?? config.ProviderType;
         return provider.ToString();
     }
 
-    public string GetCurrentEmbeddingProvider()
+    public async Task<string> GetCurrentEmbeddingProviderAsync()
     {
-        var config = GetActiveConfigurationAsync().GetAwaiter().GetResult();
+        var config = await GetActiveConfigurationAsync();
         if (config == null) return "Nessuno";
         
         var provider = config.EmbeddingsProvider ?? config.ProviderType;
         return provider.ToString();
+    }
+
+    // Synchronous wrappers for backward compatibility
+    public string GetCurrentChatProvider()
+    {
+        return GetCurrentChatProviderAsync().GetAwaiter().GetResult();
+    }
+
+    public string GetCurrentEmbeddingProvider()
+    {
+        return GetCurrentEmbeddingProviderAsync().GetAwaiter().GetResult();
     }
 }
