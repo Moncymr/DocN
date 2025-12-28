@@ -97,35 +97,37 @@ builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
 
-// Configure Semantic Kernel for RAG Service
-var kernelBuilder = Kernel.CreateBuilder();
-
-// Configure AI services based on configuration
+// Configure Semantic Kernel for RAG Service (only if AI services are configured)
 var azureOpenAIEndpoint = builder.Configuration["AzureOpenAI:Endpoint"];
 var azureOpenAIKey = builder.Configuration["AzureOpenAI:ApiKey"];
 var azureOpenAIChatDeployment = builder.Configuration["AzureOpenAI:ChatDeployment"] ?? "gpt-4";
 var azureOpenAIEmbeddingDeployment = builder.Configuration["AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-ada-002";
+var openAIKey = builder.Configuration["OpenAI:ApiKey"];
 
-if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpenAIKey))
-{
-    // Add Azure OpenAI Chat Completion
-    kernelBuilder.AddAzureOpenAIChatCompletion(
-        deploymentName: azureOpenAIChatDeployment,
-        endpoint: azureOpenAIEndpoint,
-        apiKey: azureOpenAIKey);
+var hasAIServiceConfigured = (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpenAIKey)) ||
+                             !string.IsNullOrEmpty(openAIKey);
 
-    // Add Azure OpenAI Text Embedding
-    kernelBuilder.AddAzureOpenAITextEmbeddingGeneration(
-        deploymentName: azureOpenAIEmbeddingDeployment,
-        endpoint: azureOpenAIEndpoint,
-        apiKey: azureOpenAIKey);
-}
-else
+if (hasAIServiceConfigured)
 {
-    // Fallback to OpenAI if Azure is not configured
-    var openAIKey = builder.Configuration["OpenAI:ApiKey"];
-    if (!string.IsNullOrEmpty(openAIKey))
+    var kernelBuilder = Kernel.CreateBuilder();
+
+    if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpenAIKey))
     {
+        // Add Azure OpenAI Chat Completion
+        kernelBuilder.AddAzureOpenAIChatCompletion(
+            deploymentName: azureOpenAIChatDeployment,
+            endpoint: azureOpenAIEndpoint,
+            apiKey: azureOpenAIKey);
+
+        // Add Azure OpenAI Text Embedding
+        kernelBuilder.AddAzureOpenAITextEmbeddingGeneration(
+            deploymentName: azureOpenAIEmbeddingDeployment,
+            endpoint: azureOpenAIEndpoint,
+            apiKey: azureOpenAIKey);
+    }
+    else if (!string.IsNullOrEmpty(openAIKey))
+    {
+        // Fallback to OpenAI if Azure is not configured
         kernelBuilder.AddOpenAIChatCompletion(
             modelId: "gpt-4",
             apiKey: openAIKey);
@@ -134,17 +136,26 @@ else
             modelId: "text-embedding-ada-002",
             apiKey: openAIKey);
     }
+
+    var kernel = kernelBuilder.Build();
+    builder.Services.AddSingleton(kernel);
+
+    // Register additional services for RAG
+    builder.Services.AddScoped<DocN.Data.Services.IChunkingService, ChunkingService>();
+    builder.Services.AddScoped<ICacheService, CacheService>();
+
+    // Register Semantic RAG Service only when AI services are configured
+    builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
 }
-
-var kernel = kernelBuilder.Build();
-builder.Services.AddSingleton(kernel);
-
-// Register additional services for RAG
-builder.Services.AddScoped<DocN.Data.Services.IChunkingService, ChunkingService>();
-builder.Services.AddScoped<ICacheService, CacheService>();
-
-// Register Semantic RAG Service
-builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
+else
+{
+    // Register a no-op implementation when no AI service is configured
+    builder.Services.AddScoped<DocN.Data.Services.IChunkingService, ChunkingService>();
+    builder.Services.AddScoped<ICacheService, CacheService>();
+    
+    // Register a no-op service that returns empty results when AI is not configured
+    builder.Services.AddScoped<ISemanticRAGService, NoOpSemanticRAGService>();
+}
 
 // Register ApplicationSeeder
 builder.Services.AddScoped<DocN.Data.Services.ApplicationSeeder>();
