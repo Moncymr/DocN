@@ -13,15 +13,21 @@ public class DocumentsController : ControllerBase
     private readonly DocArcContext _context;
     private readonly ILogger<DocumentsController> _logger;
     private readonly IChunkingService _chunkingService;
+    private readonly IBatchProcessingService _batchProcessingService;
+    private readonly IEmbeddingService _embeddingService;
 
     public DocumentsController(
         DocArcContext context, 
         ILogger<DocumentsController> logger,
-        IChunkingService chunkingService)
+        IChunkingService chunkingService,
+        IBatchProcessingService batchProcessingService,
+        IEmbeddingService embeddingService)
     {
         _context = context;
         _logger = logger;
         _chunkingService = chunkingService;
+        _batchProcessingService = batchProcessingService;
+        _embeddingService = embeddingService;
     }
 
     [HttpGet]
@@ -157,6 +163,76 @@ public class DocumentsController : ControllerBase
         {
             _logger.LogError(ex, "Error retrieving categories");
             return StatusCode(500, "An error occurred while retrieving categories");
+        }
+    }
+
+    [HttpPost("recreate-embeddings")]
+    public async Task<ActionResult> RecreateAllEmbeddings()
+    {
+        try
+        {
+            _logger.LogInformation("Starting recreation of all embeddings");
+
+            // Get all documents
+            var documents = await _context.Documents
+                .Where(d => !string.IsNullOrEmpty(d.ExtractedText))
+                .ToListAsync();
+
+            _logger.LogInformation("Found {Count} documents to process", documents.Count);
+
+            int successCount = 0;
+            int errorCount = 0;
+
+            foreach (var document in documents)
+            {
+                try
+                {
+                    // Regenerate embedding for document
+                    var embedding = await _embeddingService.GenerateEmbeddingAsync(document.ExtractedText);
+                    if (embedding != null)
+                    {
+                        document.EmbeddingVector = embedding;
+                        successCount++;
+                    }
+
+                    // Delete existing chunks and recreate them
+                    var existingChunks = await _context.DocumentChunks
+                        .Where(c => c.DocumentId == document.Id)
+                        .ToListAsync();
+                    
+                    _context.DocumentChunks.RemoveRange(existingChunks);
+
+                    // Create new chunks with embeddings
+                    var newChunks = _chunkingService.ChunkDocument(document);
+                    foreach (var chunk in newChunks)
+                    {
+                        var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+                        if (chunkEmbedding != null)
+                        {
+                            chunk.ChunkEmbedding = chunkEmbedding;
+                        }
+                        _context.DocumentChunks.Add(chunk);
+                    }
+
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Recreated embeddings for document {Id}: {FileName}", 
+                        document.Id, document.FileName);
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    _logger.LogError(ex, "Error recreating embeddings for document {Id}", document.Id);
+                }
+            }
+
+            var message = $"Embeddings ricreati per {successCount} documenti. Errori: {errorCount}";
+            _logger.LogInformation(message);
+            return Ok(new { message, successCount, errorCount, totalDocuments = documents.Count });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recreating all embeddings");
+            return StatusCode(500, "An error occurred while recreating embeddings");
         }
     }
 }
