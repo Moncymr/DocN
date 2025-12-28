@@ -1,9 +1,15 @@
 using System.Text;
+using System.Xml;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
+using DocumentFormat.OpenXml.Spreadsheet;
+using DocumentFormat.OpenXml.Presentation;
+using ClosedXML.Excel;
 
 namespace DocN.Data.Services;
 
@@ -429,31 +435,99 @@ public class FileProcessingService : IFileProcessingService
     {
         try
         {
-            // TODO: Implementare con DocumentFormat.OpenXml (per .docx)
-            // Per .doc vecchi: usare Aspose.Words o LibreOffice via CLI
-            
             _logger.LogInformation("Elaborazione Word in corso...");
 
-            // Per ora: estrazione basilare
-            using var reader = new StreamReader(stream);
-            result.ExtractedText = await reader.ReadToEndAsync();
-            
-            result.Success = true;
-            
-            // TODO: Implementare
-            // - Estrazione testo preservando struttura (paragrafi, titoli)
-            // - Estrazione tabelle
-            // - Estrazione immagini
-            // - Estrazione metadata (autore, commenti, revisioni)
-            // - Gestione Word .doc legacy
-            
-            _logger.LogInformation("Word elaborato: {Chars} caratteri", result.ExtractedText.Length);
+            // Create a temporary file for OpenXml (it needs seekable stream)
+            var tempFile = Path.Combine(Path.GetTempPath(), $"word_{Path.GetRandomFileName()}.tmp");
+            try
+            {
+                // Copy stream to temp file
+                using (var fileStream = File.Create(tempFile))
+                {
+                    await stream.CopyToAsync(fileStream);
+                }
+
+                // Open Word document
+                using var wordDocument = WordprocessingDocument.Open(tempFile, false);
+                var body = wordDocument.MainDocumentPart?.Document?.Body;
+                
+                if (body == null)
+                {
+                    result.Success = false;
+                    result.ErrorMessage = "Documento Word non valido o vuoto";
+                    return;
+                }
+
+                var textBuilder = new StringBuilder();
+                
+                // Extract all text from paragraphs
+                foreach (var paragraph in body.Descendants<Paragraph>())
+                {
+                    var paragraphText = paragraph.InnerText;
+                    if (!string.IsNullOrWhiteSpace(paragraphText))
+                    {
+                        textBuilder.AppendLine(paragraphText);
+                    }
+                }
+                
+                // Extract text from tables
+                foreach (var table in body.Descendants<DocumentFormat.OpenXml.Wordprocessing.Table>())
+                {
+                    textBuilder.AppendLine("\n[TABLE]");
+                    foreach (var row in table.Descendants<TableRow>())
+                    {
+                        var rowText = string.Join(" | ", 
+                            row.Descendants<TableCell>().Select(cell => cell.InnerText.Trim()));
+                        if (!string.IsNullOrWhiteSpace(rowText))
+                        {
+                            textBuilder.AppendLine(rowText);
+                        }
+                    }
+                    textBuilder.AppendLine("[/TABLE]\n");
+                }
+
+                result.ExtractedText = textBuilder.ToString();
+                
+                // Extract metadata
+                var coreProps = wordDocument.PackageProperties;
+                if (coreProps != null)
+                {
+                    if (!string.IsNullOrEmpty(coreProps.Title))
+                        result.Metadata["Title"] = coreProps.Title;
+                    if (!string.IsNullOrEmpty(coreProps.Creator))
+                        result.Metadata["Author"] = coreProps.Creator;
+                    if (!string.IsNullOrEmpty(coreProps.Subject))
+                        result.Metadata["Subject"] = coreProps.Subject;
+                    if (!string.IsNullOrEmpty(coreProps.Keywords))
+                        result.Metadata["Keywords"] = coreProps.Keywords;
+                    if (coreProps.Created.HasValue)
+                        result.Metadata["CreatedDate"] = coreProps.Created.Value.ToString("yyyy-MM-dd");
+                    if (coreProps.Modified.HasValue)
+                        result.Metadata["ModifiedDate"] = coreProps.Modified.Value.ToString("yyyy-MM-dd");
+                }
+
+                result.Success = true;
+                _logger.LogInformation("Word elaborato: {Chars} caratteri estratti", result.ExtractedText.Length);
+            }
+            finally
+            {
+                // Clean up temp file
+                try
+                {
+                    if (File.Exists(tempFile))
+                        File.Delete(tempFile);
+                }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogWarning(cleanupEx, "Impossibile eliminare il file temporaneo: {TempFile}", tempFile);
+                }
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore elaborazione Word");
             result.Success = false;
-            result.ErrorMessage = ex.Message;
+            result.ErrorMessage = $"Errore durante l'elaborazione del documento Word: {ex.Message}";
         }
     }
 
@@ -464,31 +538,103 @@ public class FileProcessingService : IFileProcessingService
     {
         try
         {
-            // TODO: Implementare con ClosedXML o EPPlus (per .xlsx)
-            
             _logger.LogInformation("Elaborazione Excel in corso...");
 
-            // Per ora: estrazione basilare
-            using var reader = new StreamReader(stream);
-            result.ExtractedText = await reader.ReadToEndAsync();
-            
-            result.Success = true;
-            result.Tables = new List<ExtractedTable>();
-            
-            // TODO: Implementare
-            // - Estrazione dati da ogni foglio
-            // - Preservare struttura tabelle
-            // - Estrazione formule
-            // - Gestione celle vuote e formattazione
-            // - Estrazione grafici (come immagini)
-            
-            _logger.LogInformation("Excel elaborato: {Chars} caratteri", result.ExtractedText.Length);
+            // Create a temporary file for ClosedXML (it needs seekable stream)
+            var tempFile = Path.Combine(Path.GetTempPath(), $"excel_{Path.GetRandomFileName()}.tmp");
+            try
+            {
+                // Copy stream to temp file
+                using (var fileStream = File.Create(tempFile))
+                {
+                    await stream.CopyToAsync(fileStream);
+                }
+
+                // Open Excel workbook
+                using var workbook = new XLWorkbook(tempFile);
+                var textBuilder = new StringBuilder();
+                result.Tables = new List<ExtractedTable>();
+                
+                // Process each worksheet
+                foreach (var worksheet in workbook.Worksheets)
+                {
+                    textBuilder.AppendLine($"\n=== Sheet: {worksheet.Name} ===\n");
+                    
+                    var usedRange = worksheet.RangeUsed();
+                    if (usedRange == null)
+                    {
+                        textBuilder.AppendLine("[Empty sheet]");
+                        continue;
+                    }
+
+                    var table = new ExtractedTable
+                    {
+                        Name = worksheet.Name
+                    };
+
+                    // Extract data row by row
+                    foreach (var row in usedRange.Rows())
+                    {
+                        var rowData = new List<string>();
+                        var rowText = new StringBuilder();
+                        
+                        foreach (var cell in row.Cells())
+                        {
+                            var cellValue = cell.GetValue<string>();
+                            rowData.Add(cellValue);
+                            rowText.Append(cellValue);
+                            rowText.Append("\t");
+                        }
+                        
+                        table.Rows.Add(rowData);
+                        textBuilder.AppendLine(rowText.ToString().TrimEnd());
+                    }
+                    
+                    result.Tables.Add(table);
+                    textBuilder.AppendLine();
+                }
+
+                result.ExtractedText = textBuilder.ToString();
+                
+                // Extract metadata
+                var props = workbook.Properties;
+                if (props != null)
+                {
+                    if (!string.IsNullOrEmpty(props.Title))
+                        result.Metadata["Title"] = props.Title;
+                    if (!string.IsNullOrEmpty(props.Author))
+                        result.Metadata["Author"] = props.Author;
+                    if (!string.IsNullOrEmpty(props.Subject))
+                        result.Metadata["Subject"] = props.Subject;
+                    if (!string.IsNullOrEmpty(props.Keywords))
+                        result.Metadata["Keywords"] = props.Keywords;
+                    if (!string.IsNullOrEmpty(props.Company))
+                        result.Metadata["Company"] = props.Company;
+                }
+
+                result.Success = true;
+                _logger.LogInformation("Excel elaborato: {Sheets} fogli, {Tables} tabelle, {Chars} caratteri", 
+                    workbook.Worksheets.Count, result.Tables.Count, result.ExtractedText.Length);
+            }
+            finally
+            {
+                // Clean up temp file
+                try
+                {
+                    if (File.Exists(tempFile))
+                        File.Delete(tempFile);
+                }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogWarning(cleanupEx, "Impossibile eliminare il file temporaneo: {TempFile}", tempFile);
+                }
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore elaborazione Excel");
             result.Success = false;
-            result.ErrorMessage = ex.Message;
+            result.ErrorMessage = $"Errore durante l'elaborazione del file Excel: {ex.Message}";
         }
     }
 
@@ -499,69 +645,140 @@ public class FileProcessingService : IFileProcessingService
     {
         try
         {
-            // TODO: Implementare con DocumentFormat.OpenXml
-            
             _logger.LogInformation("Elaborazione PowerPoint in corso...");
 
-            using var reader = new StreamReader(stream);
-            result.ExtractedText = await reader.ReadToEndAsync();
-            
-            result.Success = true;
-            
-            // TODO: Implementare
-            // - Estrazione testo da ogni slide
-            // - Estrazione note speaker
-            // - Estrazione immagini e grafici
-            // - Preservare struttura slide
-            
-            _logger.LogInformation("PowerPoint elaborato: {Chars} caratteri", result.ExtractedText.Length);
+            // Create a temporary file for OpenXml (it needs seekable stream)
+            var tempFile = Path.Combine(Path.GetTempPath(), $"ppt_{Path.GetRandomFileName()}.tmp");
+            try
+            {
+                // Copy stream to temp file
+                using (var fileStream = File.Create(tempFile))
+                {
+                    await stream.CopyToAsync(fileStream);
+                }
+
+                // Open PowerPoint presentation
+                using var presentation = PresentationDocument.Open(tempFile, false);
+                var presentationPart = presentation.PresentationPart;
+                
+                if (presentationPart == null)
+                {
+                    result.Success = false;
+                    result.ErrorMessage = "Presentazione PowerPoint non valida o vuota";
+                    return;
+                }
+
+                var textBuilder = new StringBuilder();
+                var slidesPart = presentationPart.SlideParts;
+                int slideNumber = 1;
+
+                // Extract text from each slide
+                foreach (var slidePart in slidesPart)
+                {
+                    textBuilder.AppendLine($"\n=== Slide {slideNumber} ===\n");
+                    
+                    // Extract text from all text-containing elements
+                    var texts = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Text>();
+                    foreach (var text in texts)
+                    {
+                        if (!string.IsNullOrWhiteSpace(text.Text))
+                        {
+                            textBuilder.AppendLine(text.Text);
+                        }
+                    }
+                    
+                    // Extract notes if available
+                    if (slidePart.NotesSlidePart != null)
+                    {
+                        var noteTexts = slidePart.NotesSlidePart.NotesSlide.Descendants<DocumentFormat.OpenXml.Drawing.Text>();
+                        var notes = string.Join(" ", noteTexts.Select(t => t.Text?.Trim()).Where(t => !string.IsNullOrWhiteSpace(t)));
+                        if (!string.IsNullOrWhiteSpace(notes))
+                        {
+                            textBuilder.AppendLine($"\n[Notes: {notes}]");
+                        }
+                    }
+                    
+                    textBuilder.AppendLine();
+                    slideNumber++;
+                }
+
+                result.ExtractedText = textBuilder.ToString();
+                result.PageCount = slideNumber - 1;
+                
+                // Extract metadata
+                var coreProps = presentation.PackageProperties;
+                if (coreProps != null)
+                {
+                    if (!string.IsNullOrEmpty(coreProps.Title))
+                        result.Metadata["Title"] = coreProps.Title;
+                    if (!string.IsNullOrEmpty(coreProps.Creator))
+                        result.Metadata["Author"] = coreProps.Creator;
+                    if (!string.IsNullOrEmpty(coreProps.Subject))
+                        result.Metadata["Subject"] = coreProps.Subject;
+                    if (coreProps.Created.HasValue)
+                        result.Metadata["CreatedDate"] = coreProps.Created.Value.ToString("yyyy-MM-dd");
+                }
+
+                result.Success = true;
+                _logger.LogInformation("PowerPoint elaborato: {Slides} slide, {Chars} caratteri", 
+                    result.PageCount, result.ExtractedText.Length);
+            }
+            finally
+            {
+                // Clean up temp file
+                try
+                {
+                    if (File.Exists(tempFile))
+                        File.Delete(tempFile);
+                }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogWarning(cleanupEx, "Impossibile eliminare il file temporaneo: {TempFile}", tempFile);
+                }
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore elaborazione PowerPoint");
             result.Success = false;
-            result.ErrorMessage = ex.Message;
+            result.ErrorMessage = $"Errore durante l'elaborazione della presentazione: {ex.Message}";
         }
     }
 
     /// <summary>
-    /// Elabora un'immagine con OCR
-    /// Usa librerie .NET moderne invece di OCX legacy
+    /// Elabora un'immagine
+    /// Attualmente estrae metadata di base. OCR può essere implementato con Tesseract.NET
     /// </summary>
     private async Task ProcessImageAsync(Stream stream, string fileName, FileProcessingResult result)
     {
         try
         {
-            // TODO: Implementare OCR con Tesseract.NET
-            // 1. Caricare immagine con SixLabors.ImageSharp
-            // 2. Pre-processare (conversione grayscale, contrasto, ecc.)
-            // 3. Eseguire OCR con Tesseract
-            // 4. Post-processare testo (correzione errori comuni)
-            
-            _logger.LogInformation("Elaborazione immagine con OCR: {FileName}", fileName);
+            _logger.LogInformation("Elaborazione immagine: {FileName}", fileName);
 
-            // Per ora: placeholder
-            result.ExtractedText = $"[Immagine: {fileName}]";
+            // For now: placeholder indicating image file with basic info
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            result.ExtractedText = $"[Immagine: {fileName}]\n\nTipo: {extension}\nFormato supportato per archiviazione.";
             result.Success = true;
             
             // Metadata dell'immagine
             result.Metadata["OriginalFileName"] = fileName;
-            result.Metadata["ProcessingNote"] = "OCR non ancora implementato. Usare Tesseract.NET.";
+            result.Metadata["FileType"] = "Image";
+            result.Metadata["Extension"] = extension;
+            result.Metadata["ProcessingNote"] = "File immagine archiviato. Per OCR futuro: implementare Tesseract.NET";
             
-            // TODO: Implementare
-            // - Caricamento con ImageSharp
-            // - Pre-elaborazione immagine (deskew, denoise, contrast enhancement)
-            // - OCR con Tesseract (multi-lingua)
-            // - Rilevamento orientamento e rotazione automatica
-            // - Estrazione metadata EXIF
+            // Note: Per implementare OCR in futuro:
+            // 1. Usare SixLabors.ImageSharp per caricare e pre-processare l'immagine
+            // 2. Applicare pre-processing (grayscale, contrasto, deskew)
+            // 3. Usare Tesseract.NET per OCR
+            // 4. Post-processare il testo estratto
             
-            _logger.LogInformation("Immagine elaborata (OCR placeholder)");
+            _logger.LogInformation("Immagine elaborata: {FileName} (metadata estratti, OCR non implementato)", fileName);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore elaborazione immagine: {FileName}", fileName);
             result.Success = false;
-            result.ErrorMessage = ex.Message;
+            result.ErrorMessage = $"Errore durante l'elaborazione dell'immagine: {ex.Message}";
         }
     }
 
@@ -575,20 +792,56 @@ public class FileProcessingService : IFileProcessingService
             _logger.LogInformation("Elaborazione file di testo...");
 
             using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-            result.ExtractedText = await reader.ReadToEndAsync();
+            var content = await reader.ReadToEndAsync();
+            
+            // Special handling for XML files - format for better readability
+            if (result.FileType == FileType.XML && !string.IsNullOrWhiteSpace(content))
+            {
+                try
+                {
+                    var xmlDoc = new XmlDocument();
+                    xmlDoc.LoadXml(content);
+                    
+                    // Format XML with indentation
+                    using var stringWriter = new StringWriter();
+                    using var xmlWriter = XmlWriter.Create(stringWriter, new XmlWriterSettings
+                    {
+                        Indent = true,
+                        IndentChars = "  ",
+                        NewLineChars = "\n",
+                        OmitXmlDeclaration = false
+                    });
+                    xmlDoc.Save(xmlWriter);
+                    result.ExtractedText = stringWriter.ToString();
+                    
+                    // Extract XML metadata
+                    result.Metadata["RootElement"] = xmlDoc.DocumentElement?.Name ?? "Unknown";
+                    result.Metadata["Encoding"] = reader.CurrentEncoding.WebName;
+                }
+                catch
+                {
+                    // If XML parsing fails, use raw content
+                    result.ExtractedText = content;
+                    result.Metadata["Encoding"] = reader.CurrentEncoding.WebName;
+                    result.Metadata["XMLParsingNote"] = "XML non valido, contenuto raw estratto";
+                }
+            }
+            else
+            {
+                result.ExtractedText = content;
+                result.Metadata["Encoding"] = reader.CurrentEncoding.WebName;
+            }
             
             result.Success = true;
             
-            // Rileva encoding
-            result.Metadata["Encoding"] = reader.CurrentEncoding.WebName;
-            
-            _logger.LogInformation("File testo elaborato: {Chars} caratteri", result.ExtractedText.Length);
+            _logger.LogInformation("File testo elaborato: {Chars} caratteri, Tipo: {FileType}", 
+                result.ExtractedText.Length, result.FileType);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore elaborazione file testo");
             result.Success = false;
-            result.ErrorMessage = ex.Message;
+            result.ErrorMessage = $"Errore durante l'elaborazione del file di testo: {ex.Message}";
         }
     }
 
