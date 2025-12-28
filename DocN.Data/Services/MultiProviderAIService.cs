@@ -215,7 +215,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         
         var embedding = response.Value.ToFloats().ToArray();
         
-        // Log embedding info for debugging
+        // Log embedding info for debugging (Console.WriteLine for quick debugging - consider adding ILogger in production)
         Console.WriteLine($"[AzureOpenAI] Generated embedding: {embedding.Length} dimensions");
         Console.WriteLine($"[AzureOpenAI] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
         
@@ -238,7 +238,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         
         var embedding = response.Value.ToFloats().ToArray();
         
-        // Log embedding info for debugging
+        // Log embedding info for debugging (Console.WriteLine for quick debugging - consider adding ILogger in production)
         Console.WriteLine($"[OpenAI] Generated embedding: {embedding.Length} dimensions");
         Console.WriteLine($"[OpenAI] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
         
@@ -266,9 +266,8 @@ public class MultiProviderAIService : IMultiProviderAIService
             if (response?.Embedding?.Values != null)
             {
                 var embedding = response.Embedding.Values.Select(v => (float)v).ToArray();
-                Console.WriteLine($"Embedding Gemini generato con successo: {embedding.Length} dimensioni");
                 
-                // Log embedding info for debugging
+                // Log embedding info for debugging (Console.WriteLine for quick debugging - consider adding ILogger in production)
                 Console.WriteLine($"[Gemini] Generated embedding: {embedding.Length} dimensions");
                 Console.WriteLine($"[Gemini] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
                 
