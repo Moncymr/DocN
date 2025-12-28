@@ -383,12 +383,23 @@ Always cite your sources using [Document N] format where N is the document numbe
                 .ToListAsync();
 
             _logger.LogDebug("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
+            
+            // Log query embedding details for debugging
+            _logger.LogDebug("Query embedding length: {Length}, First 5 values: [{Values}]",
+                queryEmbedding.Length,
+                string.Join(", ", queryEmbedding.Take(5).Select(v => v.ToString("F6"))));
 
             // Calculate similarity scores for documents
             var scoredDocs = new List<(Document doc, double score)>();
             foreach (var doc in documents)
             {
                 if (doc.EmbeddingVector == null) continue;
+
+                // Log document embedding details for debugging
+                _logger.LogDebug("Comparing with document {FileName}: embedding length {Length}, First 5 values: [{Values}]",
+                    doc.FileName,
+                    doc.EmbeddingVector.Length,
+                    string.Join(", ", doc.EmbeddingVector.Take(5).Select(v => v.ToString("F6"))));
 
                 var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
                 _logger.LogDebug("Document {FileName} (ID: {Id}) similarity: {Similarity:P2}", doc.FileName, doc.Id, similarity);

@@ -1380,6 +1380,21 @@
                         embeddingError = null;
                         Console.WriteLine($"Embedding generated successfully: {embedding!.Length} dimensions");
                         
+                        // Log embedding vector details for debugging
+                        Console.WriteLine($"=== EMBEDDING VECTOR DEBUG INFO ===");
+                        Console.WriteLine($"File: {selectedFile.Name}");
+                        Console.WriteLine($"Embedding Length: {embedding.Length}");
+                        Console.WriteLine($"First 10 values: [{string.Join(", ", embedding.Take(10).Select(v => v.ToString("F6")))}]");
+                        Console.WriteLine($"Last 10 values: [{string.Join(", ", embedding.Skip(Math.Max(0, embedding.Length - 10)).Select(v => v.ToString("F6")))}]");
+                        
+                        // Calculate and log statistics
+                        var mean = embedding.Average();
+                        var stdDev = Math.Sqrt(embedding.Select(v => Math.Pow(v - mean, 2)).Average());
+                        var min = embedding.Min();
+                        var max = embedding.Max();
+                        Console.WriteLine($"Statistics: Mean={mean:F6}, StdDev={stdDev:F6}, Min={min:F6}, Max={max:F6}");
+                        Console.WriteLine($"=== END EMBEDDING VECTOR DEBUG INFO ===");
+                        
                         // Step 2.5: Search for similar documents using the generated embedding
                         try
                         {

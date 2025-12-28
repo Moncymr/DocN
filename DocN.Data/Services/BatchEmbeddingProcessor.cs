@@ -80,8 +80,13 @@ public class BatchEmbeddingProcessor : BackgroundService
                     if (embedding != null)
                     {
                         document.EmbeddingVector = embedding;
+                        
+                        // Log embedding info before saving
                         _logger.LogInformation("Generated embedding for document {Id}: {FileName}", 
                             document.Id, document.FileName);
+                        _logger.LogInformation("Embedding details - Length: {Length}, First 5 values: [{Values}]",
+                            embedding.Length, 
+                            string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6"))));
                     }
 
                     // Create chunks for the document
@@ -239,6 +244,12 @@ public class BatchProcessingService : IBatchProcessingService
                 if (embedding != null)
                 {
                     document.EmbeddingVector = embedding;
+                    
+                    // Log embedding info before saving
+                    _logger.LogInformation("Generated embedding for document {Id}: {FileName} - Length: {Length}",
+                        document.Id, document.FileName, embedding.Length);
+                    _logger.LogInformation("Embedding first 5 values: [{Values}]",
+                        string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6"))));
                 }
             }
 

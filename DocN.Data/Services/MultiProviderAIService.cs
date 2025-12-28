@@ -213,7 +213,13 @@ public class MultiProviderAIService : IMultiProviderAIService
         var embeddingClient = azureClient.GetEmbeddingClient(deploymentName);
         var response = await embeddingClient.GenerateEmbeddingAsync(text);
         
-        return response.Value.ToFloats().ToArray();
+        var embedding = response.Value.ToFloats().ToArray();
+        
+        // Log embedding info for debugging
+        Console.WriteLine($"[AzureOpenAI] Generated embedding: {embedding.Length} dimensions");
+        Console.WriteLine($"[AzureOpenAI] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
+        
+        return embedding;
     }
 
     private async Task<float[]?> GenerateEmbeddingWithOpenAIAsync(string text, AIConfiguration config)
@@ -230,7 +236,13 @@ public class MultiProviderAIService : IMultiProviderAIService
         var embeddingClient = openAIClient.GetEmbeddingClient(modelName);
         var response = await embeddingClient.GenerateEmbeddingAsync(text);
         
-        return response.Value.ToFloats().ToArray();
+        var embedding = response.Value.ToFloats().ToArray();
+        
+        // Log embedding info for debugging
+        Console.WriteLine($"[OpenAI] Generated embedding: {embedding.Length} dimensions");
+        Console.WriteLine($"[OpenAI] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
+        
+        return embedding;
     }
 
     private async Task<float[]?> GenerateEmbeddingWithGeminiAsync(string text, AIConfiguration config)
@@ -255,6 +267,11 @@ public class MultiProviderAIService : IMultiProviderAIService
             {
                 var embedding = response.Embedding.Values.Select(v => (float)v).ToArray();
                 Console.WriteLine($"Embedding Gemini generato con successo: {embedding.Length} dimensioni");
+                
+                // Log embedding info for debugging
+                Console.WriteLine($"[Gemini] Generated embedding: {embedding.Length} dimensions");
+                Console.WriteLine($"[Gemini] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
+                
                 return embedding;
             }
             else
