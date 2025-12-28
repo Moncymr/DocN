@@ -1193,6 +1193,9 @@
     private const int SIMILAR_DOCUMENTS_COUNT = 5;
     private const double SIMILAR_DOCUMENTS_MIN_SIMILARITY = 0.3;
     
+    // Localization constants for Italian text
+    private const string CATEGORY_REASONING_SIMILAR_DOC_TEMPLATE = "Categoria suggerita basata su documento simile: '{0}' (Similarità: {1}). Trovati {2} documenti simili nella stessa categoria.";
+    
     private class UploadModel
     {
         public string? Category { get; set; }
@@ -1500,9 +1503,11 @@
                 {
                     // Use the category from the most similar document
                     suggestedCategory = mostSimilarDoc.Category;
-                    categoryReasoning = $"Categoria suggerita basata su documento simile: '{mostSimilarDoc.FileName}' " +
-                                       $"(Similarità: {mostSimilarDoc.SimilarityScore:P1}). " +
-                                       $"Trovati {similarDocuments.Count} documenti simili nella stessa categoria.";
+                    categoryReasoning = string.Format(
+                        CATEGORY_REASONING_SIMILAR_DOC_TEMPLATE,
+                        mostSimilarDoc.FileName,
+                        mostSimilarDoc.SimilarityScore.ToString("P1"),
+                        similarDocuments.Count);
                     aiProvider = "Similarity-Based";
                     
                     Console.WriteLine($"[CATEGORY] Category suggested from similar document: '{suggestedCategory}'");

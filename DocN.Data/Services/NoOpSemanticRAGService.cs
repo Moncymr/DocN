@@ -117,10 +117,12 @@ public class NoOpSemanticRAGService : ISemanticRAGService
 
             // Combine document-level and chunk-level results
             var results = new List<RelevantDocumentResult>();
-            var existingDocIds = new HashSet<int>();
-
+            
             // Add chunk-based results (higher priority)
-            foreach (var (chunk, score) in scoredChunks.OrderByDescending(x => x.score).Take(topK))
+            var topChunks = scoredChunks.OrderByDescending(x => x.score).Take(topK).ToList();
+            var existingDocIds = new HashSet<int>();
+            
+            foreach (var (chunk, score) in topChunks)
             {
                 if (chunk.Document == null) continue;
 
