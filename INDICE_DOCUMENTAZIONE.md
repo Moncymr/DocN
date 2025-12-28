@@ -429,7 +429,7 @@ Prima di usare RAG, i documenti devono avere embeddings generati.
 
 **Via API:**
 ```bash
-curl -X POST https://api.docn.example.com/api/v1/documents \
+curl -X POST http://localhost:5000/Documents \
   -H "X-API-Key: your-api-key" \
   -F "file=@contratto.pdf" \
   -F "generateEmbeddings=true" \
@@ -439,7 +439,7 @@ curl -X POST https://api.docn.example.com/api/v1/documents \
 **Batch Processing (per documenti esistenti):**
 ```bash
 # Trigger batch embedding generation
-POST /api/v1/documents/batch/embeddings
+POST /Documents/batch/embeddings
 {
   "documentIds": [1, 2, 3, 4, 5],
   "provider": "Gemini"
@@ -450,7 +450,7 @@ POST /api/v1/documents/batch/embeddings
 
 #### Step 3: Utilizzare il RAG
 
-**Endpoint RAG:** `POST /api/chat/semantic`
+**Endpoint RAG:** `POST /api/SemanticChat/ask`
 
 **Esempio di Query Completa:**
 ```json
@@ -691,11 +691,12 @@ await foreach (var message in _agentChat.InvokeAsync())
 
 ### 📈 Chart RAG - Visualizzazione Grafici
 
-**Possibile Estensione:** Agente per generare grafici e chart dai dati documentali
+**Possibile Estensione Futura:** Agente per generare grafici e chart dai dati documentali
 
-**Implementazione Proposta:**
+**Implementazione Proposta (Non ancora implementata):**
 
 ```csharp
+// Esempio di come potrebbe essere implementato
 _chartGenerationAgent = new ChatCompletionAgent
 {
     Name = "ChartAgent",
@@ -707,12 +708,14 @@ _chartGenerationAgent = new ChatCompletionAgent
 };
 ```
 
-**Flusso Chart RAG:**
+**Flusso Chart RAG Proposto:**
 1. User chiede: "Mostra un grafico dei costi annuali dai contratti"
 2. Retrieval Agent → Trova contratti con costi
-3. Chart Agent → Estrae dati numerici, suggerisce chart tipo
+3. Chart Agent (da implementare) → Estrae dati numerici, suggerisce chart tipo
 4. Synthesis Agent → Genera descrizione + JSON per chart
 5. Frontend → Renderizza chart con Chart.js/D3.js
+
+**Nota:** Questa è una proposta di estensione futura. Attualmente DocN implementa Retrieval Agent e Synthesis Agent.
 
 ---
 
@@ -779,12 +782,12 @@ export GEMINI_API_KEY="your-key-here"
 dotnet run --project DocN.Server
 
 # 3. Carica documento di test
-curl -X POST http://localhost:5000/api/documents \
+curl -X POST http://localhost:5000/Documents \
   -F "file=@test.pdf" \
   -F "generateEmbeddings=true"
 
 # 4. Fai una domanda
-curl -X POST http://localhost:5000/api/chat/semantic \
+curl -X POST http://localhost:5000/api/SemanticChat/ask \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Di cosa parla questo documento?",
