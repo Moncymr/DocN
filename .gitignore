@@ -90,3 +90,6 @@ artifacts/
 /DocN.Client/appsettings.json
 /DocN.Server/appsettings.json
 /DocN.Client/appsettings.Development.json
+
+# Tesseract language data files (large binary files)
+**/tessdata/*.traineddata
