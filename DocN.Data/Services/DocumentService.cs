@@ -224,7 +224,7 @@ public class DocumentService : IDocumentService
 
     public async Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments)
     {
-        if (similarDocuments == null || !similarDocuments.Any())
+        if (similarDocuments == null || similarDocuments.Count == 0)
             return;
 
         // Remove any existing similar document relationships for this source document
@@ -238,8 +238,9 @@ public class DocumentService : IDocumentService
         }
 
         // Add new similar document relationships
+        const int MaxSimilarDocuments = 5;
         int rank = 1;
-        foreach (var similar in similarDocuments.Take(5))  // Limit to top 5
+        foreach (var similar in similarDocuments.Take(MaxSimilarDocuments))
         {
             var similarDoc = new SimilarDocument
             {

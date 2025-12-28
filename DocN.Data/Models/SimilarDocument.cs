@@ -50,7 +50,7 @@ public class SimilarDocument
     /// <summary>
     /// When this similarity relationship was identified
     /// </summary>
-    public DateTime AnalyzedAt { get; set; } = DateTime.UtcNow;
+    public DateTime AnalyzedAt { get; set; }
 
     /// <summary>
     /// Rank of this similar document (1-5 typically, where 1 is most similar)
