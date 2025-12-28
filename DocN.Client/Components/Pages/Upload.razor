@@ -125,48 +125,66 @@
                     </div>
 
                     @* Embedding Results *@
-                    @if (enableEmbeddings && processingComplete)
+                    @if (processingComplete)
                     {
-                        @if (embeddingGenerated)
+                        @if (enableEmbeddings)
                         {
-                            <div class="result-card">
-                                <div class="result-header">
-                                    <span class="result-icon">🧠</span>
-                                    <span class="result-title">Vector Embeddings</span>
-                                    <span class="result-status success">✓ Generati</span>
+                            @if (embeddingGenerated)
+                            {
+                                <div class="result-card">
+                                    <div class="result-header">
+                                        <span class="result-icon">🧠</span>
+                                        <span class="result-title">Vector Embeddings (Vettori)</span>
+                                        <span class="result-status success">✓ Generati</span>
+                                    </div>
+                                    <div class="result-content">
+                                        <p>Vector embeddings generati con successo</p>
+                                        <small>Dimensioni: @(embedding?.Length ?? 0)</small>
+                                        <p style="margin-top: 0.5rem; color: #666; font-size: 0.875rem;">
+                                            ✓ Il documento può essere ricercato semanticamente
+                                        </p>
+                                    </div>
                                 </div>
-                                <div class="result-content">
-                                    <p>Vector embeddings generati con successo</p>
-                                    <small>Dimensioni: @(embedding?.Length ?? 0)</small>
-                                    <p style="margin-top: 0.5rem; color: #666; font-size: 0.875rem;">
-                                        ✓ Il documento può essere ricercato semanticamente
-                                    </p>
+                            }
+                            else
+                            {
+                                <div class="result-card">
+                                    <div class="result-header">
+                                        <span class="result-icon">🧠</span>
+                                        <span class="result-title">Vector Embeddings (Vettori)</span>
+                                        <span class="result-status" style="background: #fff3cd; color: #856404;">⚠️ Non generato</span>
+                                    </div>
+                                    <div class="result-content">
+                                        <p style="color: #856404; margin: 0 0 0.5rem 0;">
+                                            ⚠️ I vettori (embeddings) non sono stati generati.
+                                        </p>
+                                        @if (!string.IsNullOrEmpty(embeddingError))
+                                        {
+                                            <div class="reasoning-box" style="background: #fff3cd;">
+                                                <h4 style="color: #856404;">💡 Errore</h4>
+                                                <p style="color: #856404;">@embeddingError</p>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <small style="color: #856404;">Verifica la configurazione AI (Gemini/OpenAI/Azure OpenAI)</small>
+                                        }
+                                    </div>
                                 </div>
-                            </div>
+                            }
                         }
                         else
                         {
                             <div class="result-card">
                                 <div class="result-header">
                                     <span class="result-icon">🧠</span>
-                                    <span class="result-title">Vector Embeddings</span>
-                                    <span class="result-status" style="background: #fff3cd; color: #856404;">⚠️ Non generato</span>
+                                    <span class="result-title">Vector Embeddings (Vettori)</span>
+                                    <span class="result-status" style="background: #e2e8f0; color: #4a5568;">ℹ️ Disabilitato</span>
                                 </div>
                                 <div class="result-content">
-                                    <p style="color: #856404; margin: 0 0 0.5rem 0;">
-                                        ⚠️ Gli embeddings non sono stati generati.
+                                    <p style="color: #4a5568; margin: 0;">
+                                        ℹ️ La generazione dei vettori (embeddings) è stata disabilitata. Per abilitarla, attiva l'opzione "Genera embeddings" nelle impostazioni di elaborazione qui sotto e rianalizza il documento.
                                     </p>
-                                    @if (!string.IsNullOrEmpty(embeddingError))
-                                    {
-                                        <div class="reasoning-box" style="background: #fff3cd;">
-                                            <h4 style="color: #856404;">💡 Errore</h4>
-                                            <p style="color: #856404;">@embeddingError</p>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <small style="color: #856404;">Verifica la configurazione AI (Gemini/OpenAI/Azure OpenAI)</small>
-                                    }
                                 </div>
                             </div>
                         }
@@ -292,42 +310,90 @@
                     }
 
                     @* Similar Documents Section *@
-                    @if (enableEmbeddings && embeddingGenerated && similarDocuments != null && similarDocuments.Any())
+                    @if (enableEmbeddings && processingComplete)
+                    {
+                        @if (embeddingGenerated && similarDocuments != null && similarDocuments.Any())
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🔗</span>
+                                    <span class="result-title">Documenti Simili</span>
+                                    <span class="result-status success">✓ @similarDocuments.Count trovati</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="margin-bottom: 1rem;">
+                                        📊 Documenti più vicini vettorialmente (basati sulla similarità del contenuto):
+                                    </p>
+                                    <div class="similar-documents-list">
+                                        @foreach (var doc in similarDocuments.Take(SIMILAR_DOCUMENTS_COUNT))
+                                        {
+                                            <div class="similar-doc-item">
+                                                <div class="similar-doc-header">
+                                                    <span class="similar-doc-icon">📄</span>
+                                                    <span class="similar-doc-name">@doc.FileName</span>
+                                                    <span class="similarity-badge">@($"{doc.SimilarityScore:P0}")</span>
+                                                </div>
+                                                @if (!string.IsNullOrEmpty(doc.Category))
+                                                {
+                                                    <div class="similar-doc-category">
+                                                        📁 Categoria: <strong>@doc.Category</strong>
+                                                    </div>
+                                                }
+                                                @if (!string.IsNullOrEmpty(doc.RelevantChunk))
+                                                {
+                                                    <div class="similar-doc-preview">
+                                                        @GetTextPreview(doc.RelevantChunk, 100)
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else if (embeddingGenerated && (similarDocuments == null || !similarDocuments.Any()))
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🔗</span>
+                                    <span class="result-title">Documenti Simili</span>
+                                    <span class="result-status" style="background: #e2e8f0; color: #4a5568;">ℹ️ Nessuno trovato</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="color: #4a5568; margin: 0;">
+                                        ℹ️ Nessun documento simile trovato nel tuo archivio. Questo potrebbe essere il primo documento di questo tipo oppure non ci sono documenti sufficientemente simili (soglia minima: @($"{SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0}")).
+                                    </p>
+                                </div>
+                            </div>
+                        }
+                        else if (!embeddingGenerated)
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">🔗</span>
+                                    <span class="result-title">Documenti Simili</span>
+                                    <span class="result-status" style="background: #fff3cd; color: #856404;">⚠️ Non disponibile</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="color: #856404; margin: 0;">
+                                        ⚠️ La ricerca di documenti simili non è disponibile perché i vettori (embeddings) non sono stati generati. Per abilitare questa funzionalità, assicurati che la generazione degli embeddings sia abilitata e che la configurazione AI sia corretta.
+                                    </p>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else if (!enableEmbeddings && processingComplete)
                     {
                         <div class="result-card">
                             <div class="result-header">
                                 <span class="result-icon">🔗</span>
                                 <span class="result-title">Documenti Simili</span>
-                                <span class="result-status success">✓ @similarDocuments.Count trovati</span>
+                                <span class="result-status" style="background: #e2e8f0; color: #4a5568;">ℹ️ Disabilitato</span>
                             </div>
                             <div class="result-content">
-                                <p style="margin-bottom: 1rem;">
-                                    📊 Documenti più vicini vettorialmente (basati sulla similarità del contenuto):
+                                <p style="color: #4a5568; margin: 0;">
+                                    ℹ️ La ricerca di documenti simili è disabilitata. Per abilitarla, attiva l'opzione "Genera embeddings" nelle impostazioni di elaborazione qui sotto e rianalizza il documento.
                                 </p>
-                                <div class="similar-documents-list">
-                                    @foreach (var doc in similarDocuments.Take(SIMILAR_DOCUMENTS_COUNT))
-                                    {
-                                        <div class="similar-doc-item">
-                                            <div class="similar-doc-header">
-                                                <span class="similar-doc-icon">📄</span>
-                                                <span class="similar-doc-name">@doc.FileName</span>
-                                                <span class="similarity-badge">@($"{doc.SimilarityScore:P0}")</span>
-                                            </div>
-                                            @if (!string.IsNullOrEmpty(doc.Category))
-                                            {
-                                                <div class="similar-doc-category">
-                                                    📁 Categoria: <strong>@doc.Category</strong>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrEmpty(doc.RelevantChunk))
-                                            {
-                                                <div class="similar-doc-preview">
-                                                    @GetTextPreview(doc.RelevantChunk, 100)
-                                                </div>
-                                            }
-                                        </div>
-                                    }
-                                </div>
                             </div>
                         </div>
                     }
