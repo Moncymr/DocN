@@ -758,37 +758,41 @@ public class FileProcessingService : IFileProcessingService
         {
             _logger.LogInformation("Elaborazione immagine: {FileName}", fileName);
 
-            // Create a temporary file to work with ImageSharp (needs seekable stream)
-            var tempFile = Path.Combine(Path.GetTempPath(), $"img_{Path.GetRandomFileName()}.tmp");
-            try
+            // Reset stream position if possible, otherwise copy to memory stream
+            if (stream.CanSeek)
             {
-                // Copy stream to temp file
-                using (var fileStream = File.Create(tempFile))
-                {
-                    await stream.CopyToAsync(fileStream);
-                }
+                stream.Position = 0;
+            }
+            else
+            {
+                // For non-seekable streams, copy to memory stream
+                var memoryStream = new MemoryStream();
+                await stream.CopyToAsync(memoryStream);
+                memoryStream.Position = 0;
+                stream = memoryStream;
+            }
 
-                // Load image to extract metadata
-                using var image = await Image.LoadAsync(tempFile);
-                var extension = Path.GetExtension(fileName).ToLowerInvariant();
-                
-                // Build extracted text with image information
-                var textBuilder = new StringBuilder();
-                textBuilder.AppendLine($"[Immagine: {fileName}]");
-                textBuilder.AppendLine($"Formato: {image.Metadata.DecodedImageFormat?.Name ?? extension}");
-                textBuilder.AppendLine($"Dimensioni: {image.Width} x {image.Height} pixels");
-                textBuilder.AppendLine($"Proporzioni: {(double)image.Width / image.Height:F2}:1");
-                
-                // Extract basic metadata
-                result.Metadata["OriginalFileName"] = fileName;
-                result.Metadata["FileType"] = "Image";
-                result.Metadata["Extension"] = extension;
-                result.Metadata["Format"] = image.Metadata.DecodedImageFormat?.Name ?? "Unknown";
-                result.Metadata["Width"] = image.Width.ToString();
-                result.Metadata["Height"] = image.Height.ToString();
-                result.Metadata["AspectRatio"] = $"{(double)image.Width / image.Height:F2}:1";
-                result.Metadata["HorizontalResolution"] = image.Metadata.HorizontalResolution.ToString();
-                result.Metadata["VerticalResolution"] = image.Metadata.VerticalResolution.ToString();
+            // Load image directly from stream to extract metadata
+            using var image = await Image.LoadAsync(stream);
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            
+            // Build extracted text with image information
+            var textBuilder = new StringBuilder();
+            textBuilder.AppendLine($"[Immagine: {fileName}]");
+            textBuilder.AppendLine($"Formato: {image.Metadata.DecodedImageFormat?.Name ?? extension}");
+            textBuilder.AppendLine($"Dimensioni: {image.Width} x {image.Height} pixels");
+            textBuilder.AppendLine($"Proporzioni: {(double)image.Width / image.Height:F2}:1");
+            
+            // Extract basic metadata
+            result.Metadata["OriginalFileName"] = fileName;
+            result.Metadata["FileType"] = "Image";
+            result.Metadata["Extension"] = extension;
+            result.Metadata["Format"] = image.Metadata.DecodedImageFormat?.Name ?? "Unknown";
+            result.Metadata["Width"] = image.Width.ToString();
+            result.Metadata["Height"] = image.Height.ToString();
+            result.Metadata["AspectRatio"] = $"{(double)image.Width / image.Height:F2}:1";
+            result.Metadata["HorizontalResolution"] = image.Metadata.HorizontalResolution.ToString();
+            result.Metadata["VerticalResolution"] = image.Metadata.VerticalResolution.ToString();
                 
                 // Extract EXIF metadata if available
                 if (image.Metadata.ExifProfile != null)
@@ -839,13 +843,13 @@ public class FileProcessingService : IFileProcessingService
                     }
                     
                     // GPS coordinates
-                    try
+                    if (exif.TryGetValue(ExifTag<Rational[]>.GPSLatitude, out var gpsLatValue) &&
+                        exif.TryGetValue(ExifTag<string>.GPSLatitudeRef, out var gpsLatRefValue) &&
+                        exif.TryGetValue(ExifTag<Rational[]>.GPSLongitude, out var gpsLongValue) &&
+                        exif.TryGetValue(ExifTag<string>.GPSLongitudeRef, out var gpsLongRefValue) &&
+                        gpsLatValue?.Value != null && gpsLongValue?.Value != null)
                     {
-                        if (exif.TryGetValue(ExifTag<Rational[]>.GPSLatitude, out var gpsLatValue) &&
-                            exif.TryGetValue(ExifTag<string>.GPSLatitudeRef, out var gpsLatRefValue) &&
-                            exif.TryGetValue(ExifTag<Rational[]>.GPSLongitude, out var gpsLongValue) &&
-                            exif.TryGetValue(ExifTag<string>.GPSLongitudeRef, out var gpsLongRefValue) &&
-                            gpsLatValue?.Value != null && gpsLongValue?.Value != null)
+                        try
                         {
                             var gpsLat = gpsLatValue.Value;
                             var gpsLatRef = gpsLatRefValue?.Value;
@@ -858,53 +862,58 @@ public class FileProcessingService : IFileProcessingService
                             result.Metadata["GPS_Latitude"] = lat.ToString("F6");
                             result.Metadata["GPS_Longitude"] = lng.ToString("F6");
                         }
-                    }
-                    catch { /* GPS data not available or invalid */ }
-                    
-                    // Camera settings
-                    try
-                    {
-                        if (exif.TryGetValue(ExifTag<ushort[]>.ISOSpeedRatings, out var isoValue) &&
-                            isoValue?.Value != null && isoValue.Value.Length > 0)
+                        catch (Exception gpsEx)
                         {
-                            textBuilder.AppendLine($"ISO: {isoValue.Value[0]}");
-                            result.Metadata["ISO"] = isoValue.Value[0].ToString();
+                            _logger.LogWarning(gpsEx, "Failed to parse GPS coordinates for {FileName}", fileName);
                         }
                     }
-                    catch { /* ISO not available */ }
                     
-                    try
+                    // Camera settings - helper to extract with logging
+                    void TryExtractExifValue<T>(ExifTag<T> tag, string displayName, Action<T> onSuccess) where T : notnull
                     {
-                        var fNumberValue = exif.TryGetValue(ExifTag<Rational>.FNumber, out var fNumber);
-                        if (fNumberValue && fNumber?.Value != null)
+                        try
                         {
-                            textBuilder.AppendLine($"Apertura: f/{fNumber.Value.ToDouble():F1}");
-                            result.Metadata["Aperture"] = $"f/{fNumber.Value.ToDouble():F1}";
+                            if (exif.TryGetValue(tag, out var value) && value != null && value.Value != null)
+                            {
+                                onSuccess(value.Value);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "Failed to extract EXIF {Field} for {FileName}", displayName, fileName);
                         }
                     }
-                    catch { /* F-number not available */ }
                     
-                    try
+                    // ISO
+                    TryExtractExifValue(ExifTag<ushort[]>.ISOSpeedRatings, "ISO", iso =>
                     {
-                        var exposureTimeResult = exif.TryGetValue(ExifTag<Rational>.ExposureTime, out var exposureTime);
-                        if (exposureTimeResult && exposureTime?.Value != null)
+                        if (iso.Length > 0)
                         {
-                            textBuilder.AppendLine($"Tempo esposizione: {exposureTime.Value}s");
-                            result.Metadata["ExposureTime"] = $"{exposureTime.Value}s";
+                            textBuilder.AppendLine($"ISO: {iso[0]}");
+                            result.Metadata["ISO"] = iso[0].ToString();
                         }
-                    }
-                    catch { /* Exposure time not available */ }
+                    });
                     
-                    try
+                    // F-Number (Aperture)
+                    TryExtractExifValue(ExifTag<Rational>.FNumber, "FNumber", fNumber =>
                     {
-                        var focalLengthResult = exif.TryGetValue(ExifTag<Rational>.FocalLength, out var focalLength);
-                        if (focalLengthResult && focalLength?.Value != null)
-                        {
-                            textBuilder.AppendLine($"Lunghezza focale: {focalLength.Value.ToDouble():F1}mm");
-                            result.Metadata["FocalLength"] = $"{focalLength.Value.ToDouble():F1}mm";
-                        }
-                    }
-                    catch { /* Focal length not available */ }
+                        textBuilder.AppendLine($"Apertura: f/{fNumber.ToDouble():F1}");
+                        result.Metadata["Aperture"] = $"f/{fNumber.ToDouble():F1}";
+                    });
+                    
+                    // Exposure Time
+                    TryExtractExifValue(ExifTag<Rational>.ExposureTime, "ExposureTime", exposureTime =>
+                    {
+                        textBuilder.AppendLine($"Tempo esposizione: {exposureTime}s");
+                        result.Metadata["ExposureTime"] = $"{exposureTime}s";
+                    });
+                    
+                    // Focal Length
+                    TryExtractExifValue(ExifTag<Rational>.FocalLength, "FocalLength", focalLength =>
+                    {
+                        textBuilder.AppendLine($"Lunghezza focale: {focalLength.ToDouble():F1}mm");
+                        result.Metadata["FocalLength"] = $"{focalLength.ToDouble():F1}mm";
+                    });
                     
                     _logger.LogInformation("EXIF data estratti per {FileName}", fileName);
                 }
@@ -921,20 +930,6 @@ public class FileProcessingService : IFileProcessingService
                 
                 _logger.LogInformation("Immagine elaborata con successo: {FileName} ({Width}x{Height})", 
                     fileName, image.Width, image.Height);
-            }
-            finally
-            {
-                // Clean up temp file
-                try
-                {
-                    if (File.Exists(tempFile))
-                        File.Delete(tempFile);
-                }
-                catch (Exception cleanupEx)
-                {
-                    _logger.LogWarning(cleanupEx, "Impossibile eliminare il file temporaneo: {TempFile}", tempFile);
-                }
-            }
         }
         catch (Exception ex)
         {
