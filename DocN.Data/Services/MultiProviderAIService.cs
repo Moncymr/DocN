@@ -6,6 +6,7 @@ using DocN.Data.Models;
 using OpenAI.Embeddings;
 using OpenAI.Chat;
 using System.IO;
+using Microsoft.EntityFrameworkCore;
 
 namespace DocN.Data.Services;
 
@@ -17,33 +18,91 @@ public interface IMultiProviderAIService
     Task<List<string>> ExtractTagsAsync(string extractedText);
     string GetCurrentChatProvider();
     string GetCurrentEmbeddingProvider();
+    Task<AIConfiguration?> GetActiveConfigurationAsync();
 }
 
 public class MultiProviderAIService : IMultiProviderAIService
 {
     private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _context;
-    private readonly AISettings _aiSettings;
-    private readonly EmbeddingsSettings _embeddingsSettings;
-    private readonly GeminiSettings _geminiSettings;
-    private readonly OpenAISettings _openAISettings;
+    private AIConfiguration? _cachedConfig;
+    private DateTime _lastConfigCheck = DateTime.MinValue;
+    private readonly TimeSpan _configCacheDuration = TimeSpan.FromMinutes(5);
 
     public MultiProviderAIService(IConfiguration configuration, ApplicationDbContext context)
     {
         _configuration = configuration;
         _context = context;
-        
-        _aiSettings = new AISettings();
-        _configuration.GetSection("AI").Bind(_aiSettings);
-        
-        _embeddingsSettings = new EmbeddingsSettings();
-        _configuration.GetSection("Embeddings").Bind(_embeddingsSettings);
-        
-        _geminiSettings = new GeminiSettings();
-        _configuration.GetSection("Gemini").Bind(_geminiSettings);
-        
-        _openAISettings = new OpenAISettings();
-        _configuration.GetSection("OpenAI").Bind(_openAISettings);
+    }
+
+    /// <summary>
+    /// Ottiene la configurazione attiva dal database, con caching per evitare troppe query
+    /// </summary>
+    public async Task<AIConfiguration?> GetActiveConfigurationAsync()
+    {
+        // Check if cached configuration is still valid
+        if (_cachedConfig != null && DateTime.UtcNow - _lastConfigCheck < _configCacheDuration)
+        {
+            return _cachedConfig;
+        }
+
+        // Fetch active configuration from database
+        _cachedConfig = await _context.AIConfigurations
+            .Where(c => c.IsActive)
+            .OrderByDescending(c => c.UpdatedAt ?? c.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        _lastConfigCheck = DateTime.UtcNow;
+
+        // If no database configuration exists, create a default one from appsettings
+        if (_cachedConfig == null)
+        {
+            _cachedConfig = CreateDefaultConfigurationFromAppSettings();
+        }
+
+        return _cachedConfig;
+    }
+
+    private AIConfiguration CreateDefaultConfigurationFromAppSettings()
+    {
+        // Fallback to appsettings.json configuration for backward compatibility
+        return new AIConfiguration
+        {
+            ConfigurationName = "Default (from appsettings.json)",
+            GeminiApiKey = _configuration["Gemini:ApiKey"],
+            GeminiChatModel = "gemini-1.5-flash",
+            GeminiEmbeddingModel = "text-embedding-004",
+            OpenAIApiKey = _configuration["OpenAI:ApiKey"],
+            OpenAIChatModel = _configuration["OpenAI:Model"] ?? "gpt-4",
+            OpenAIEmbeddingModel = "text-embedding-ada-002",
+            AzureOpenAIEndpoint = _configuration["AzureOpenAI:Endpoint"],
+            AzureOpenAIKey = _configuration["AzureOpenAI:ApiKey"] ?? _configuration["Embeddings:ApiKey"],
+            ChatDeploymentName = _configuration["AzureOpenAI:ChatDeployment"],
+            EmbeddingDeploymentName = _configuration["AzureOpenAI:EmbeddingDeployment"] ?? _configuration["Embeddings:DeploymentName"],
+            AzureOpenAIChatModel = "gpt-4",
+            AzureOpenAIEmbeddingModel = "text-embedding-ada-002",
+            // Determine provider from settings
+            ChatProvider = GetProviderFromConfig(_configuration["AI:Provider"]),
+            EmbeddingsProvider = GetProviderFromConfig(_configuration["Embeddings:Provider"]),
+            TagExtractionProvider = GetProviderFromConfig(_configuration["AI:Provider"]),
+            RAGProvider = GetProviderFromConfig(_configuration["AI:Provider"]),
+            EnableFallback = _configuration.GetValue<bool>("AI:EnableFallback", true),
+            EnableChunking = true,
+            ChunkSize = 1000,
+            ChunkOverlap = 200,
+            IsActive = false // This is a fallback, not a real config
+        };
+    }
+
+    private AIProviderType GetProviderFromConfig(string? providerString)
+    {
+        return providerString?.ToLower() switch
+        {
+            "gemini" => AIProviderType.Gemini,
+            "openai" => AIProviderType.OpenAI,
+            "azureopenai" => AIProviderType.AzureOpenAI,
+            _ => AIProviderType.Gemini
+        };
     }
 
     public async Task<float[]?> GenerateEmbeddingAsync(string text)
@@ -54,138 +113,154 @@ public class MultiProviderAIService : IMultiProviderAIService
             text = text.Substring(0, 10000);
         }
 
+        var config = await GetActiveConfigurationAsync();
+        if (config == null)
+        {
+            throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database o in appsettings.json");
+        }
+
+        // Determine which provider to use for embeddings
+        var provider = config.EmbeddingsProvider ?? config.ProviderType;
+
         // Try primary embedding provider
         try
         {
-            if (_embeddingsSettings.Provider == "AzureOpenAI")
+            return provider switch
             {
-                return await GenerateEmbeddingWithAzureOpenAIAsync(text);
-            }
-            else if (_embeddingsSettings.Provider == "OpenAI")
-            {
-                return await GenerateEmbeddingWithOpenAIAsync(text);
-            }
-            else if (_embeddingsSettings.Provider == "Gemini")
-            {
-                return await GenerateEmbeddingWithGeminiAsync(text);
-            }
+                AIProviderType.AzureOpenAI => await GenerateEmbeddingWithAzureOpenAIAsync(text, config),
+                AIProviderType.OpenAI => await GenerateEmbeddingWithOpenAIAsync(text, config),
+                AIProviderType.Gemini => await GenerateEmbeddingWithGeminiAsync(text, config),
+                _ => throw new InvalidOperationException($"Provider non supportato: {provider}")
+            };
         }
         catch (Exception ex)
         {
             // Log the exception for debugging
-            Console.WriteLine($"Primary embedding provider ({_embeddingsSettings.Provider}) failed: {ex.Message}");
+            Console.WriteLine($"Provider di embedding primario ({provider}) fallito: {ex.Message}");
             
             // If primary fails and fallback is enabled, try alternatives
-            if (_aiSettings.EnableFallback)
+            if (config.EnableFallback)
             {
-                var errors = new List<string> { $"{_embeddingsSettings.Provider}: {ex.Message}" };
+                var errors = new List<string> { $"{provider}: {ex.Message}" };
                 
                 // Try alternative providers, but skip the one that just failed
-                if (_embeddingsSettings.Provider != "Gemini")
+                if (provider != AIProviderType.Gemini && !string.IsNullOrEmpty(config.GeminiApiKey))
                 {
                     try
                     {
-                        Console.WriteLine("Trying Gemini as fallback...");
-                        return await GenerateEmbeddingWithGeminiAsync(text);
+                        Console.WriteLine("Tentativo Gemini come fallback...");
+                        return await GenerateEmbeddingWithGeminiAsync(text, config);
                     }
                     catch (Exception ex2)
                     {
-                        Console.WriteLine($"Gemini fallback failed: {ex2.Message}");
+                        Console.WriteLine($"Fallback Gemini fallito: {ex2.Message}");
                         errors.Add($"Gemini: {ex2.Message}");
                     }
                 }
                 
-                if (_embeddingsSettings.Provider != "OpenAI")
+                if (provider != AIProviderType.OpenAI && !string.IsNullOrEmpty(config.OpenAIApiKey))
                 {
                     try
                     {
-                        Console.WriteLine("Trying OpenAI as fallback...");
-                        return await GenerateEmbeddingWithOpenAIAsync(text);
+                        Console.WriteLine("Tentativo OpenAI come fallback...");
+                        return await GenerateEmbeddingWithOpenAIAsync(text, config);
                     }
                     catch (Exception ex3)
                     {
-                        Console.WriteLine($"OpenAI fallback failed: {ex3.Message}");
+                        Console.WriteLine($"Fallback OpenAI fallito: {ex3.Message}");
                         errors.Add($"OpenAI: {ex3.Message}");
                     }
                 }
                 
-                if (_embeddingsSettings.Provider != "AzureOpenAI")
+                if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrEmpty(config.AzureOpenAIKey))
                 {
                     try
                     {
-                        Console.WriteLine("Trying AzureOpenAI as fallback...");
-                        return await GenerateEmbeddingWithAzureOpenAIAsync(text);
+                        Console.WriteLine("Tentativo AzureOpenAI come fallback...");
+                        return await GenerateEmbeddingWithAzureOpenAIAsync(text, config);
                     }
                     catch (Exception ex4)
                     {
-                        Console.WriteLine($"AzureOpenAI fallback failed: {ex4.Message}");
+                        Console.WriteLine($"Fallback AzureOpenAI fallito: {ex4.Message}");
                         errors.Add($"AzureOpenAI: {ex4.Message}");
                     }
                 }
                 
                 // All fallback attempts failed
-                throw new InvalidOperationException($"All embedding providers failed. Errors: {string.Join("; ", errors)}");
+                throw new InvalidOperationException($"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}");
             }
             
             // Fallback is disabled, throw the original exception
             throw;
         }
-
-        throw new InvalidOperationException("No embedding provider configured.");
     }
 
-    private async Task<float[]?> GenerateEmbeddingWithAzureOpenAIAsync(string text)
+    private async Task<float[]?> GenerateEmbeddingWithAzureOpenAIAsync(string text, AIConfiguration config)
     {
-        if (string.IsNullOrEmpty(_embeddingsSettings.Endpoint) || string.IsNullOrEmpty(_embeddingsSettings.ApiKey))
-            return null;
+        var endpoint = config.AzureOpenAIEndpoint ?? config.ProviderEndpoint;
+        var apiKey = config.AzureOpenAIKey ?? config.ProviderApiKey;
+        var deploymentName = config.EmbeddingDeploymentName ?? config.AzureOpenAIEmbeddingModel ?? "text-embedding-ada-002";
+
+        if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))
+        {
+            throw new InvalidOperationException("Endpoint e API key di Azure OpenAI non configurati");
+        }
 
         var azureClient = new AzureOpenAIClient(
-            new Uri(_embeddingsSettings.Endpoint), 
-            new AzureKeyCredential(_embeddingsSettings.ApiKey));
+            new Uri(endpoint), 
+            new AzureKeyCredential(apiKey));
         
-        var embeddingClient = azureClient.GetEmbeddingClient(_embeddingsSettings.DeploymentName);
+        var embeddingClient = azureClient.GetEmbeddingClient(deploymentName);
         var response = await embeddingClient.GenerateEmbeddingAsync(text);
         
         return response.Value.ToFloats().ToArray();
     }
 
-    private async Task<float[]?> GenerateEmbeddingWithOpenAIAsync(string text)
+    private async Task<float[]?> GenerateEmbeddingWithOpenAIAsync(string text, AIConfiguration config)
     {
-        if (string.IsNullOrEmpty(_openAISettings.ApiKey))
-            return null;
-
-        var openAIClient = new OpenAI.OpenAIClient(_openAISettings.ApiKey);
-        var embeddingClient = openAIClient.GetEmbeddingClient("text-embedding-ada-002");
-        var response = await embeddingClient.GenerateEmbeddingAsync(text);
+        var apiKey = config.OpenAIApiKey ?? config.ProviderApiKey;
         
-        return response.Value.ToFloats().ToArray();
-    }
-
-    private async Task<float[]?> GenerateEmbeddingWithGeminiAsync(string text)
-    {
-        if (string.IsNullOrEmpty(_geminiSettings.ApiKey))
+        if (string.IsNullOrEmpty(apiKey))
         {
-            Console.WriteLine("Gemini API key is not configured");
-            throw new InvalidOperationException("Gemini API key not configured");
+            throw new InvalidOperationException("API key di OpenAI non configurata");
+        }
+
+        var openAIClient = new OpenAI.OpenAIClient(apiKey);
+        var modelName = config.OpenAIEmbeddingModel ?? "text-embedding-ada-002";
+        var embeddingClient = openAIClient.GetEmbeddingClient(modelName);
+        var response = await embeddingClient.GenerateEmbeddingAsync(text);
+        
+        return response.Value.ToFloats().ToArray();
+    }
+
+    private async Task<float[]?> GenerateEmbeddingWithGeminiAsync(string text, AIConfiguration config)
+    {
+        var apiKey = config.GeminiApiKey ?? config.ProviderApiKey;
+        
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            Console.WriteLine("API key di Gemini non configurata");
+            throw new InvalidOperationException("API key di Gemini non configurata");
         }
 
         try
         {
-            var gemini = new GoogleAI(_geminiSettings.ApiKey);
-            var model = gemini.GenerativeModel(model: "text-embedding-004");
+            var gemini = new GoogleAI(apiKey);
+            var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
+            var model = gemini.GenerativeModel(model: modelName);
             
             var response = await model.EmbedContent(text);
             
             if (response?.Embedding?.Values != null)
             {
                 var embedding = response.Embedding.Values.Select(v => (float)v).ToArray();
-                Console.WriteLine($"Gemini embedding generated successfully: {embedding.Length} dimensions");
+                Console.WriteLine($"Embedding Gemini generato con successo: {embedding.Length} dimensioni");
                 return embedding;
             }
             else
             {
-                Console.WriteLine("Gemini response was null or had no embedding values");
-                throw new InvalidOperationException("Gemini returned no embedding values");
+                Console.WriteLine("La risposta di Gemini era nulla o non conteneva valori di embedding");
+                throw new InvalidOperationException("Gemini non ha restituito valori di embedding");
             }
         }
         catch (System.Net.Http.HttpRequestException ex) when (
@@ -193,91 +268,107 @@ public class MultiProviderAIService : IMultiProviderAIService
             ex.Message.Contains("Forbidden") || 
             ex.Message.Contains("403"))
         {
-            Console.WriteLine($"Gemini API key issue (possibly leaked or invalid): {ex.Message}");
-            throw new InvalidOperationException("Gemini API key is invalid or has been reported as leaked. Please use a different API key.", ex);
+            Console.WriteLine($"Problema con l'API key di Gemini (potrebbe essere non valida o segnalata): {ex.Message}");
+            throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Gemini embedding error: {ex.Message}");
+            Console.WriteLine($"Errore embedding Gemini: {ex.Message}");
             throw; // Re-throw to allow fallback logic to work
         }
     }
 
     public async Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt)
     {
-        // Try primary provider (Gemini or OpenAI)
+        var config = await GetActiveConfigurationAsync();
+        if (config == null)
+        {
+            throw new InvalidOperationException("Nessuna configurazione AI attiva trovata");
+        }
+
+        // Determine which provider to use for chat (use ChatProvider if specified, otherwise ProviderType)
+        var provider = config.ChatProvider ?? config.ProviderType;
+
+        // Try primary provider
         try
         {
-            if (_aiSettings.Provider == "Gemini")
+            return provider switch
             {
-                return await GenerateChatWithGeminiAsync(systemPrompt, userPrompt);
-            }
-            else if (_aiSettings.Provider == "OpenAI")
-            {
-                return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt);
-            }
+                AIProviderType.Gemini => await GenerateChatWithGeminiAsync(systemPrompt, userPrompt, config),
+                AIProviderType.OpenAI => await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt, config),
+                AIProviderType.AzureOpenAI => await GenerateChatWithAzureOpenAIAsync(systemPrompt, userPrompt, config),
+                _ => throw new InvalidOperationException($"Provider non supportato: {provider}")
+            };
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Primary chat provider ({_aiSettings.Provider}) failed: {ex.Message}");
+            Console.WriteLine($"Provider di chat primario ({provider}) fallito: {ex.Message}");
             
             // If primary fails and fallback is enabled, try the alternative provider
-            if (_aiSettings.EnableFallback)
+            if (config.EnableFallback)
             {
                 try
                 {
-                    // Try the other provider as fallback (not the one that just failed)
-                    if (_aiSettings.Provider == "Gemini")
+                    // Try other providers as fallback
+                    if (provider != AIProviderType.Gemini && !string.IsNullOrEmpty(config.GeminiApiKey))
                     {
-                        Console.WriteLine("Trying OpenAI as fallback...");
-                        return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt);
+                        Console.WriteLine("Tentativo Gemini come fallback...");
+                        return await GenerateChatWithGeminiAsync(systemPrompt, userPrompt, config);
                     }
-                    else if (_aiSettings.Provider == "OpenAI")
+                    else if (provider != AIProviderType.OpenAI && !string.IsNullOrEmpty(config.OpenAIApiKey))
                     {
-                        Console.WriteLine("Trying Gemini as fallback...");
-                        return await GenerateChatWithGeminiAsync(systemPrompt, userPrompt);
+                        Console.WriteLine("Tentativo OpenAI come fallback...");
+                        return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt, config);
+                    }
+                    else if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrEmpty(config.AzureOpenAIKey))
+                    {
+                        Console.WriteLine("Tentativo AzureOpenAI come fallback...");
+                        return await GenerateChatWithAzureOpenAIAsync(systemPrompt, userPrompt, config);
                     }
                 }
                 catch (Exception ex2)
                 {
-                    Console.WriteLine($"Fallback chat provider failed: {ex2.Message}");
-                    return $"Error: All AI providers failed. Primary: {ex.Message}, Fallback: {ex2.Message}";
+                    Console.WriteLine($"Provider di chat di fallback fallito: {ex2.Message}");
+                    return $"Errore: Tutti i provider AI sono falliti. Primario: {ex.Message}, Fallback: {ex2.Message}";
                 }
             }
             else
             {
-                return $"Error: {ex.Message}";
+                return $"Errore: {ex.Message}";
             }
         }
 
-        throw new InvalidOperationException("No chat provider configured.");
+        throw new InvalidOperationException("Nessun provider di chat configurato.");
     }
 
-    private async Task<string> GenerateChatWithGeminiAsync(string systemPrompt, string userPrompt)
+    private async Task<string> GenerateChatWithGeminiAsync(string systemPrompt, string userPrompt, AIConfiguration config)
     {
-        if (string.IsNullOrEmpty(_geminiSettings.ApiKey))
+        var apiKey = config.GeminiApiKey ?? config.ProviderApiKey;
+        
+        if (string.IsNullOrEmpty(apiKey))
         {
-            Console.WriteLine("Gemini API key is not configured");
-            throw new InvalidOperationException("Gemini API key not configured");
+            Console.WriteLine("API key di Gemini non configurata");
+            throw new InvalidOperationException("API key di Gemini non configurata");
         }
 
         try
         {
-            var gemini = new GoogleAI(_geminiSettings.ApiKey);
-            var model = gemini.GenerativeModel(model: "gemini-1.5-flash");
+            var gemini = new GoogleAI(apiKey);
+            var modelName = config.GeminiChatModel ?? "gemini-1.5-flash";
+            var model = gemini.GenerativeModel(model: modelName);
             
             var fullPrompt = $"{systemPrompt}\n\n{userPrompt}";
             var response = await model.GenerateContent(fullPrompt);
             
             if (response?.Text != null)
             {
-                Console.WriteLine($"Gemini chat response generated successfully");
+                Console.WriteLine($"Risposta di chat Gemini generata con successo");
                 return response.Text;
             }
             else
             {
-                Console.WriteLine("Gemini chat response was null");
-                throw new InvalidOperationException("No response from Gemini");
+                Console.WriteLine("La risposta di chat Gemini era nulla");
+                throw new InvalidOperationException("Nessuna risposta da Gemini");
             }
         }
         catch (System.Net.Http.HttpRequestException ex) when (
@@ -285,23 +376,26 @@ public class MultiProviderAIService : IMultiProviderAIService
             ex.Message.Contains("Forbidden") || 
             ex.Message.Contains("403"))
         {
-            Console.WriteLine($"Gemini API key issue (possibly leaked or invalid): {ex.Message}");
-            throw new InvalidOperationException("Gemini API key is invalid or has been reported as leaked. Please use a different API key.", ex);
+            Console.WriteLine($"Problema con l'API key di Gemini (potrebbe essere non valida o segnalata): {ex.Message}");
+            throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Gemini chat error: {ex.Message}");
+            Console.WriteLine($"Errore chat Gemini: {ex.Message}");
             throw;
         }
     }
 
-    private async Task<string> GenerateChatWithOpenAIAsync(string systemPrompt, string userPrompt)
+    private async Task<string> GenerateChatWithOpenAIAsync(string systemPrompt, string userPrompt, AIConfiguration config)
     {
-        if (string.IsNullOrEmpty(_openAISettings.ApiKey))
-            throw new InvalidOperationException("OpenAI API key not configured");
+        var apiKey = config.OpenAIApiKey ?? config.ProviderApiKey;
+        
+        if (string.IsNullOrEmpty(apiKey))
+            throw new InvalidOperationException("API key di OpenAI non configurata");
 
-        var openAIClient = new OpenAI.OpenAIClient(_openAISettings.ApiKey);
-        var chatClient = openAIClient.GetChatClient(_openAISettings.Model);
+        var openAIClient = new OpenAI.OpenAIClient(apiKey);
+        var modelName = config.OpenAIChatModel ?? "gpt-4";
+        var chatClient = openAIClient.GetChatClient(modelName);
         
         var messages = new List<OpenAI.Chat.ChatMessage>
         {
@@ -309,6 +403,33 @@ public class MultiProviderAIService : IMultiProviderAIService
             OpenAI.Chat.ChatMessage.CreateUserMessage(userPrompt)
         };
         
+        var completion = await chatClient.CompleteChatAsync(messages);
+        return completion.Value.Content[0].Text;
+    }
+
+    private async Task<string> GenerateChatWithAzureOpenAIAsync(string systemPrompt, string userPrompt, AIConfiguration config)
+    {
+        var endpoint = config.AzureOpenAIEndpoint ?? config.ProviderEndpoint;
+        var apiKey = config.AzureOpenAIKey ?? config.ProviderApiKey;
+        var deploymentName = config.ChatDeploymentName ?? config.AzureOpenAIChatModel ?? "gpt-4";
+
+        if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))
+        {
+            throw new InvalidOperationException("Endpoint e API key di Azure OpenAI non configurati");
+        }
+
+        var azureClient = new AzureOpenAIClient(
+            new Uri(endpoint),
+            new AzureKeyCredential(apiKey));
+
+        var chatClient = azureClient.GetChatClient(deploymentName);
+
+        var messages = new List<OpenAI.Chat.ChatMessage>
+        {
+            OpenAI.Chat.ChatMessage.CreateSystemMessage(systemPrompt),
+            OpenAI.Chat.ChatMessage.CreateUserMessage(userPrompt)
+        };
+
         var completion = await chatClient.CompleteChatAsync(messages);
         return completion.Value.Content[0].Text;
     }
@@ -536,11 +657,19 @@ Respond in JSON format:
 
     public string GetCurrentChatProvider()
     {
-        return _aiSettings?.Provider ?? "Unknown";
+        var config = GetActiveConfigurationAsync().GetAwaiter().GetResult();
+        if (config == null) return "Nessuno";
+        
+        var provider = config.ChatProvider ?? config.ProviderType;
+        return provider.ToString();
     }
 
     public string GetCurrentEmbeddingProvider()
     {
-        return _embeddingsSettings?.Provider ?? "Unknown";
+        var config = GetActiveConfigurationAsync().GetAwaiter().GetResult();
+        if (config == null) return "Nessuno";
+        
+        var provider = config.EmbeddingsProvider ?? config.ProviderType;
+        return provider.ToString();
     }
 }
