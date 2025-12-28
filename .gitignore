@@ -93,3 +93,216 @@ artifacts/
 
 # Tesseract language data files (large binary files)
 **/tessdata/*.traineddata
+
+# ============================================
+# Security - Secrets and Credentials
+# ============================================
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.secrets
+secrets.json
+
+# User secrets (development)
+**/secrets.json
+
+# API keys and credentials
+**/appsettings.Production.json
+**/appsettings.Staging.json
+**/*secrets*.json
+**/credentials.json
+**/*.key
+**/*.pem
+**/*.pfx
+**/*.p12
+
+# Azure publish settings
+*.PublishSettings
+*.pubxml
+*.pubxml.user
+
+# AWS credentials
+.aws/
+
+# ============================================
+# Uploads and User Content
+# ============================================
+
+# Uploaded documents (should be in separate storage)
+**/Uploads/
+**/uploads/
+**/wwwroot/uploads/
+**/Files/
+**/Documents/
+
+# Temporary files
+**/temp/
+**/tmp/
+*.tmp
+
+# ============================================
+# Database
+# ============================================
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# SQL Server local databases
+*.mdf
+*.ldf
+
+# Database backups
+*.bak
+*.backup
+
+# ============================================
+# Logs and Diagnostics
+# ============================================
+
+# Application logs
+logs/
+*.log
+*-log.txt
+log-*.txt
+
+# Crash dumps
+*.dmp
+
+# ============================================
+# IDE and Editor Specific
+# ============================================
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Visual Studio Code
+.vscode/
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ============================================
+# OS Generated Files
+# ============================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+
+# ============================================
+# Package Managers
+# ============================================
+
+# Node.js (if using npm/yarn for frontend tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================
+# Testing and Coverage
+# ============================================
+
+# Test results
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# Code coverage
+coverage/
+*.lcov
+htmlcov/
+
+# ============================================
+# Docker
+# ============================================
+
+# Docker override files
+docker-compose.override.yml
+docker-compose.*.override.yml
+
+# ============================================
+# Monitoring and APM
+# ============================================
+
+# Application Insights
+ApplicationInsights*.config
+!ApplicationInsights.config
+
+# ============================================
+# Build Artifacts (Additional)
+# ============================================
+
+# Publish folders
+**/[Pp]ublish/
+PublishProfiles/
+
+# NuGet
+*.nuget.props
+*.nuget.targets
+.nuget/
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# ============================================
+# Documentation (Generated)
+# ============================================
+
+# API documentation (generated)
+**/api-docs/generated/
+**/swagger-output.json
+
+# ============================================
+# Machine Learning / AI
+# ============================================
+
+# Model files (if storing locally)
+*.onnx
+*.pb
+*.h5
+*.pkl
+*.joblib
+
+# Embeddings cache
+**/embeddings-cache/
+**/.embeddings/
+
+# ============================================
+# Cache and Temporary Data
+# ============================================
+
+# Redis dumps
+dump.rdb
+
+# Cache directories
+.cache/
+**/.cache/
+
+# ============================================
+# License and Compliance
+# ============================================
+
+# License files that shouldn't be public
+**/licenses/private/
