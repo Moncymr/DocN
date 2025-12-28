@@ -30,6 +30,11 @@ public abstract class BaseAIProvider : IDocumentAIProvider
         string documentText,
         CancellationToken cancellationToken = default);
 
+    public abstract Task<Dictionary<string, string>> ExtractMetadataAsync(
+        string documentText,
+        string fileName = "",
+        CancellationToken cancellationToken = default);
+
     public virtual async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(
         string documentText, 
         List<string> availableCategories, 
@@ -78,6 +83,16 @@ public abstract class BaseAIProvider : IDocumentAIProvider
             _logger.LogError(ex, "Error extracting tags");
         }
 
+        // Estrai metadati - sempre eseguire
+        try
+        {
+            result.Metadata = await ExtractMetadataAsync(documentText, "", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting metadata");
+        }
+
         return result;
     }
 
@@ -113,6 +128,34 @@ Documento:
 
 Fornisci un JSON con un array 'tags' contenente le parole chiave estratte.
 Esempio: {{""tags"": [""contratto"", ""legale"", ""2024"", ""servizi""]}}
+
+Rispondi SOLO con JSON valido, senza altri commenti.";
+    }
+
+    protected string BuildMetadataExtractionPrompt(string documentText, string fileName)
+    {
+        var text = documentText.Length > 3000 
+            ? documentText.Substring(0, 3000) 
+            : documentText;
+            
+        return $@"Estrai metadati strutturati dal seguente documento. Analizza il contenuto e identifica informazioni chiave.
+
+Nome file: {fileName}
+
+Documento:
+{text}
+
+Cerca di estrarre il maggior numero di metadati rilevanti, ad esempio:
+- Per FATTURE: invoice_number, invoice_date, invoice_year, total_amount, currency, vendor_name, customer_name, tax_id, payment_terms
+- Per CONTRATTI: contract_number, contract_date, contract_year, parties, expiration_date, renewal_terms, contract_value
+- Per DOCUMENTI GENERALI: document_type, author, creation_date, title, subject, company_name, reference_number, language
+- Altri metadati rilevanti specifici del tipo di documento
+
+Fornisci un JSON con coppie chiave-valore dei metadati estratti.
+Usa nomi di campo in inglese e snake_case (es. invoice_number, creation_date).
+Se un campo non è presente, NON includerlo nel risultato.
+
+Esempio: {{""document_type"": ""invoice"", ""invoice_number"": ""INV-2024-001"", ""invoice_date"": ""2024-01-15"", ""total_amount"": ""1000.00"", ""currency"": ""EUR""}}
 
 Rispondi SOLO con JSON valido, senza altri commenti.";
     }

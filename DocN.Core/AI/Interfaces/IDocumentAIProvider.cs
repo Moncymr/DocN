@@ -48,6 +48,18 @@ public interface IDocumentAIProvider
         CancellationToken cancellationToken = default);
     
     /// <summary>
+    /// Estrae metadati strutturati da un documento (es. fatture, contratti)
+    /// </summary>
+    /// <param name="documentText">Testo del documento</param>
+    /// <param name="fileName">Nome del file per aiutare a identificare il tipo</param>
+    /// <param name="cancellationToken">Token di cancellazione</param>
+    /// <returns>Dizionario con metadati estratti (es. invoice_number, date, author, etc.)</returns>
+    Task<Dictionary<string, string>> ExtractMetadataAsync(
+        string documentText,
+        string fileName = "",
+        CancellationToken cancellationToken = default);
+    
+    /// <summary>
     /// Analizza completamente un documento
     /// </summary>
     /// <param name="documentText">Testo del documento</param>

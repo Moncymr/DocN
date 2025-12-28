@@ -159,4 +159,60 @@ public class OpenAIProvider : BaseAIProvider
             return new List<string>();
         }
     }
+
+    public override async Task<Dictionary<string, string>> ExtractMetadataAsync(
+        string documentText,
+        string fileName = "",
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Extracting metadata with OpenAI for file: {FileName}", fileName);
+
+        try
+        {
+            var chatClient = _client.GetChatClient(_config.ChatModel);
+            var prompt = BuildMetadataExtractionPrompt(documentText, fileName);
+
+            var chatMessages = new List<ChatMessage>
+            {
+                new SystemChatMessage("Sei un assistente esperto nell'estrazione di metadati strutturati da documenti."),
+                new UserChatMessage(prompt)
+            };
+
+            var response = await chatClient.CompleteChatAsync(chatMessages, cancellationToken: cancellationToken);
+            var content = response.Value.Content[0].Text;
+
+            return ParseMetadata(content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting metadata with OpenAI");
+            return new Dictionary<string, string>();
+        }
+    }
+
+    private Dictionary<string, string> ParseMetadata(string jsonResponse)
+    {
+        try
+        {
+            var jsonDoc = JsonDocument.Parse(jsonResponse);
+            var metadata = new Dictionary<string, string>();
+
+            foreach (var property in jsonDoc.RootElement.EnumerateObject())
+            {
+                var value = property.Value.GetString();
+                if (!string.IsNullOrEmpty(value))
+                {
+                    metadata[property.Name] = value;
+                }
+            }
+
+            _logger.LogInformation("Extracted {Count} metadata fields", metadata.Count);
+            return metadata;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error parsing metadata");
+            return new Dictionary<string, string>();
+        }
+    }
 }

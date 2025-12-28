@@ -18,6 +18,9 @@ public class Document
     public string? AITagsJson { get; set; } // JSON array of AI-detected tags with confidence scores
     public DateTime? AIAnalysisDate { get; set; }
     
+    // AI Extracted Metadata (invoices, contracts, etc.)
+    public string? ExtractedMetadataJson { get; set; } // JSON object with extracted structured data
+    
     // Document metadata from processing
     public int? PageCount { get; set; }
     public string? DetectedLanguage { get; set; }

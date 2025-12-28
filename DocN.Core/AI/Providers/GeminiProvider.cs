@@ -191,4 +191,74 @@ public class GeminiProvider : BaseAIProvider
             return new List<string>();
         }
     }
+
+    public override async Task<Dictionary<string, string>> ExtractMetadataAsync(
+        string documentText,
+        string fileName = "",
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Extracting metadata with Gemini for file: {FileName}", fileName);
+
+        try
+        {
+            var model = _client.GenerativeModel(model: _config.GenerationModel);
+            var prompt = BuildMetadataExtractionPrompt(documentText, fileName);
+
+            var response = await model.GenerateContent(prompt);
+            
+            if (response?.Text != null)
+            {
+                return ParseMetadata(response.Text);
+            }
+
+            return new Dictionary<string, string>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting metadata with Gemini");
+            return new Dictionary<string, string>();
+        }
+    }
+
+    private Dictionary<string, string> ParseMetadata(string jsonResponse)
+    {
+        try
+        {
+            // Gemini a volte include ```json markers, rimuoviamoli
+            var cleanedResponse = jsonResponse.Trim();
+            if (cleanedResponse.StartsWith("```json"))
+            {
+                cleanedResponse = cleanedResponse.Substring(7);
+            }
+            if (cleanedResponse.StartsWith("```"))
+            {
+                cleanedResponse = cleanedResponse.Substring(3);
+            }
+            if (cleanedResponse.EndsWith("```"))
+            {
+                cleanedResponse = cleanedResponse.Substring(0, cleanedResponse.Length - 3);
+            }
+            cleanedResponse = cleanedResponse.Trim();
+
+            var jsonDoc = JsonDocument.Parse(cleanedResponse);
+            var metadata = new Dictionary<string, string>();
+
+            foreach (var property in jsonDoc.RootElement.EnumerateObject())
+            {
+                var value = property.Value.GetString();
+                if (!string.IsNullOrEmpty(value))
+                {
+                    metadata[property.Name] = value;
+                }
+            }
+
+            _logger.LogInformation("Extracted {Count} metadata fields", metadata.Count);
+            return metadata;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error parsing metadata from Gemini");
+            return new Dictionary<string, string>();
+        }
+    }
 }
