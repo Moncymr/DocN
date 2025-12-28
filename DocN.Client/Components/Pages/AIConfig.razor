@@ -1,110 +1,276 @@
 @page "/config"
 @using DocN.Data
+@using DocN.Data.Models
 @inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
-<PageTitle>AI Configuration - DocN</PageTitle>
+<PageTitle>Configurazione AI - DocN</PageTitle>
 
 <div class="config-container">
-    <h2>⚙️ AI Configuration</h2>
-    <p class="description">Configure embedding and RAG services for intelligent document processing</p>
+    <div class="config-header">
+        <h2>⚙️ Configurazione AI Multi-Provider</h2>
+        <p class="description">Configura i provider AI (Gemini, OpenAI, Azure OpenAI) per i diversi servizi</p>
+    </div>
 
     @if (config == null)
     {
-        <div class="loading">Loading configuration...</div>
+        <div class="loading">Caricamento configurazione...</div>
     }
     else
     {
         <EditForm Model="config" OnValidSubmit="SaveConfiguration">
-            <div class="config-section">
-                <h3>🔗 Azure OpenAI Connection</h3>
+            <!-- Basic Configuration Section -->
+            <div class="config-card">
+                <h3>📋 Informazioni Base</h3>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label>Nome Configurazione</label>
+                        <InputText @bind-Value="config.ConfigurationName" class="form-control" placeholder="es: Configurazione Produzione" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service Provider Assignment -->
+            <div class="config-card">
+                <h3>🎯 Assegnazione Provider per Servizio</h3>
+                <p class="section-description">Seleziona quale provider utilizzare per ogni servizio</p>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Configuration Name</label>
-                        <InputText @bind-Value="config.ConfigurationName" class="form-control" placeholder="Production Config" />
+                        <label>💬 Chat Provider</label>
+                        <select @bind="selectedChatProvider" class="form-control">
+                            <option value="">-- Provider Predefinito --</option>
+                            <option value="1">Gemini</option>
+                            <option value="2">OpenAI</option>
+                            <option value="3">Azure OpenAI</option>
+                        </select>
+                        <small>Per conversazioni e analisi categoria</small>
                     </div>
 
                     <div class="form-group">
+                        <label>🧠 Embeddings Provider</label>
+                        <select @bind="selectedEmbeddingsProvider" class="form-control">
+                            <option value="">-- Provider Predefinito --</option>
+                            <option value="1">Gemini</option>
+                            <option value="2">OpenAI</option>
+                            <option value="3">Azure OpenAI</option>
+                        </select>
+                        <small>Per ricerca semantica</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>🏷️ Tag Extraction Provider</label>
+                        <select @bind="selectedTagExtractionProvider" class="form-control">
+                            <option value="">-- Provider Predefinito --</option>
+                            <option value="1">Gemini</option>
+                            <option value="2">OpenAI</option>
+                            <option value="3">Azure OpenAI</option>
+                        </select>
+                        <small>Per estrazione automatica tag</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>🔍 RAG Provider</label>
+                        <select @bind="selectedRAGProvider" class="form-control">
+                            <option value="">-- Provider Predefinito --</option>
+                            <option value="1">Gemini</option>
+                            <option value="2">OpenAI</option>
+                            <option value="3">Azure OpenAI</option>
+                        </select>
+                        <small>Per chat con documenti</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gemini Configuration -->
+            <div class="config-card provider-card">
+                <div class="provider-header">
+                    <h3>🤖 Gemini Configuration</h3>
+                    <span class="provider-badge gemini">Gemini AI</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Gemini API Key</label>
+                        <InputText type="password" @bind-Value="config.GeminiApiKey" class="form-control" placeholder="Inserisci API key di Gemini" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Chat Model</label>
+                        <InputText @bind-Value="config.GeminiChatModel" class="form-control" placeholder="gemini-1.5-flash" />
+                        <small>Modello per chat e analisi</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Embedding Model</label>
+                        <InputText @bind-Value="config.GeminiEmbeddingModel" class="form-control" placeholder="text-embedding-004" />
+                        <small>Modello per embeddings</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OpenAI Configuration -->
+            <div class="config-card provider-card">
+                <div class="provider-header">
+                    <h3>🔵 OpenAI Configuration</h3>
+                    <span class="provider-badge openai">OpenAI</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>OpenAI API Key</label>
+                        <InputText type="password" @bind-Value="config.OpenAIApiKey" class="form-control" placeholder="Inserisci API key di OpenAI" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Chat Model</label>
+                        <InputText @bind-Value="config.OpenAIChatModel" class="form-control" placeholder="gpt-4" />
+                        <small>Modello per chat e analisi</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Embedding Model</label>
+                        <InputText @bind-Value="config.OpenAIEmbeddingModel" class="form-control" placeholder="text-embedding-ada-002" />
+                        <small>Modello per embeddings</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Azure OpenAI Configuration -->
+            <div class="config-card provider-card">
+                <div class="provider-header">
+                    <h3>☁️ Azure OpenAI Configuration</h3>
+                    <span class="provider-badge azure">Azure OpenAI</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group full-width">
                         <label>Azure OpenAI Endpoint</label>
                         <InputText @bind-Value="config.AzureOpenAIEndpoint" class="form-control" placeholder="https://your-resource.openai.azure.com/" />
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group full-width">
                         <label>Azure OpenAI API Key</label>
-                        <InputText type="password" @bind-Value="config.AzureOpenAIKey" class="form-control" placeholder="Your API key" />
+                        <InputText type="password" @bind-Value="config.AzureOpenAIKey" class="form-control" placeholder="Inserisci API key di Azure OpenAI" />
                     </div>
 
                     <div class="form-group">
                         <label>Chat Deployment Name</label>
                         <InputText @bind-Value="config.ChatDeploymentName" class="form-control" placeholder="gpt-4" />
+                        <small>Nome deployment per chat</small>
                     </div>
 
                     <div class="form-group">
                         <label>Embedding Deployment Name</label>
                         <InputText @bind-Value="config.EmbeddingDeploymentName" class="form-control" placeholder="text-embedding-ada-002" />
+                        <small>Nome deployment per embeddings</small>
                     </div>
-                </div>
-            </div>
 
-            <div class="config-section">
-                <h3>🧠 Embedding Settings</h3>
-                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Chat Model</label>
+                        <InputText @bind-Value="config.AzureOpenAIChatModel" class="form-control" placeholder="gpt-4" />
+                    </div>
+
                     <div class="form-group">
                         <label>Embedding Model</label>
-                        <InputText @bind-Value="config.EmbeddingModel" class="form-control" placeholder="text-embedding-ada-002" />
-                    </div>
-
-                    <div class="form-group">
-                        <label>Embedding Dimensions</label>
-                        <InputNumber @bind-Value="config.EmbeddingDimensions" class="form-control" />
-                        <small>Typically 1536 for Ada-002</small>
+                        <InputText @bind-Value="config.AzureOpenAIEmbeddingModel" class="form-control" placeholder="text-embedding-ada-002" />
                     </div>
                 </div>
             </div>
-
-            <div class="config-section">
-                <h3>🔍 RAG Configuration</h3>
+            <!-- RAG Configuration -->
+            <div class="config-card">
+                <h3>🔍 Configurazione RAG</h3>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Max Documents to Retrieve</label>
+                        <label>Max Documenti da Recuperare</label>
                         <InputNumber @bind-Value="config.MaxDocumentsToRetrieve" class="form-control" />
-                        <small>Number of relevant documents to use for context</small>
+                        <small>Numero di documenti rilevanti da usare per il contesto</small>
                     </div>
 
                     <div class="form-group">
-                        <label>Similarity Threshold</label>
+                        <label>Soglia Similarità</label>
                         <InputNumber @bind-Value="config.SimilarityThreshold" class="form-control" step="0.1" />
-                        <small>0.0 - 1.0 (higher = more similar)</small>
+                        <small>0.0 - 1.0 (più alto = più simile)</small>
                     </div>
 
                     <div class="form-group">
-                        <label>Max Tokens for Context</label>
+                        <label>Max Token per Contesto</label>
                         <InputNumber @bind-Value="config.MaxTokensForContext" class="form-control" />
-                        <small>Maximum tokens for generated responses</small>
+                        <small>Massimo token per le risposte generate</small>
                     </div>
 
                     <div class="form-group full-width">
                         <label>System Prompt</label>
                         <InputTextArea @bind-Value="config.SystemPrompt" class="form-control" rows="4" 
-                            placeholder="You are a helpful assistant that answers questions based on provided documents..." />
-                        <small>Instructions for the AI when generating responses</small>
+                            placeholder="Sei un assistente utile che risponde a domande basandoti sui documenti forniti..." />
+                        <small>Istruzioni per l'AI nella generazione delle risposte</small>
                     </div>
                 </div>
             </div>
 
-            <div class="config-section">
+            <!-- Chunking Configuration -->
+            <div class="config-card">
+                <h3>📄 Configurazione Chunking</h3>
+                <p class="section-description">Impostazioni per dividere i documenti in parti (chunks)</p>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label class="checkbox-label">
+                            <InputCheckbox @bind-Value="config.EnableChunking" />
+                            <span>Abilita suddivisione documenti in chunks</span>
+                        </label>
+                        <small>Migliora l'accuratezza della ricerca semantica dividendo i documenti lunghi</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Dimensione Chunk</label>
+                        <InputNumber @bind-Value="config.ChunkSize" class="form-control" />
+                        <small>Numero di caratteri per chunk</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Overlap Chunk</label>
+                        <InputNumber @bind-Value="config.ChunkOverlap" class="form-control" />
+                        <small>Sovrapposizione tra chunks adiacenti</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Embedding Settings -->
+            <div class="config-card">
+                <h3>🧠 Impostazioni Embedding</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Dimensioni Embedding</label>
+                        <InputNumber @bind-Value="config.EmbeddingDimensions" class="form-control" />
+                        <small>Tipicamente 1536 per Ada-002, 768 per Gemini</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Settings -->
+            <div class="config-card">
+                <h3>⚙️ Impostazioni Avanzate</h3>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <InputCheckbox @bind-Value="config.EnableFallback" />
+                        <span>Abilita fallback automatico ad altri provider</span>
+                    </label>
+                    <small>Se un provider fallisce, prova automaticamente con gli altri configurati</small>
+                </div>
+
                 <div class="form-group">
                     <label class="checkbox-label">
                         <InputCheckbox @bind-Value="config.IsActive" />
-                        <span>Set as active configuration</span>
+                        <span>Imposta come configurazione attiva</span>
                     </label>
+                    <small>Solo una configurazione può essere attiva alla volta</small>
                 </div>
             </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">💾 Save Configuration</button>
-                <button type="button" class="btn btn-secondary" @onclick="TestConnection">🔌 Test Connection</button>
+                <button type="submit" class="btn btn-primary btn-large">
+                    💾 Salva Configurazione
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="TestConnection">
+                    🔌 Testa Connessione
+                </button>
             </div>
 
             @if (!string.IsNullOrEmpty(message))
@@ -115,20 +281,25 @@
             }
         </EditForm>
 
+        <!-- Info Section -->
         <div class="info-section">
-            <h3>ℹ️ How It Works</h3>
+            <h3>ℹ️ Come Funziona</h3>
             <div class="info-cards">
                 <div class="info-card">
                     <h4>🔤 Embeddings</h4>
-                    <p>Convert document text into numerical vectors for semantic search. Documents with similar content will have similar embeddings.</p>
+                    <p>Converte il testo dei documenti in vettori numerici per la ricerca semantica. Documenti con contenuto simile avranno embeddings simili.</p>
                 </div>
                 <div class="info-card">
                     <h4>🤖 RAG (Retrieval Augmented Generation)</h4>
-                    <p>Retrieve relevant documents based on a query, then use AI to generate accurate answers grounded in your document content.</p>
+                    <p>Recupera documenti rilevanti basandosi su una query, poi usa l'AI per generare risposte accurate basate sul contenuto dei tuoi documenti.</p>
                 </div>
                 <div class="info-card">
-                    <h4>🏷️ Category Suggestion</h4>
-                    <p>AI analyzes document content and suggests appropriate categories with detailed reasoning explaining the classification.</p>
+                    <h4>🏷️ Suggerimento Categoria</h4>
+                    <p>L'AI analizza il contenuto del documento e suggerisce categorie appropriate con motivazione dettagliata che spiega la classificazione.</p>
+                </div>
+                <div class="info-card">
+                    <h4>📄 Chunking</h4>
+                    <p>Divide documenti lunghi in parti più piccole per migliorare la precisione della ricerca semantica e del RAG.</p>
                 </div>
             </div>
         </div>
@@ -137,32 +308,95 @@
 
 <style>
     .config-container {
-        padding: 2rem;
-        max-width: 1000px;
+        padding: 1.5rem;
+        max-width: 1200px;
         margin: 0 auto;
+        background: #f5f7fa;
+        min-height: 100vh;
     }
 
-    .config-container h2 {
+    .config-header {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        margin-bottom: 2rem;
+    }
+
+    .config-header h2 {
         font-size: 2rem;
-        margin-bottom: 0.5rem;
+        margin: 0 0 0.5rem 0;
+        color: #2d3748;
+        font-weight: 700;
     }
 
     .description {
         color: #666;
-        margin-bottom: 2rem;
+        margin: 0;
+        font-size: 1rem;
     }
 
-    .config-section {
+    .config-card {
         background: white;
         padding: 2rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        margin-bottom: 1.5rem;
+        border: 1px solid #e2e8f0;
+        transition: all 0.3s ease;
     }
 
-    .config-section h3 {
+    .config-card:hover {
+        border-color: #ff6b35;
+        box-shadow: 0 4px 12px rgba(255, 107, 53, 0.15);
+    }
+
+    .config-card h3 {
         margin: 0 0 1.5rem 0;
-        font-size: 1.3rem;
+        font-size: 1.4rem;
+        color: #2d3748;
+        font-weight: 700;
+    }
+
+    .section-description {
+        color: #666;
+        margin: -0.5rem 0 1.5rem 0;
+        font-size: 0.95rem;
+    }
+
+    .provider-card {
+        border-left: 4px solid #ff6b35;
+    }
+
+    .provider-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .provider-header h3 {
+        margin: 0;
+    }
+
+    .provider-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .provider-badge.gemini {
+        background: linear-gradient(135deg, #4285F4 0%, #34A853 100%);
+    }
+
+    .provider-badge.openai {
+        background: linear-gradient(135deg, #10a37f 0%, #1a7f64 100%);
+    }
+
+    .provider-badge.azure {
+        background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
     }
 
     .form-grid {
@@ -184,6 +418,7 @@
     .form-group label {
         font-weight: 600;
         color: #333;
+        font-size: 0.95rem;
     }
 
     .form-group small {
@@ -194,88 +429,142 @@
     .form-control {
         padding: 0.75rem;
         border: 1px solid #ddd;
-        border-radius: 5px;
+        border-radius: 8px;
         font-size: 1rem;
+        transition: all 0.3s ease;
     }
 
     .form-control:focus {
         outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: #ff6b35;
+        box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
     }
 
     .checkbox-label {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
         cursor: pointer;
+        padding: 0.5rem 0;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        accent-color: #ff6b35;
+    }
+
+    .checkbox-label span {
+        font-weight: 600;
+        color: #333;
     }
 
     .form-actions {
         display: flex;
         gap: 1rem;
         margin-top: 2rem;
+        justify-content: flex-end;
     }
 
     .btn {
-        padding: 0.75rem 1.5rem;
+        padding: 0.875rem 2rem;
         border: none;
-        border-radius: 5px;
+        border-radius: 8px;
         font-weight: 600;
+        font-size: 1rem;
         cursor: pointer;
         transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 
     .btn-primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
         color: white;
+        border: 2px solid transparent;
     }
 
-    .btn-primary:hover {
-        opacity: 0.9;
+    .btn-primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #f7931e 0%, #e67e22 100%);
         transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(255, 107, 53, 0.4);
+    }
+
+    .btn-large {
+        padding: 1rem 2.5rem;
+        font-size: 1.1rem;
     }
 
     .btn-secondary {
-        background: #6c757d;
-        color: white;
+        background: #e2e8f0;
+        color: #4a5568;
+        border: 2px solid #cbd5e0;
     }
 
-    .btn-secondary:hover {
-        background: #5a6268;
+    .btn-secondary:hover:not(:disabled) {
+        background: #cbd5e0;
+        border-color: #a0aec0;
+        transform: translateY(-2px);
     }
 
     .alert {
-        padding: 1rem;
-        border-radius: 5px;
+        padding: 1.25rem;
+        border-radius: 8px;
         margin-top: 1rem;
+        font-size: 1rem;
+        line-height: 1.6;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .alert-success {
-        background: #d4edda;
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
         color: #155724;
-        border: 1px solid #c3e6cb;
+        border: 2px solid #28a745;
+        border-left: 5px solid #28a745;
     }
 
     .alert-error {
-        background: #f8d7da;
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
         color: #721c24;
-        border: 1px solid #f5c6cb;
+        border: 2px solid #dc3545;
+        border-left: 5px solid #dc3545;
+        font-weight: 500;
     }
 
     .info-section {
-        background: #f8f9fa;
+        background: linear-gradient(135deg, rgba(255, 107, 53, 0.05), rgba(255, 154, 86, 0.05));
         padding: 2rem;
-        border-radius: 10px;
+        border-radius: 12px;
         margin-top: 2rem;
     }
 
     .info-section h3 {
         margin: 0 0 1.5rem 0;
+        color: #2d3748;
+        font-weight: 700;
+        font-size: 1.4rem;
     }
 
     .info-cards {
         display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 1.5rem;
     }
 
@@ -283,11 +572,20 @@
         background: white;
         padding: 1.5rem;
         border-radius: 8px;
+        border: 1px solid rgba(255, 107, 53, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .info-card:hover {
+        border-color: #ff6b35;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 107, 53, 0.15);
     }
 
     .info-card h4 {
         margin: 0 0 0.5rem 0;
-        color: #667eea;
+        color: #ff6b35;
+        font-weight: 700;
     }
 
     .info-card p {
@@ -300,6 +598,29 @@
         text-align: center;
         padding: 3rem;
         color: #666;
+        font-size: 1.1rem;
+    }
+
+    @media (max-width: 768px) {
+        .config-container {
+            padding: 1rem;
+        }
+
+        .config-header h2 {
+            font-size: 1.5rem;
+        }
+
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .form-actions {
+            flex-direction: column;
+        }
+
+        .info-cards {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
@@ -307,6 +628,12 @@
     private AIConfiguration? config;
     private string message = string.Empty;
     private bool isError = false;
+
+    // Provider selection bindings for dropdowns
+    private string selectedChatProvider = "";
+    private string selectedEmbeddingsProvider = "";
+    private string selectedTagExtractionProvider = "";
+    private string selectedRAGProvider = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -318,24 +645,48 @@
         {
             config = new AIConfiguration
             {
-                ConfigurationName = "Default Configuration",
+                ConfigurationName = "Configurazione Predefinita",
+                ProviderType = AIProviderType.Gemini,
                 MaxDocumentsToRetrieve = 5,
                 SimilarityThreshold = 0.7,
                 MaxTokensForContext = 4000,
-                EmbeddingDimensions = 1536,
-                EmbeddingModel = "text-embedding-ada-002",
-                SystemPrompt = "You are a helpful assistant that answers questions based on provided documents. Always cite the source documents when providing information.",
-                IsActive = true
+                EmbeddingDimensions = 768, // Default for Gemini
+                EmbeddingModel = "text-embedding-004",
+                SystemPrompt = "Sei un assistente utile che risponde a domande basandoti sui documenti forniti. Cita sempre i documenti fonte quando fornisci informazioni.",
+                IsActive = true,
+                EnableChunking = true,
+                ChunkSize = 1000,
+                ChunkOverlap = 200,
+                EnableFallback = true,
+                // Default models
+                GeminiChatModel = "gemini-1.5-flash",
+                GeminiEmbeddingModel = "text-embedding-004",
+                OpenAIChatModel = "gpt-4",
+                OpenAIEmbeddingModel = "text-embedding-ada-002",
+                AzureOpenAIChatModel = "gpt-4",
+                AzureOpenAIEmbeddingModel = "text-embedding-ada-002"
             };
         }
+
+        // Initialize provider selections from config
+        selectedChatProvider = config.ChatProvider?.ToString("D") ?? "";
+        selectedEmbeddingsProvider = config.EmbeddingsProvider?.ToString("D") ?? "";
+        selectedTagExtractionProvider = config.TagExtractionProvider?.ToString("D") ?? "";
+        selectedRAGProvider = config.RAGProvider?.ToString("D") ?? "";
     }
 
     private async Task SaveConfiguration()
     {
         try
         {
+            // Update provider assignments from dropdowns
+            config!.ChatProvider = string.IsNullOrEmpty(selectedChatProvider) ? null : (AIProviderType)int.Parse(selectedChatProvider);
+            config.EmbeddingsProvider = string.IsNullOrEmpty(selectedEmbeddingsProvider) ? null : (AIProviderType)int.Parse(selectedEmbeddingsProvider);
+            config.TagExtractionProvider = string.IsNullOrEmpty(selectedTagExtractionProvider) ? null : (AIProviderType)int.Parse(selectedTagExtractionProvider);
+            config.RAGProvider = string.IsNullOrEmpty(selectedRAGProvider) ? null : (AIProviderType)int.Parse(selectedRAGProvider);
+
             // If setting this as active, deactivate all others
-            if (config!.IsActive)
+            if (config.IsActive)
             {
                 var otherConfigs = DbContext.AIConfigurations.Where(c => c.Id != config.Id);
                 foreach (var other in otherConfigs)
@@ -357,20 +708,20 @@
 
             await DbContext.SaveChangesAsync();
             
-            message = "✅ Configuration saved successfully!";
+            message = "✅ Configurazione salvata con successo!";
             isError = false;
         }
         catch (Exception ex)
         {
-            message = $"❌ Error saving configuration: {ex.Message}";
+            message = $"❌ Errore nel salvataggio della configurazione: {ex.Message}";
             isError = true;
         }
     }
 
     private void TestConnection()
     {
-        // In a real implementation, this would test the Azure OpenAI connection
-        message = "🔌 Connection test would verify Azure OpenAI connectivity here";
+        // In a real implementation, this would test the provider connections
+        message = "🔌 Il test di connessione verificherebbe qui la connettività ai provider AI configurati";
         isError = false;
     }
 }
