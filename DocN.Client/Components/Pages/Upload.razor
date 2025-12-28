@@ -309,6 +309,62 @@
                         }
                     }
 
+                    @* AI Metadata Extraction Results *@
+                    @if (enableMetadataExtraction && processingComplete && metadataExtractionAttempted)
+                    {
+                        @if (metadataExtractionSucceeded && extractedMetadata != null && extractedMetadata.Any())
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">📋</span>
+                                    <span class="result-title">Metadati Estratti</span>
+                                    <span class="result-status success">✓ @extractedMetadata.Count campi</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="margin-bottom: 0.5rem;">✓ L'AI ha estratto i seguenti metadati strutturati:</p>
+                                    <div class="metadata-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                                        @foreach (var metadata in extractedMetadata)
+                                        {
+                                            <div class="metadata-item" style="background: #f8f9fa; padding: 0.75rem; border-radius: 6px; border-left: 3px solid #28a745;">
+                                                <div style="font-size: 0.75rem; color: #6c757d; text-transform: uppercase; margin-bottom: 0.25rem;">
+                                                    @metadata.Key.Replace("_", " ")
+                                                </div>
+                                                <div style="font-weight: 600; color: #212529;">
+                                                    @metadata.Value
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                    <p style="margin-top: 1rem; color: #666; font-size: 0.875rem;">
+                                        ℹ️ I metadati sono stati estratti automaticamente dal documento usando l'intelligenza artificiale.
+                                    </p>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="result-card">
+                                <div class="result-header">
+                                    <span class="result-icon">📋</span>
+                                    <span class="result-title">Estrazione Metadati</span>
+                                    <span class="result-status" style="background: #fff3cd; color: #856404;">⚠️ Nessun dato</span>
+                                </div>
+                                <div class="result-content">
+                                    <p style="color: #856404; margin: 0 0 0.5rem 0;">
+                                        ⚠️ L'AI non è riuscita a estrarre metadati strutturati dal documento.
+                                    </p>
+                                    @if (!string.IsNullOrEmpty(metadataExtractionError))
+                                    {
+                                        <div class="reasoning-box" style="background: #fff3cd; border-left-color: #ffc107;">
+                                            <h4 style="color: #856404;">💡 Dettagli</h4>
+                                            <p style="color: #856404;">@metadataExtractionError</p>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+
                     @* Similar Documents Section *@
                     @if (enableEmbeddings && processingComplete)
                     {
@@ -493,6 +549,14 @@
                         <span class="option-label">
                             <span class="option-title">🏷️ Estrai tag automaticamente con AI</span>
                             <span class="option-description">Let AI extract relevant tags and keywords</span>
+                        </span>
+                    </label>
+                    
+                    <label class="option-checkbox">
+                        <input type="checkbox" @bind="enableMetadataExtraction" />
+                        <span class="option-label">
+                            <span class="option-title">📋 Estrai metadati strutturati con AI</span>
+                            <span class="option-description">Extract structured metadata like invoice numbers, dates, authors, etc.</span>
                         </span>
                     </label>
                     
@@ -1229,6 +1293,10 @@
     private bool tagExtractionAttempted = false;
     private bool tagExtractionSucceeded = false;
     private string? tagExtractionError;
+    private bool metadataExtractionAttempted = false;
+    private bool metadataExtractionSucceeded = false;
+    private string? metadataExtractionError;
+    private Dictionary<string, string>? extractedMetadata;
     private int? pageCount;
     private string? detectedLanguage;
     private string processingStatus = "Pending";
@@ -1241,6 +1309,7 @@
     private bool enableAICategory = true;
     private bool enableEmbeddings = true;
     private bool enableTagExtraction = true;
+    private bool enableMetadataExtraction = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1597,8 +1666,46 @@
                 }
             }
 
+            // Step 5: AI metadata extraction
+            if (enableMetadataExtraction && !string.IsNullOrEmpty(extractedText))
+            {
+                metadataExtractionAttempted = true;
+                processingStep = "Estrazione metadati dal documento...";
+                StateHasChanged();
+                await Task.Delay(UI_UPDATE_DELAY_MS);
+
+                try
+                {
+                    extractedMetadata = await AIService.ExtractMetadataAsync(extractedText, selectedFile?.Name ?? "");
+                    
+                    if (extractedMetadata != null && extractedMetadata.Any())
+                    {
+                        metadataExtractionSucceeded = true;
+                        metadataExtractionError = null;
+                        Console.WriteLine($"AI extracted {extractedMetadata.Count} metadata fields");
+                        foreach (var kvp in extractedMetadata)
+                        {
+                            Console.WriteLine($"  {kvp.Key}: {kvp.Value}");
+                        }
+                    }
+                    else
+                    {
+                        metadataExtractionSucceeded = false;
+                        metadataExtractionError = "L'AI non è riuscita a estrarre metadati dal documento.";
+                        Console.WriteLine("No metadata was extracted by AI");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    metadataExtractionSucceeded = false;
+                    metadataExtractionError = "Errore nell'estrazione dei metadati. Verifica la configurazione AI.";
+                    Console.WriteLine($"Metadata extraction exception: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                }
+            }
+
             // Set AI analysis date if any AI processing was attempted
-            if (enableAICategory || enableTagExtraction || enableEmbeddings)
+            if (enableAICategory || enableTagExtraction || enableEmbeddings || enableMetadataExtraction)
             {
                 aiAnalysisDate = DateTime.UtcNow;
             }
@@ -1706,6 +1813,7 @@
                 ProcessingError = processingError,
                 AIAnalysisDate = aiAnalysisDate,
                 AITagsJson = GetSerializedTags(aiExtractedTags),
+                ExtractedMetadataJson = GetSerializedMetadata(extractedMetadata),
                 TenantId = null // Will be set from user's tenant if available
             };
 
@@ -1832,6 +1940,22 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error serializing tags: {ex.Message}");
+            return null;
+        }
+    }
+
+    private string? GetSerializedMetadata(Dictionary<string, string>? metadata)
+    {
+        if (metadata == null || !metadata.Any())
+            return null;
+            
+        try
+        {
+            return System.Text.Json.JsonSerializer.Serialize(metadata);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error serializing metadata: {ex.Message}");
             return null;
         }
     }

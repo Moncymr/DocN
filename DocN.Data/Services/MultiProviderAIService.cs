@@ -16,6 +16,7 @@ public interface IMultiProviderAIService
     Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt);
     Task<(string Category, string Reasoning, string Provider)> SuggestCategoryAsync(string fileName, string extractedText);
     Task<List<string>> ExtractTagsAsync(string extractedText);
+    Task<Dictionary<string, string>> ExtractMetadataAsync(string extractedText, string fileName = "");
     string GetCurrentChatProvider();
     string GetCurrentEmbeddingProvider();
     Task<AIConfiguration?> GetActiveConfigurationAsync();
@@ -685,6 +686,73 @@ Respond in JSON format:
         {
             Console.WriteLine($"Error extracting tags: {ex.Message}");
             return new List<string>();
+        }
+    }
+
+    public async Task<Dictionary<string, string>> ExtractMetadataAsync(string extractedText, string fileName = "")
+    {
+        try
+        {
+            var systemPrompt = "You are a metadata extraction expert. Extract structured metadata from documents.";
+            
+            var userPrompt = $@"Extract structured metadata from this document. Analyze the content and identify key information.
+
+File name: {fileName}
+
+Content: {TruncateText(extractedText, 3000)}
+
+Extract as many relevant metadata fields as possible, for example:
+- For INVOICES: invoice_number, invoice_date, invoice_year, total_amount, currency, vendor_name, customer_name, tax_id, payment_terms
+- For CONTRACTS: contract_number, contract_date, contract_year, parties, expiration_date, renewal_terms, contract_value
+- For GENERAL DOCUMENTS: document_type, author, creation_date, title, subject, company_name, reference_number, language
+- Other relevant metadata specific to the document type
+
+Respond in JSON format with key-value pairs.
+Use English field names in snake_case (e.g., invoice_number, creation_date).
+If a field is not present, DO NOT include it in the result.
+
+Example: {{""document_type"": ""invoice"", ""invoice_number"": ""INV-2024-001"", ""invoice_date"": ""2024-01-15"", ""total_amount"": ""1000.00"", ""currency"": ""EUR""}}
+
+Respond ONLY with valid JSON, no other comments.";
+
+            var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
+            
+            // Clean up response
+            response = response.Trim();
+            if (response.StartsWith("```json"))
+            {
+                response = response.Substring(7);
+                if (response.EndsWith("```"))
+                    response = response.Substring(0, response.Length - 3);
+            }
+            else if (response.StartsWith("```"))
+            {
+                response = response.Substring(3);
+                if (response.EndsWith("```"))
+                    response = response.Substring(0, response.Length - 3);
+            }
+            response = response.Trim();
+            
+            // Parse JSON response
+            try
+            {
+                var metadata = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(response, 
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                
+                Console.WriteLine($"Extracted {metadata?.Count ?? 0} metadata fields");
+                return metadata ?? new Dictionary<string, string>();
+            }
+            catch (System.Text.Json.JsonException jsonEx)
+            {
+                Console.WriteLine($"Failed to parse metadata JSON response: {response}");
+                Console.WriteLine($"JSON error: {jsonEx.Message}");
+                return new Dictionary<string, string>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error extracting metadata: {ex.Message}");
+            return new Dictionary<string, string>();
         }
     }
 
