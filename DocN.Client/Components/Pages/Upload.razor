@@ -1372,6 +1372,7 @@
 
                 try
                 {
+                    Console.WriteLine($"[DEBUG] enableEmbeddings=true, attempting to generate embedding for text length: {extractedText.Length}");
                     embedding = await AIService.GenerateEmbeddingAsync(extractedText);
                     embeddingGenerated = embedding != null && embedding.Length > 0;
                     
@@ -1411,6 +1412,12 @@
                             
                             if (!string.IsNullOrEmpty(currentUserId))
                             {
+                                Console.WriteLine($"[DEBUG] === STARTING SIMILARITY SEARCH ===");
+                                Console.WriteLine($"[DEBUG] Current UserId: '{currentUserId}'");
+                                Console.WriteLine($"[DEBUG] Embedding length: {embedding!.Length}");
+                                Console.WriteLine($"[DEBUG] MinSimilarity threshold: {SIMILAR_DOCUMENTS_MIN_SIMILARITY} ({SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0})");
+                                Console.WriteLine($"[DEBUG] Calling SearchDocumentsWithEmbeddingAsync...");
+                                
                                 Console.WriteLine($"Searching for similar documents. UserId: {currentUserId}, MinSimilarity: {SIMILAR_DOCUMENTS_MIN_SIMILARITY}");
                                 // Use the embedding we already generated instead of regenerating it from text
                                 similarDocuments = await SemanticRAGService.SearchDocumentsWithEmbeddingAsync(
@@ -1418,6 +1425,11 @@
                                     currentUserId,
                                     topK: SIMILAR_DOCUMENTS_COUNT,
                                     minSimilarity: SIMILAR_DOCUMENTS_MIN_SIMILARITY);
+                                
+                                Console.WriteLine($"[DEBUG] SearchDocumentsWithEmbeddingAsync returned");
+                                Console.WriteLine($"[DEBUG] similarDocuments is null: {similarDocuments == null}");
+                                Console.WriteLine($"[DEBUG] similarDocuments count: {similarDocuments?.Count ?? 0}");
+                                
                                 Console.WriteLine($"Search completed. Found {similarDocuments?.Count ?? 0} similar documents");
                                 if (similarDocuments != null && similarDocuments.Any())
                                 {
@@ -1428,11 +1440,19 @@
                                 }
                                 else
                                 {
+                                    Console.WriteLine($"[DEBUG] ⚠️ NO SIMILAR DOCUMENTS FOUND!");
+                                    Console.WriteLine($"[DEBUG] Possibili cause:");
+                                    Console.WriteLine($"[DEBUG] 1. Nessun documento precedente con embeddings salvato nel database");
+                                    Console.WriteLine($"[DEBUG] 2. I documenti precedenti hanno un OwnerId diverso da '{currentUserId}'");
+                                    Console.WriteLine($"[DEBUG] 3. La similarità dei documenti è sotto la soglia del {SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0}");
+                                    Console.WriteLine($"[DEBUG] 4. Controlla i log del server per '=== SIMILARITY SEARCH DEBUG ===' per dettagli");
                                     Console.WriteLine("  No similar documents found or result was null");
                                 }
+                                Console.WriteLine($"[DEBUG] === END SIMILARITY SEARCH ===");
                             }
                             else
                             {
+                                Console.WriteLine($"[DEBUG] ⚠️ Cannot search for similar documents: currentUserId is EMPTY");
                                 Console.WriteLine("Cannot search for similar documents: currentUserId is empty");
                             }
                         }
@@ -1455,6 +1475,20 @@
                     embeddingError = "Errore nella generazione degli embeddings. Verifica la configurazione AI (Gemini/OpenAI/Azure OpenAI).";
                     Console.WriteLine($"Embedding generation exception: {ex.Message}");
                     Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                }
+            }
+            else
+            {
+                // Log why embeddings were not generated
+                if (!enableEmbeddings)
+                {
+                    Console.WriteLine($"[DEBUG] ⚠️ EMBEDDINGS NOT GENERATED: 'Genera embeddings' checkbox is UNCHECKED");
+                    Console.WriteLine($"[DEBUG] Per cercare documenti simili, devi abilitare l'opzione '🧠 Genera embeddings' nelle Opzioni di Elaborazione!");
+                    Console.WriteLine($"[DEBUG] Senza embeddings, questo documento NON potrà essere trovato come simile ad altri documenti.");
+                }
+                else if (string.IsNullOrEmpty(extractedText))
+                {
+                    Console.WriteLine($"[DEBUG] ⚠️ EMBEDDINGS NOT GENERATED: extractedText is empty or null");
                 }
             }
 
