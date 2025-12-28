@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using DocN.Core.Interfaces;
@@ -18,6 +17,11 @@ public class TesseractOCRService : IOCRService
     private readonly IConfiguration _configuration;
     private readonly string _tessDataPath;
     private bool _isAvailable;
+    
+    // Tesseract configuration variable names
+    private const string TesseractCharWhitelist = "tessedit_char_whitelist";
+    private const string TesseractLoadSystemDawg = "load_system_dawg";
+    private const string TesseractLoadFreqDawg = "load_freq_dawg";
 
     public TesseractOCRService(
         ILogger<TesseractOCRService> logger,
@@ -95,9 +99,9 @@ public class TesseractOCRService : IOCRService
                 using var engine = new TesseractEngine(_tessDataPath, language, EngineMode.Default);
                 
                 // Configure engine for better accuracy
-                engine.SetVariable("tessedit_char_whitelist", null); // Allow all characters
-                engine.SetVariable("load_system_dawg", "false");
-                engine.SetVariable("load_freq_dawg", "false");
+                engine.SetVariable(TesseractCharWhitelist, null); // Allow all characters
+                engine.SetVariable(TesseractLoadSystemDawg, "false");
+                engine.SetVariable(TesseractLoadFreqDawg, "false");
                 
                 using var img = Pix.LoadFromFile(tempFile);
                 using var page = engine.Process(img);

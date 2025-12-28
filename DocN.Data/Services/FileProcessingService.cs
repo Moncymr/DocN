@@ -936,24 +936,24 @@ public class FileProcessingService : IFileProcessingService
                     
                     try
                     {
-                        // Reset stream position for OCR processing
+                        // Get language setting from configuration (default to Italian)
+                        var ocrLanguage = _configuration["Tesseract:Language"] ?? "ita";
+                        string ocrText;
+                        
+                        // Create a seekable stream for OCR processing
                         if (stream.CanSeek)
                         {
                             stream.Position = 0;
+                            ocrText = await _ocrService.ExtractTextFromImageAsync(stream, ocrLanguage);
                         }
                         else
                         {
-                            // If stream is not seekable, we need to create a new one from the image
-                            var memStream = new MemoryStream();
+                            // If stream is not seekable, create a new one from the image
+                            using var memStream = new MemoryStream();
                             await image.SaveAsPngAsync(memStream);
                             memStream.Position = 0;
-                            stream = memStream;
+                            ocrText = await _ocrService.ExtractTextFromImageAsync(memStream, ocrLanguage);
                         }
-                        
-                        // Get language setting from configuration (default to Italian)
-                        var ocrLanguage = _configuration["Tesseract:Language"] ?? "ita";
-                        
-                        var ocrText = await _ocrService.ExtractTextFromImageAsync(stream, ocrLanguage);
                         
                         if (!string.IsNullOrWhiteSpace(ocrText))
                         {
