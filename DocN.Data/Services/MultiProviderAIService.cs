@@ -125,6 +125,9 @@ public class MultiProviderAIService : IMultiProviderAIService
 
         // Determine which provider to use for embeddings
         var provider = config.EmbeddingsProvider ?? config.ProviderType;
+        
+        // Log which provider is being used for embeddings
+        await _logService.LogInfoAsync("Embedding", $"Using {provider} for embedding generation");
 
         // Try primary embedding provider
         try

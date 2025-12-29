@@ -220,6 +220,21 @@ public class DocumentService : IDocumentService
     {
         try
         {
+            // Validate embedding dimensions before saving to avoid database errors
+            if (document.EmbeddingVector != null && document.EmbeddingVector.Length > 0)
+            {
+                var embeddingDimension = document.EmbeddingVector.Length;
+                
+                // Check if dimension is valid (768 for Gemini, 1536 for OpenAI/Azure)
+                if (embeddingDimension != 768 && embeddingDimension != 1536)
+                {
+                    throw new InvalidOperationException(
+                        $"Invalid embedding dimension: {embeddingDimension}. " +
+                        "Expected 768 (Gemini) or 1536 (OpenAI/Azure OpenAI). " +
+                        "Please check your AI provider configuration.");
+                }
+            }
+            
             _context.Documents.Add(document);
             await _context.SaveChangesAsync();
             return document;
@@ -228,6 +243,32 @@ public class DocumentService : IDocumentService
         {
             // Extract the inner exception details for better error reporting
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
+            
+            // Check for vector dimension mismatch error
+            if (innerMessage.Contains("dimensioni del vettore") || 
+                innerMessage.Contains("vector") || 
+                innerMessage.Contains("1536") || 
+                innerMessage.Contains("768"))
+            {
+                var embeddingDim = document.EmbeddingVector?.Length ?? 0;
+                throw new InvalidOperationException(
+                    $"DATABASE DIMENSION MISMATCH ERROR:\n\n" +
+                    $"📊 Generated embedding dimensions: {embeddingDim}\n" +
+                    $"❌ Database vector configuration mismatch detected.\n\n" +
+                    $"SOLUTION:\n" +
+                    $"1. If you're using Gemini (768 dimensions):\n" +
+                    $"   - Your database should be configured for VECTOR(768)\n" +
+                    $"   - Run: database/Update_Vector_1536_to_768.sql (if exists)\n\n" +
+                    $"2. If you're using OpenAI/Azure OpenAI (1536 dimensions):\n" +
+                    $"   - Your database should be configured for VECTOR(1536)\n" +
+                    $"   - Run: database/Update_Vector_768_to_1536.sql\n\n" +
+                    $"3. Switch AI provider to match your database configuration:\n" +
+                    $"   - Go to AI Configuration page\n" +
+                    $"   - Select the appropriate embedding provider\n\n" +
+                    $"Original error: {innerMessage}",
+                    ex);
+            }
+            
             throw new InvalidOperationException($"Database save failed: {innerMessage}", ex);
         }
     }
@@ -244,6 +285,21 @@ public class DocumentService : IDocumentService
         // Only owner can update (documents without owner cannot be updated)
         if (string.IsNullOrEmpty(existingDocument.OwnerId) || existingDocument.OwnerId != userId)
             throw new UnauthorizedAccessException("Only the document owner can update this document");
+
+        // Validate embedding dimensions before updating
+        if (document.EmbeddingVector != null && document.EmbeddingVector.Length > 0)
+        {
+            var embeddingDimension = document.EmbeddingVector.Length;
+            
+            // Check if dimension is valid (768 for Gemini, 1536 for OpenAI/Azure)
+            if (embeddingDimension != 768 && embeddingDimension != 1536)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid embedding dimension: {embeddingDimension}. " +
+                    "Expected 768 (Gemini) or 1536 (OpenAI/Azure OpenAI). " +
+                    "Please check your AI provider configuration.");
+            }
+        }
 
         // Update document properties
         existingDocument.FileName = document.FileName;
@@ -283,8 +339,43 @@ public class DocumentService : IDocumentService
             }
         }
 
-        await _context.SaveChangesAsync();
-        return existingDocument;
+        try
+        {
+            await _context.SaveChangesAsync();
+            return existingDocument;
+        }
+        catch (DbUpdateException ex)
+        {
+            // Extract the inner exception details for better error reporting
+            var innerMessage = ex.InnerException?.Message ?? ex.Message;
+            
+            // Check for vector dimension mismatch error
+            if (innerMessage.Contains("dimensioni del vettore") || 
+                innerMessage.Contains("vector") || 
+                innerMessage.Contains("1536") || 
+                innerMessage.Contains("768"))
+            {
+                var embeddingDim = document.EmbeddingVector?.Length ?? 0;
+                throw new InvalidOperationException(
+                    $"DATABASE DIMENSION MISMATCH ERROR:\n\n" +
+                    $"📊 Generated embedding dimensions: {embeddingDim}\n" +
+                    $"❌ Database vector configuration mismatch detected.\n\n" +
+                    $"SOLUTION:\n" +
+                    $"1. If you're using Gemini (768 dimensions):\n" +
+                    $"   - Your database should be configured for VECTOR(768)\n" +
+                    $"   - Run: database/Update_Vector_1536_to_768.sql (if exists)\n\n" +
+                    $"2. If you're using OpenAI/Azure OpenAI (1536 dimensions):\n" +
+                    $"   - Your database should be configured for VECTOR(1536)\n" +
+                    $"   - Run: database/Update_Vector_768_to_1536.sql\n\n" +
+                    $"3. Switch AI provider to match your database configuration:\n" +
+                    $"   - Go to AI Configuration page\n" +
+                    $"   - Select the appropriate embedding provider\n\n" +
+                    $"Original error: {innerMessage}",
+                    ex);
+            }
+            
+            throw new InvalidOperationException($"Database save failed: {innerMessage}", ex);
+        }
     }
 
     public async Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments)
