@@ -65,22 +65,25 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // AI Tags JSON field
             entity.Property(e => e.AITagsJson).HasColumnType("nvarchar(max)");
             
-            // Configure vector column for SQL Server 2025 native VECTOR type
-            // SQL Server VECTOR type expects JSON array format: [0.1, 0.2, 0.3, ...]
-            // We convert float[] to JSON string for storage
-            var vectorConverter = new ValueConverter<float[]?, string?>(
-                v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
-                v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
-            );
+            // Configure vector columns for SQL Server 2025 native VECTOR type
+            // Two separate fields for different dimensions
             
-            entity.Property(e => e.EmbeddingVector)
-                .HasColumnType("nvarchar(max)")  // Use nvarchar(max) for JSON - compatible with VECTOR type
-                .HasConversion(vectorConverter)
+            // 768-dimensional vector for Gemini and similar providers
+            entity.Property(e => e.EmbeddingVector768)
+                .HasColumnType("VECTOR(768)")
                 .IsRequired(false);
             
-            // Configure EmbeddingDimension to track the actual dimension of the stored vector
+            // 1536-dimensional vector for OpenAI and similar providers
+            entity.Property(e => e.EmbeddingVector1536)
+                .HasColumnType("VECTOR(1536)")
+                .IsRequired(false);
+            
+            // Configure EmbeddingDimension to track which field is used
             entity.Property(e => e.EmbeddingDimension)
                 .IsRequired(false);
+            
+            // Ignore the calculated property EmbeddingVector (it's not mapped to database)
+            entity.Ignore(e => e.EmbeddingVector);
             
             // Index for performance with large number of documents
             entity.HasIndex(e => e.OwnerId);
@@ -202,22 +205,25 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ChunkText).IsRequired();
             
-            // Configure vector column for chunk embeddings
-            // SQL Server VECTOR type expects JSON array format: [0.1, 0.2, 0.3, ...]
-            // We convert float[] to JSON string for storage
-            var chunkVectorConverter = new ValueConverter<float[]?, string?>(
-                v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
-                v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
-            );
+            // Configure vector columns for chunk embeddings
+            // Two separate fields for different dimensions
             
-            entity.Property(e => e.ChunkEmbedding)
-                .HasColumnType("nvarchar(max)")  // Use nvarchar(max) for JSON - compatible with VECTOR type
-                .HasConversion(chunkVectorConverter)
+            // 768-dimensional vector for Gemini and similar providers
+            entity.Property(e => e.ChunkEmbedding768)
+                .HasColumnType("VECTOR(768)")
                 .IsRequired(false);
             
-            // Configure EmbeddingDimension to track the actual dimension of the stored vector
+            // 1536-dimensional vector for OpenAI and similar providers
+            entity.Property(e => e.ChunkEmbedding1536)
+                .HasColumnType("VECTOR(1536)")
+                .IsRequired(false);
+            
+            // Configure EmbeddingDimension to track which field is used
             entity.Property(e => e.EmbeddingDimension)
                 .IsRequired(false);
+            
+            // Ignore the calculated property ChunkEmbedding (it's not mapped to database)
+            entity.Ignore(e => e.ChunkEmbedding);
             
             // Relationship with Document
             entity.HasOne(e => e.Document)

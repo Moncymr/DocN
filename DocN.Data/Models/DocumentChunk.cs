@@ -31,17 +31,63 @@ public class DocumentChunk
     /// </summary>
     public string ChunkText { get; set; } = string.Empty;
 
+    // Vector embeddings for semantic search - separate fields for different dimensions
+    // Using native SQL Server VECTOR type for optimal performance
+    
     /// <summary>
-    /// Vector embedding for this chunk (supports variable dimensions: 700, 768, 1536, 1583, etc.)
+    /// 768-dimensional embedding vector (for Gemini and similar providers)
+    /// Stored as VECTOR(768) in SQL Server 2025
     /// </summary>
-    public float[]? ChunkEmbedding { get; set; }
+    public float[]? ChunkEmbedding768 { get; set; }
+    
+    /// <summary>
+    /// 1536-dimensional embedding vector (for OpenAI ada-002 and similar providers)
+    /// Stored as VECTOR(1536) in SQL Server 2025
+    /// </summary>
+    public float[]? ChunkEmbedding1536 { get; set; }
     
     /// <summary>
     /// The actual dimension of the embedding vector stored.
-    /// Tracks the dimension to support coexistence of different AI providers with different dimensions.
-    /// Common values: 700 (Gemini custom), 768 (Gemini default), 1536 (OpenAI ada-002), 1583 (OpenAI custom), 3072 (OpenAI large)
+    /// Indicates which vector field is populated: 768 or 1536
     /// </summary>
     public int? EmbeddingDimension { get; set; }
+    
+    /// <summary>
+    /// Unified property for backward compatibility - returns the populated vector field
+    /// Gets/sets the appropriate field based on dimension
+    /// </summary>
+    public float[]? ChunkEmbedding
+    {
+        get
+        {
+            return ChunkEmbedding768 ?? ChunkEmbedding1536;
+        }
+        set
+        {
+            if (value == null)
+            {
+                ChunkEmbedding768 = null;
+                ChunkEmbedding1536 = null;
+                EmbeddingDimension = null;
+            }
+            else if (value.Length == 768)
+            {
+                ChunkEmbedding768 = value;
+                ChunkEmbedding1536 = null;
+                EmbeddingDimension = 768;
+            }
+            else if (value.Length == 1536)
+            {
+                ChunkEmbedding768 = null;
+                ChunkEmbedding1536 = value;
+                EmbeddingDimension = 1536;
+            }
+            else
+            {
+                throw new ArgumentException($"Unsupported embedding dimension: {value.Length}. Expected 768 or 1536.");
+            }
+        }
+    }
 
     /// <summary>
     /// Token count for this chunk (useful for staying within model limits)

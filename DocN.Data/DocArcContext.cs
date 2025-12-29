@@ -50,10 +50,16 @@ public class DocArcContext : DbContext
             // Visibility management
             entity.Property(e => e.Visibility).IsRequired();
             
-            // Vector embedding - use shared converter
-            entity.Property(e => e.EmbeddingVector)
-                .HasColumnType("nvarchar(max)")
-                .HasConversion(GetVectorConverter())
+            // Ignore the legacy calculated property - use dual vector fields instead
+            entity.Ignore(e => e.EmbeddingVector);
+            
+            // Configure dual VECTOR fields
+            entity.Property(e => e.EmbeddingVector768)
+                .HasColumnType("VECTOR(768)")
+                .IsRequired(false);
+            
+            entity.Property(e => e.EmbeddingVector1536)
+                .HasColumnType("VECTOR(1536)")
                 .IsRequired(false);
             
             // Metadata
@@ -75,10 +81,16 @@ public class DocArcContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ChunkText).IsRequired();
             
-            // Configure vector column for chunk embeddings - use shared converter
-            entity.Property(e => e.ChunkEmbedding)
-                .HasColumnType("nvarchar(max)")
-                .HasConversion(GetVectorConverter())
+            // Ignore the legacy calculated property - use dual vector fields instead
+            entity.Ignore(e => e.ChunkEmbedding);
+            
+            // Configure dual VECTOR fields for chunk embeddings
+            entity.Property(e => e.ChunkEmbedding768)
+                .HasColumnType("VECTOR(768)")
+                .IsRequired(false);
+            
+            entity.Property(e => e.ChunkEmbedding1536)
+                .HasColumnType("VECTOR(1536)")
                 .IsRequired(false);
             
             entity.Property(e => e.TokenCount).IsRequired(false);

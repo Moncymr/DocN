@@ -221,14 +221,22 @@ public class DocumentService : IDocumentService
     {
         try
         {
-            // Validate embedding dimensions before saving to avoid database errors
-            EmbeddingValidationHelper.ValidateEmbeddingDimensions(document.EmbeddingVector);
+            // Determine which embedding field is populated and validate
+            float[]? embeddingToValidate = null;
             
-            // Ensure EmbeddingDimension is set when EmbeddingVector is present
-            if (document.EmbeddingVector != null && document.EmbeddingVector.Length > 0)
+            if (document.EmbeddingVector768 != null && document.EmbeddingVector768.Length > 0)
             {
-                document.EmbeddingDimension = document.EmbeddingVector.Length;
+                embeddingToValidate = document.EmbeddingVector768;
+                document.EmbeddingDimension = 768;
             }
+            else if (document.EmbeddingVector1536 != null && document.EmbeddingVector1536.Length > 0)
+            {
+                embeddingToValidate = document.EmbeddingVector1536;
+                document.EmbeddingDimension = 1536;
+            }
+            
+            // Validate embedding dimensions before saving to avoid database errors
+            EmbeddingValidationHelper.ValidateEmbeddingDimensions(embeddingToValidate);
             
             _context.Documents.Add(document);
             await _context.SaveChangesAsync();
@@ -242,7 +250,7 @@ public class DocumentService : IDocumentService
             // Check for vector dimension mismatch error
             if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(innerMessage))
             {
-                var embeddingDim = document.EmbeddingVector?.Length ?? 0;
+                var embeddingDim = document.EmbeddingDimension ?? 0;
                 throw new InvalidOperationException(
                     EmbeddingValidationHelper.CreateDimensionMismatchErrorMessage(embeddingDim, innerMessage),
                     ex);
@@ -265,8 +273,22 @@ public class DocumentService : IDocumentService
         if (string.IsNullOrEmpty(existingDocument.OwnerId) || existingDocument.OwnerId != userId)
             throw new UnauthorizedAccessException("Only the document owner can update this document");
 
+        // Determine which embedding field is populated and validate
+        float[]? embeddingToValidate = null;
+        
+        if (document.EmbeddingVector768 != null && document.EmbeddingVector768.Length > 0)
+        {
+            embeddingToValidate = document.EmbeddingVector768;
+            document.EmbeddingDimension = 768;
+        }
+        else if (document.EmbeddingVector1536 != null && document.EmbeddingVector1536.Length > 0)
+        {
+            embeddingToValidate = document.EmbeddingVector1536;
+            document.EmbeddingDimension = 1536;
+        }
+        
         // Validate embedding dimensions before updating
-        EmbeddingValidationHelper.ValidateEmbeddingDimensions(document.EmbeddingVector);
+        EmbeddingValidationHelper.ValidateEmbeddingDimensions(embeddingToValidate);
 
         // Update document properties
         existingDocument.FileName = document.FileName;
@@ -278,8 +300,9 @@ public class DocumentService : IDocumentService
         existingDocument.CategoryReasoning = document.CategoryReasoning;
         existingDocument.ActualCategory = document.ActualCategory;
         existingDocument.Visibility = document.Visibility;
-        existingDocument.EmbeddingVector = document.EmbeddingVector;
-        existingDocument.EmbeddingDimension = document.EmbeddingVector?.Length;
+        existingDocument.EmbeddingVector768 = document.EmbeddingVector768;
+        existingDocument.EmbeddingVector1536 = document.EmbeddingVector1536;
+        existingDocument.EmbeddingDimension = document.EmbeddingDimension;
         existingDocument.Notes = document.Notes;
         existingDocument.PageCount = document.PageCount;
         existingDocument.DetectedLanguage = document.DetectedLanguage;
