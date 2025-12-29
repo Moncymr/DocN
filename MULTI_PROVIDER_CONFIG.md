@@ -40,7 +40,7 @@ Per ogni servizio, seleziona quale provider utilizzare:
 
 Se vuoi usare Gemini:
 - **API Key**: La tua chiave API di Google AI
-- **Chat Model**: `gemini-1.5-flash` (predefinito) o `gemini-1.5-pro`
+- **Chat Model**: `gemini-2.0-flash-exp` (predefinito), `gemini-2.5-flash`, o `gemini-3-flash` (più recenti)
 - **Embedding Model**: `text-embedding-004` (predefinito)
 
 ### 5. Configura OpenAI
@@ -113,7 +113,7 @@ Provider Servizi:
 
 Gemini:
 - API Key: [tua-chiave]
-- Chat Model: gemini-1.5-flash
+- Chat Model: gemini-2.0-flash-exp
 - Embedding Model: text-embedding-004
 ```
 
@@ -128,7 +128,7 @@ Provider Servizi:
 
 Gemini:
 - API Key: [tua-chiave-gemini]
-- Chat Model: gemini-1.5-flash
+- Chat Model: gemini-2.0-flash-exp
 
 OpenAI:
 - API Key: [tua-chiave-openai]

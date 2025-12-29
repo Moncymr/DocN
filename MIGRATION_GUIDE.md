@@ -134,7 +134,7 @@ Inserisci questi valori nella pagina `/config`:
 
 **Gemini Configuration:**
 - API Key: `your-gemini-key`
-- Chat Model: `gemini-1.5-flash`
+- Chat Model: `gemini-2.0-flash-exp` (or newer models like `gemini-2.5-flash`, `gemini-3-flash`)
 - Embedding Model: `text-embedding-004`
 
 **OpenAI Configuration:**
