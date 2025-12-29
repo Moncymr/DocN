@@ -1,5 +1,8 @@
 # DocN - Sistema RAG Documentale Aziendale
 
+> 🎯 **Nuovo Utente?** Leggi [RISPOSTA_BREVE.md](RISPOSTA_BREVE.md) (5 minuti) per capire cosa fare ora!  
+> 📚 **Vuoi i dettagli?** Leggi [PROSSIMI_PASSI.md](PROSSIMI_PASSI.md) (10 minuti) per il piano completo.
+
 ## 📋 Panoramica
 
 DocN è un sistema avanzato di gestione documentale enterprise con Retrieval-Augmented Generation (RAG) basato su intelligenza artificiale. Il sistema consente di archiviare, indicizzare, ricercare e interagire con documenti aziendali utilizzando tecnologie di AI all'avanguardia.
