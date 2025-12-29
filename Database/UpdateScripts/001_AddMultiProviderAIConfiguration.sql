@@ -188,7 +188,7 @@ GO
 -- Aggiorna record esistenti con valori di default
 UPDATE [dbo].[AIConfigurations]
 SET 
-    [GeminiChatModel] = 'gemini-1.5-flash',
+    [GeminiChatModel] = 'gemini-2.0-flash-exp',
     [GeminiEmbeddingModel] = 'text-embedding-004',
     [OpenAIChatModel] = 'gpt-4',
     [OpenAIEmbeddingModel] = 'text-embedding-ada-002',
