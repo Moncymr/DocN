@@ -81,6 +81,7 @@ public class BatchEmbeddingProcessor : BackgroundService
                     if (embedding != null)
                     {
                         document.EmbeddingVector = embedding;
+                        document.EmbeddingDimension = embedding.Length;
                         
                         // Log embedding info before saving
                         _logger.LogInformation("Generated embedding for document {Id}: {FileName}", 
@@ -105,6 +106,7 @@ public class BatchEmbeddingProcessor : BackgroundService
                             // Validate embedding dimensions
                             EmbeddingValidationHelper.ValidateEmbeddingDimensions(chunkEmbedding, _logger);
                             chunk.ChunkEmbedding = chunkEmbedding;
+                            chunk.EmbeddingDimension = chunkEmbedding.Length;
                         }
                         
                         context.DocumentChunks.Add(chunk);
@@ -179,6 +181,7 @@ public class BatchEmbeddingProcessor : BackgroundService
                     if (embedding != null)
                     {
                         chunk.ChunkEmbedding = embedding;
+                        chunk.EmbeddingDimension = embedding.Length;
                         _logger.LogDebug("Generated embedding for chunk {Id} of document {DocumentId}", 
                             chunk.Id, chunk.DocumentId);
                     }
@@ -265,6 +268,7 @@ public class BatchProcessingService : IBatchProcessingService
                 if (embedding != null)
                 {
                     document.EmbeddingVector = embedding;
+                    document.EmbeddingDimension = embedding.Length;
                     
                     // Log embedding info before saving
                     _logger.LogInformation("Generated embedding for document {Id}: {FileName} - Length: {Length}",
@@ -290,6 +294,7 @@ public class BatchProcessingService : IBatchProcessingService
                         // Validate embedding dimensions
                         EmbeddingValidationHelper.ValidateEmbeddingDimensions(chunkEmbedding, _logger);
                         chunk.ChunkEmbedding = chunkEmbedding;
+                        chunk.EmbeddingDimension = chunkEmbedding.Length;
                     }
                     _context.DocumentChunks.Add(chunk);
                 }
