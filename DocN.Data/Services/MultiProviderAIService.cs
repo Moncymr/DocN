@@ -840,10 +840,10 @@ Respond ONLY with valid JSON, no other comments.";
                 }
             }
         }
-        catch (Exception ex)
+        catch
         {
-            // If parsing fails, log and return null to use default retry delay
-            _logService.LogDebugAsync("Retry", "Failed to extract retry delay from error", ex.Message).Wait();
+            // If parsing fails, return null to use default retry delay
+            // Don't log here as this is called in error handling path
         }
 
         return null;
@@ -859,8 +859,9 @@ Respond ONLY with valid JSON, no other comments.";
     {
         int retryCount = 0;
         TimeSpan baseDelay = TimeSpan.FromSeconds(5);
+        Exception? lastException = null;
 
-        while (true)
+        while (retryCount <= maxRetries)
         {
             try
             {
@@ -871,6 +872,7 @@ Respond ONLY with valid JSON, no other comments.";
                 retryCount < maxRetries)
             {
                 retryCount++;
+                lastException = ex;
                 
                 // Try to extract retry delay from API response
                 TimeSpan delay = ExtractRetryDelayFromError(ex.Message) 
@@ -885,7 +887,15 @@ Respond ONLY with valid JSON, no other comments.";
                 
                 await _logService.LogInfoAsync(operationName, $"Retrying after rate limit... Attempt {retryCount + 1}");
             }
+            catch (Exception)
+            {
+                // For non-retryable errors or when retries exhausted, throw immediately
+                throw;
+            }
         }
+
+        // If we've exhausted retries, throw the last exception
+        throw lastException ?? new InvalidOperationException($"Operation failed after {maxRetries} retries");
     }
 
     private class CategorySuggestion
