@@ -111,6 +111,7 @@ builder.Services.AddScoped<DocN.Data.Services.IChunkingService, DocN.Data.Servic
 builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
 builder.Services.AddScoped<IBatchProcessingService, BatchProcessingService>();
+builder.Services.AddScoped<ILogService, LogService>();
 
 // Register Semantic RAG Service (new advanced RAG with Semantic Kernel)
 builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
