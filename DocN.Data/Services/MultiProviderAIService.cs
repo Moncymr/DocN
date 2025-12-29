@@ -73,7 +73,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         {
             ConfigurationName = "Default (from appsettings.json)",
             GeminiApiKey = _configuration["Gemini:ApiKey"],
-            GeminiChatModel = "gemini-1.5-flash",
+            GeminiChatModel = "gemini-2.0-flash-exp",
             GeminiEmbeddingModel = "text-embedding-004",
             OpenAIApiKey = _configuration["OpenAI:ApiKey"],
             OpenAIChatModel = _configuration["OpenAI:Model"] ?? "gpt-4",
@@ -286,6 +286,16 @@ public class MultiProviderAIService : IMultiProviderAIService
             }
         }
         catch (System.Net.Http.HttpRequestException ex) when (
+            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.NotFound) || 
+            ex.Message.Contains("NotFound") || 
+            ex.Message.Contains("404") ||
+            ex.Message.Contains("NOT_FOUND"))
+        {
+            var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
+            await _logService.LogErrorAsync("Embedding", $"Modello Gemini embedding non trovato: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+            throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è stato trovato o non è supportato. Verifica che il modello sia disponibile per la tua API key e utilizza modelli supportati come 'text-embedding-004'. Errore: {ex.Message}", ex);
+        }
+        catch (System.Net.Http.HttpRequestException ex) when (
             (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
             ex.Message.Contains("Forbidden") || 
             ex.Message.Contains("403"))
@@ -387,7 +397,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         {
             var gemini = new GoogleAI(apiKey);
             // Ensure model name has proper format - add "models/" prefix if not present
-            var modelName = config.GeminiChatModel ?? "gemini-1.5-flash";
+            var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
             if (!modelName.StartsWith("models/"))
             {
                 modelName = $"models/{modelName}";
@@ -410,6 +420,16 @@ public class MultiProviderAIService : IMultiProviderAIService
             }
         }
         catch (System.Net.Http.HttpRequestException ex) when (
+            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.NotFound) || 
+            ex.Message.Contains("NotFound") || 
+            ex.Message.Contains("404") ||
+            ex.Message.Contains("NOT_FOUND"))
+        {
+            var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
+            await _logService.LogErrorAsync("AI", $"Modello Gemini non trovato: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+            throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è stato trovato o non è supportato. I modelli più vecchi come 'gemini-1.5-flash' potrebbero non essere più disponibili. Prova a utilizzare modelli più recenti come 'gemini-2.0-flash-exp', 'gemini-2.5-flash', o 'gemini-3-flash'. Puoi anche verificare i modelli disponibili con l'API ListModels. Errore: {ex.Message}", ex);
+        }
+        catch (System.Net.Http.HttpRequestException ex) when (
             (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
             ex.Message.Contains("Forbidden") || 
             ex.Message.Contains("403"))
@@ -423,9 +443,9 @@ public class MultiProviderAIService : IMultiProviderAIService
             ex.Message.Contains("400") ||
             ex.Message.Contains("INVALID_ARGUMENT"))
         {
-            var modelName = config.GeminiChatModel ?? "gemini-1.5-flash";
+            var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
             await _logService.LogErrorAsync("AI", $"Errore nel formato del modello Gemini. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-            throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'gemini-1.5-flash', 'gemini-2.0-flash-exp'). Errore: {ex.Message}", ex);
+            throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'gemini-2.0-flash-exp', 'gemini-2.5-flash', 'gemini-3-flash'). Errore: {ex.Message}", ex);
         }
         catch (Exception ex)
         {
