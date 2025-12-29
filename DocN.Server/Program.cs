@@ -122,6 +122,10 @@ builder.Services.AddScoped<ISynthesisAgent, SynthesisAgent>();
 builder.Services.AddScoped<IClassificationAgent, ClassificationAgent>();
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
+// Register Agent Configuration services
+builder.Services.AddScoped<IAgentConfigurationService, AgentConfigurationService>();
+builder.Services.AddScoped<AgentTemplateSeeder>();
+
 // Register background services
 builder.Services.AddHostedService<BatchEmbeddingProcessor>();
 
@@ -135,6 +139,10 @@ using (var scope = app.Services.CreateScope())
 {
     var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
     await seeder.SeedAsync();
+    
+    // Seed agent templates
+    var agentTemplateSeeder = scope.ServiceProvider.GetRequiredService<AgentTemplateSeeder>();
+    await agentTemplateSeeder.SeedTemplatesAsync();
 }
 
 // Configure the HTTP request pipeline.
