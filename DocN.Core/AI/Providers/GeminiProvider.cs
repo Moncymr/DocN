@@ -35,23 +35,40 @@ public class GeminiProvider : BaseAIProvider
 
     public override async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Generating embedding with Gemini");
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new ArgumentException("Text cannot be null, empty, or whitespace", nameof(text));
+        }
+
+        _logger.LogInformation("Generating embedding with Gemini for text of length {Length}", text.Length);
 
         try
         {
             var model = _client.GenerativeModel(model: _config.EmbeddingModel);
-            var response = await model.EmbedContent(text);
+            // Use TaskType.RetrievalDocument for better semantic retrieval quality
+            var response = await model.EmbedContent(
+                content: text,
+                taskType: Mscc.GenerativeAI.TaskType.RetrievalDocument,
+                cancellationToken: cancellationToken);
             
-            if (response?.Embedding?.Values != null)
+            if (response == null)
             {
-                return response.Embedding.Values.ToArray();
+                throw new InvalidOperationException("Failed to generate embedding with Gemini: Response was null");
             }
-
-            throw new InvalidOperationException("Failed to generate embedding with Gemini");
+            
+            if (response.Embedding?.Values == null)
+            {
+                throw new InvalidOperationException("Failed to generate embedding with Gemini: Embedding.Values was null");
+            }
+            
+            var embedding = response.Embedding.Values.ToArray();
+            _logger.LogInformation("Successfully generated embedding with {Dimensions} dimensions", embedding.Length);
+            return embedding;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating embedding with Gemini");
+            _logger.LogError(ex, "Error generating embedding with Gemini. Model: {Model}, Text length: {Length}", 
+                _config.EmbeddingModel, text.Length);
             throw;
         }
     }

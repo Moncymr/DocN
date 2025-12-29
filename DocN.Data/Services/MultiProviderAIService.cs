@@ -274,7 +274,9 @@ public class MultiProviderAIService : IMultiProviderAIService
                 var model = gemini.GenerativeModel(model: modelName);
                 
                 await _logService.LogDebugAsync("Embedding", $"[Gemini] Attempting to generate embedding with model: {modelName}");
-                var response = await model.EmbedContent(text);
+                var response = await model.EmbedContent(
+                    content: text,
+                    taskType: Mscc.GenerativeAI.TaskType.RetrievalDocument);
                 
                 if (response?.Embedding?.Values != null)
                 {
