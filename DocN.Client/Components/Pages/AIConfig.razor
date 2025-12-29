@@ -679,8 +679,25 @@
     {
         try
         {
+            // Validate required fields
+            if (string.IsNullOrWhiteSpace(config!.ConfigurationName))
+            {
+                message = "❌ Il nome della configurazione è obbligatorio";
+                isError = true;
+                return;
+            }
+            
+            // Trim and validate length
+            config.ConfigurationName = config.ConfigurationName.Trim();
+            if (config.ConfigurationName.Length > 100)
+            {
+                message = "❌ Il nome della configurazione non può superare 100 caratteri";
+                isError = true;
+                return;
+            }
+            
             // Update provider assignments from dropdowns
-            config!.ChatProvider = string.IsNullOrEmpty(selectedChatProvider) ? null : (AIProviderType)int.Parse(selectedChatProvider);
+            config.ChatProvider = string.IsNullOrEmpty(selectedChatProvider) ? null : (AIProviderType)int.Parse(selectedChatProvider);
             config.EmbeddingsProvider = string.IsNullOrEmpty(selectedEmbeddingsProvider) ? null : (AIProviderType)int.Parse(selectedEmbeddingsProvider);
             config.TagExtractionProvider = string.IsNullOrEmpty(selectedTagExtractionProvider) ? null : (AIProviderType)int.Parse(selectedTagExtractionProvider);
             config.RAGProvider = string.IsNullOrEmpty(selectedRAGProvider) ? null : (AIProviderType)int.Parse(selectedRAGProvider);
@@ -713,8 +730,26 @@
         }
         catch (Exception ex)
         {
-            message = $"❌ Errore nel salvataggio della configurazione: {ex.Message}";
+            // Capture inner exceptions for better error reporting
+            var fullErrorMessage = ex.Message;
+            var innerEx = ex.InnerException;
+            var depth = 1;
+            while (innerEx != null && depth <= 3)
+            {
+                fullErrorMessage += $"\n--- Inner Exception {depth} ---\n{innerEx.Message}";
+                innerEx = innerEx.InnerException;
+                depth++;
+            }
+            
+            message = $"❌ Errore nel salvataggio della configurazione: {fullErrorMessage}";
             isError = true;
+            
+            // Log to console for debugging
+            Console.WriteLine($"AIConfiguration Save Error: {fullErrorMessage}");
+            if (ex.StackTrace != null)
+            {
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+            }
         }
     }
 
