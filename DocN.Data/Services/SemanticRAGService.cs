@@ -270,13 +270,67 @@ Always cite your sources using [Document N] format where N is the document numbe
                 return new List<RelevantDocumentResult>();
             }
 
-            // Get all documents with embeddings for the user
+            // Use database-level vector search instead of in-memory calculation
+            return await SearchDocumentsWithEmbeddingDatabaseAsync(queryEmbedding, userId, topK, minSimilarity);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching documents for query: {Query}", query);
+            return new List<RelevantDocumentResult>();
+        }
+    }
+
+    /// <summary>
+    /// Search documents using database-level vector similarity calculation
+    /// Uses SQL Server 2025's VECTOR_DISTANCE when available, with fallback to optimized in-memory calculation
+    /// </summary>
+    private async Task<List<RelevantDocumentResult>> SearchDocumentsWithEmbeddingDatabaseAsync(
+        float[] queryEmbedding,
+        string userId,
+        int topK = 10,
+        double minSimilarity = 0.7)
+    {
+        try
+        {
+            _logger.LogDebug("Performing database-optimized vector search for user: {UserId}", userId);
+
+            // Check if we're using SQL Server (vs in-memory database for testing)
+            var isSqlServer = _context.Database.IsSqlServer();
+            
+            if (!isSqlServer)
+            {
+                _logger.LogDebug("Not using SQL Server, falling back to full in-memory search");
+                return await SearchDocumentsWithEmbeddingAsync(queryEmbedding, userId, topK, minSimilarity);
+            }
+
+            // Try to use SQL Server VECTOR_DISTANCE if available (SQL Server 2025+)
+            try
+            {
+                return await SearchWithVectorDistanceAsync(queryEmbedding, userId, topK, minSimilarity);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "VECTOR_DISTANCE not available, using optimized in-memory calculation");
+                // Fall through to optimized in-memory approach
+            }
+
+            // Optimized approach: Limit candidate set at database level before in-memory calculation
+            // This significantly reduces memory usage and computation compared to loading ALL documents
+            
+            var candidateLimit = Math.Max(topK * 10, 100); // Get reasonable number of candidates
+            
+            // Get recent documents with embeddings (most recent are often most relevant)
             var documents = await _context.Documents
                 .Where(d => d.OwnerId == userId && d.EmbeddingVector != null)
+                .OrderByDescending(d => d.UploadedAt)
+                .Take(candidateLimit)
+                .Select(d => new { d.Id, d.FileName, d.ActualCategory, d.ExtractedText, d.EmbeddingVector })
                 .ToListAsync();
 
-            // Calculate similarity scores
-            var scoredDocs = new List<(Document doc, double score)>();
+            _logger.LogDebug("Retrieved {Count} candidate documents for similarity calculation", documents.Count);
+
+            // Calculate similarity scores for documents
+            var scoredDocs = new List<(int id, string fileName, string? category, string? text, double score)>();
             foreach (var doc in documents)
             {
                 if (doc.EmbeddingVector == null) continue;
@@ -284,17 +338,30 @@ Always cite your sources using [Document N] format where N is the document numbe
                 var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
                 if (similarity >= minSimilarity)
                 {
-                    scoredDocs.Add((doc, similarity));
+                    scoredDocs.Add((doc.Id, doc.FileName, doc.ActualCategory, doc.ExtractedText, similarity));
                 }
             }
 
-            // Get chunks for better precision
+            // Get recent chunks with embeddings
             var chunks = await _context.DocumentChunks
                 .Include(c => c.Document)
                 .Where(c => c.Document!.OwnerId == userId && c.ChunkEmbedding != null)
+                .OrderByDescending(c => c.CreatedAt)
+                .Take(candidateLimit)
+                .Select(c => new { 
+                    c.DocumentId, 
+                    c.Document!.FileName, 
+                    c.Document.ActualCategory, 
+                    c.ChunkText, 
+                    c.ChunkIndex, 
+                    c.ChunkEmbedding 
+                })
                 .ToListAsync();
 
-            var scoredChunks = new List<(DocumentChunk chunk, double score)>();
+            _logger.LogDebug("Retrieved {Count} candidate chunks for similarity calculation", chunks.Count);
+
+            // Calculate similarity scores for chunks
+            var scoredChunks = new List<(int docId, string fileName, string? category, string chunkText, int chunkIndex, double score)>();
             foreach (var chunk in chunks)
             {
                 if (chunk.ChunkEmbedding == null) continue;
@@ -302,62 +369,195 @@ Always cite your sources using [Document N] format where N is the document numbe
                 var similarity = CalculateCosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
                 if (similarity >= minSimilarity)
                 {
-                    scoredChunks.Add((chunk, similarity));
+                    scoredChunks.Add((chunk.DocumentId, chunk.FileName, chunk.ActualCategory, chunk.ChunkText, chunk.ChunkIndex, similarity));
                 }
             }
 
-            // Combine document-level and chunk-level results
+            // Combine results - prioritize chunks over full documents
             var results = new List<RelevantDocumentResult>();
 
-            // Add chunk-based results (higher priority)
-            foreach (var (chunk, score) in scoredChunks.OrderByDescending(x => x.score).Take(topK))
+            // Add chunk-based results (higher priority due to more granular matching)
+            foreach (var (docId, fileName, category, chunkText, chunkIndex, score) in scoredChunks.OrderByDescending(x => x.score).Take(topK))
             {
-                if (chunk.Document == null) continue;
-
                 results.Add(new RelevantDocumentResult
                 {
-                    DocumentId = chunk.DocumentId,
-                    FileName = chunk.Document.FileName,
-                    Category = chunk.Document.ActualCategory,
+                    DocumentId = docId,
+                    FileName = fileName,
+                    Category = category,
                     SimilarityScore = score,
-                    RelevantChunk = chunk.ChunkText,
-                    ChunkIndex = chunk.ChunkIndex
+                    RelevantChunk = chunkText,
+                    ChunkIndex = chunkIndex
                 });
             }
 
             // Add document-level results if we don't have enough chunks
             if (results.Count < topK)
             {
-                var existingDocIds = results.Select(r => r.DocumentId).ToHashSet();
-                foreach (var (doc, score) in scoredDocs.OrderByDescending(x => x.score))
+                var existingDocIds = new HashSet<int>(results.Select(r => r.DocumentId));
+                foreach (var (id, fileName, category, text, score) in scoredDocs.OrderByDescending(x => x.score))
                 {
-                    if (existingDocIds.Contains(doc.Id)) continue;
+                    if (existingDocIds.Contains(id))
+                        continue;
 
                     results.Add(new RelevantDocumentResult
                     {
-                        DocumentId = doc.Id,
-                        FileName = doc.FileName,
-                        Category = doc.ActualCategory,
+                        DocumentId = id,
+                        FileName = fileName,
+                        Category = category,
                         SimilarityScore = score,
-                        RelevantChunk = TruncateText(doc.ExtractedText, 500),
-                        ExtractedText = doc.ExtractedText
+                        ExtractedText = text
                     });
-
-                    if (results.Count >= topK) break;
+                    
+                    existingDocIds.Add(id);
+                    
+                    if (results.Count >= topK)
+                        break;
                 }
             }
 
-            _logger.LogDebug(
-                "Found {Count} relevant documents/chunks for query: {Query}",
-                results.Count, query);
-
+            _logger.LogInformation("Database-optimized search: processed {DocCount} docs + {ChunkCount} chunks, found {ResultCount} results above {MinSim:P0} threshold", 
+                documents.Count, chunks.Count, results.Count, minSimilarity);
             return results.Take(topK).ToList();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching documents for query: {Query}", query);
-            return new List<RelevantDocumentResult>();
+            _logger.LogError(ex, "Error in database-optimized vector search, falling back to full in-memory");
+            return await SearchDocumentsWithEmbeddingAsync(queryEmbedding, userId, topK, minSimilarity);
         }
+    }
+
+    /// <summary>
+    /// Search using SQL Server 2025 VECTOR_DISTANCE function
+    /// This provides true database-level vector similarity computation
+    /// </summary>
+    private async Task<List<RelevantDocumentResult>> SearchWithVectorDistanceAsync(
+        float[] queryEmbedding,
+        string userId,
+        int topK = 10,
+        double minSimilarity = 0.7)
+    {
+        // Serialize query embedding to JSON format (required for VECTOR type)
+        var embeddingJson = System.Text.Json.JsonSerializer.Serialize(queryEmbedding);
+
+        // Use raw SQL with VECTOR_DISTANCE function for document-level search
+        // Note: This requires SQL Server 2025 with VECTOR type support
+        var sql = @"
+            WITH DocumentScores AS (
+                SELECT TOP (@topK)
+                    d.Id,
+                    d.FileName,
+                    d.ActualCategory,
+                    d.ExtractedText,
+                    CAST(VECTOR_DISTANCE('cosine', d.EmbeddingVector, CAST(@queryEmbedding AS VECTOR(1536))) AS FLOAT) AS SimilarityScore
+                FROM Documents d
+                WHERE d.OwnerId = @userId
+                    AND d.EmbeddingVector IS NOT NULL
+                    AND VECTOR_DISTANCE('cosine', d.EmbeddingVector, CAST(@queryEmbedding AS VECTOR(1536))) >= @minSimilarity
+                ORDER BY SimilarityScore DESC
+            ),
+            ChunkScores AS (
+                SELECT TOP (@topK)
+                    dc.DocumentId AS Id,
+                    d.FileName,
+                    d.ActualCategory,
+                    dc.ChunkText,
+                    dc.ChunkIndex,
+                    CAST(VECTOR_DISTANCE('cosine', dc.ChunkEmbedding, CAST(@queryEmbedding AS VECTOR(1536))) AS FLOAT) AS SimilarityScore
+                FROM DocumentChunks dc
+                INNER JOIN Documents d ON dc.DocumentId = d.Id
+                WHERE d.OwnerId = @userId
+                    AND dc.ChunkEmbedding IS NOT NULL
+                    AND VECTOR_DISTANCE('cosine', dc.ChunkEmbedding, CAST(@queryEmbedding AS VECTOR(1536))) >= @minSimilarity
+                ORDER BY SimilarityScore DESC
+            )
+            SELECT 
+                Id, 
+                FileName, 
+                ActualCategory, 
+                CAST(NULL AS NVARCHAR(MAX)) AS ExtractedText, 
+                ChunkText, 
+                ChunkIndex, 
+                SimilarityScore,
+                'CHUNK' AS SourceType
+            FROM ChunkScores
+            UNION ALL
+            SELECT 
+                Id, 
+                FileName, 
+                ActualCategory, 
+                ExtractedText, 
+                CAST(NULL AS NVARCHAR(MAX)) AS ChunkText, 
+                CAST(NULL AS INT) AS ChunkIndex, 
+                SimilarityScore,
+                'DOCUMENT' AS SourceType
+            FROM DocumentScores
+            ORDER BY SimilarityScore DESC";
+
+        // Execute the query
+        using var command = _context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = sql;
+        
+        var embeddingParam = command.CreateParameter();
+        embeddingParam.ParameterName = "@queryEmbedding";
+        embeddingParam.Value = embeddingJson;
+        command.Parameters.Add(embeddingParam);
+        
+        var userIdParam = command.CreateParameter();
+        userIdParam.ParameterName = "@userId";
+        userIdParam.Value = userId;
+        command.Parameters.Add(userIdParam);
+        
+        var topKParam = command.CreateParameter();
+        topKParam.ParameterName = "@topK";
+        topKParam.Value = topK * 2; // Get more candidates for merging
+        command.Parameters.Add(topKParam);
+        
+        var minSimParam = command.CreateParameter();
+        minSimParam.ParameterName = "@minSimilarity";
+        minSimParam.Value = minSimilarity;
+        command.Parameters.Add(minSimParam);
+
+        await _context.Database.OpenConnectionAsync();
+
+        var results = new List<RelevantDocumentResult>();
+        var existingDocIds = new HashSet<int>();
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var id = reader.GetInt32(0);
+            var fileName = reader.GetString(1);
+            var category = reader.IsDBNull(2) ? null : reader.GetString(2);
+            var extractedText = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var chunkText = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var chunkIndex = reader.IsDBNull(5) ? (int?)null : reader.GetInt32(5);
+            var score = reader.GetDouble(6);
+            var sourceType = reader.GetString(7);
+
+            // Prioritize chunks, avoid duplicate documents
+            if (sourceType == "CHUNK" || !existingDocIds.Contains(id))
+            {
+                results.Add(new RelevantDocumentResult
+                {
+                    DocumentId = id,
+                    FileName = fileName,
+                    Category = category,
+                    SimilarityScore = score,
+                    RelevantChunk = chunkText,
+                    ChunkIndex = chunkIndex,
+                    ExtractedText = extractedText
+                });
+                
+                if (sourceType == "DOCUMENT")
+                    existingDocIds.Add(id);
+
+                if (results.Count >= topK)
+                    break;
+            }
+        }
+
+        _logger.LogInformation("VECTOR_DISTANCE search found {Count} results", results.Count);
+        return results;
     }
 
     /// <inheritdoc/>
