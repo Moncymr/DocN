@@ -80,8 +80,8 @@ public class BatchEmbeddingProcessor : BackgroundService
                     var embedding = await embeddingService.GenerateEmbeddingAsync(document.ExtractedText);
                     if (embedding != null)
                     {
-                    document.EmbeddingVector = embedding;
-                    document.EmbeddingDimension = embedding.Length;
+                        document.EmbeddingVector = embedding;
+                        document.EmbeddingDimension = embedding.Length;
                         
                         // Log embedding info before saving
                         _logger.LogInformation("Generated embedding for document {Id}: {FileName}", 
