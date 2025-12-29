@@ -2281,12 +2281,19 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
 
                 // Check if this is a vector dimension mismatch error - if so, show the detailed error message
                 // since it contains actionable steps for the user/administrator
-                if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(dbEx.Message))
+                // Check both the main exception and inner exceptions for dimension mismatch
+                var isDimensionMismatch = EmbeddingValidationHelper.IsVectorDimensionMismatchError(dbEx.Message);
+                if (!isDimensionMismatch && dbEx.InnerException != null)
                 {
-                    errorMessage = $"⚠️ CRITICAL ERROR - Database save failed\n" +
+                    isDimensionMismatch = EmbeddingValidationHelper.IsVectorDimensionMismatchError(dbEx.InnerException.Message);
+                }
+                
+                if (isDimensionMismatch)
+                {
+                    errorMessage = $"⚠️ ERRORE CRITICO - Salvataggio database fallito\n" +
                                   $"📄 File: {selectedFile.Name}\n" +
-                                  $"File path: {filePath}\n" +
-                                  $"(File has been removed from disk)\n\n" +
+                                  $"Percorso file: {filePath}\n" +
+                                  $"(Il file è stato rimosso dal disco)\n\n" +
                                   $"{dbEx.Message}";
                 }
                 else
