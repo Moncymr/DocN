@@ -26,14 +26,16 @@ public class MultiProviderAIService : IMultiProviderAIService
 {
     private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _context;
+    private readonly ILogService _logService;
     private AIConfiguration? _cachedConfig;
     private DateTime _lastConfigCheck = DateTime.MinValue;
     private readonly TimeSpan _configCacheDuration = TimeSpan.FromMinutes(5);
 
-    public MultiProviderAIService(IConfiguration configuration, ApplicationDbContext context)
+    public MultiProviderAIService(IConfiguration configuration, ApplicationDbContext context, ILogService logService)
     {
         _configuration = configuration;
         _context = context;
+        _logService = logService;
     }
 
     /// <summary>
@@ -137,7 +139,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         catch (Exception ex)
         {
             // Log the exception for debugging
-            Console.WriteLine($"Provider di embedding primario ({provider}) fallito: {ex.Message}");
+            await _logService.LogErrorAsync("Embedding", $"Provider di embedding primario ({provider}) fallito", ex.Message, stackTrace: ex.StackTrace);
             
             // If primary fails and fallback is enabled, try alternatives
             if (config.EnableFallback)
@@ -149,12 +151,12 @@ public class MultiProviderAIService : IMultiProviderAIService
                 {
                     try
                     {
-                        Console.WriteLine("Tentativo Gemini come fallback...");
+                        await _logService.LogInfoAsync("Embedding", "Tentativo Gemini come fallback");
                         return await GenerateEmbeddingWithGeminiAsync(text, config);
                     }
                     catch (Exception ex2)
                     {
-                        Console.WriteLine($"Fallback Gemini fallito: {ex2.Message}");
+                        await _logService.LogWarningAsync("Embedding", "Fallback Gemini fallito", ex2.Message);
                         errors.Add($"Gemini: {ex2.Message}");
                     }
                 }
@@ -163,12 +165,12 @@ public class MultiProviderAIService : IMultiProviderAIService
                 {
                     try
                     {
-                        Console.WriteLine("Tentativo OpenAI come fallback...");
+                        await _logService.LogInfoAsync("Embedding", "Tentativo OpenAI come fallback");
                         return await GenerateEmbeddingWithOpenAIAsync(text, config);
                     }
                     catch (Exception ex3)
                     {
-                        Console.WriteLine($"Fallback OpenAI fallito: {ex3.Message}");
+                        await _logService.LogWarningAsync("Embedding", "Fallback OpenAI fallito", ex3.Message);
                         errors.Add($"OpenAI: {ex3.Message}");
                     }
                 }
@@ -177,12 +179,12 @@ public class MultiProviderAIService : IMultiProviderAIService
                 {
                     try
                     {
-                        Console.WriteLine("Tentativo AzureOpenAI come fallback...");
+                        await _logService.LogInfoAsync("Embedding", "Tentativo AzureOpenAI come fallback");
                         return await GenerateEmbeddingWithAzureOpenAIAsync(text, config);
                     }
                     catch (Exception ex4)
                     {
-                        Console.WriteLine($"Fallback AzureOpenAI fallito: {ex4.Message}");
+                        await _logService.LogWarningAsync("Embedding", "Fallback AzureOpenAI fallito", ex4.Message);
                         errors.Add($"AzureOpenAI: {ex4.Message}");
                     }
                 }
@@ -216,9 +218,8 @@ public class MultiProviderAIService : IMultiProviderAIService
         
         var embedding = response.Value.ToFloats().ToArray();
         
-        // Log embedding info for debugging (Console.WriteLine for quick debugging - consider adding ILogger in production)
-        Console.WriteLine($"[AzureOpenAI] Generated embedding: {embedding.Length} dimensions");
-        Console.WriteLine($"[AzureOpenAI] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
+        // Log embedding info for debugging
+        await _logService.LogDebugAsync("Embedding", $"[AzureOpenAI] Generated embedding: {embedding.Length} dimensions", $"First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
         
         return embedding;
     }
@@ -239,9 +240,8 @@ public class MultiProviderAIService : IMultiProviderAIService
         
         var embedding = response.Value.ToFloats().ToArray();
         
-        // Log embedding info for debugging (Console.WriteLine for quick debugging - consider adding ILogger in production)
-        Console.WriteLine($"[OpenAI] Generated embedding: {embedding.Length} dimensions");
-        Console.WriteLine($"[OpenAI] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
+        // Log embedding info for debugging
+        await _logService.LogDebugAsync("Embedding", $"[OpenAI] Generated embedding: {embedding.Length} dimensions", $"First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
         
         return embedding;
     }
@@ -252,7 +252,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         
         if (string.IsNullOrEmpty(apiKey))
         {
-            Console.WriteLine("API key di Gemini non configurata");
+            await _logService.LogErrorAsync("Embedding", "API key di Gemini non configurata");
             throw new InvalidOperationException("API key di Gemini non configurata");
         }
 
@@ -267,22 +267,21 @@ public class MultiProviderAIService : IMultiProviderAIService
             }
             var model = gemini.GenerativeModel(model: modelName);
             
-            Console.WriteLine($"[Gemini] Attempting to generate embedding with model: {modelName}");
+            await _logService.LogDebugAsync("Embedding", $"[Gemini] Attempting to generate embedding with model: {modelName}");
             var response = await model.EmbedContent(text);
             
             if (response?.Embedding?.Values != null)
             {
                 var embedding = response.Embedding.Values.Select(v => (float)v).ToArray();
                 
-                // Log embedding info for debugging (Console.WriteLine for quick debugging - consider adding ILogger in production)
-                Console.WriteLine($"[Gemini] Generated embedding: {embedding.Length} dimensions");
-                Console.WriteLine($"[Gemini] First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
+                // Log embedding info for debugging
+                await _logService.LogDebugAsync("Embedding", $"[Gemini] Generated embedding: {embedding.Length} dimensions", $"First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
                 
                 return embedding;
             }
             else
             {
-                Console.WriteLine("La risposta di Gemini era nulla o non conteneva valori di embedding");
+                await _logService.LogErrorAsync("Embedding", "La risposta di Gemini era nulla o non conteneva valori di embedding");
                 throw new InvalidOperationException("Gemini non ha restituito valori di embedding");
             }
         }
@@ -291,7 +290,7 @@ public class MultiProviderAIService : IMultiProviderAIService
             ex.Message.Contains("Forbidden") || 
             ex.Message.Contains("403"))
         {
-            Console.WriteLine($"Problema con l'API key di Gemini (potrebbe essere non valida o segnalata): {ex.Message}");
+            await _logService.LogErrorAsync("Embedding", "Problema con l'API key di Gemini (potrebbe essere non valida o segnalata)", ex.Message, stackTrace: ex.StackTrace);
             throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
         }
         catch (System.Net.Http.HttpRequestException ex) when (
@@ -301,13 +300,12 @@ public class MultiProviderAIService : IMultiProviderAIService
             ex.Message.Contains("INVALID_ARGUMENT"))
         {
             var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
-            Console.WriteLine($"Errore nel formato del modello Gemini embedding. Modello richiesto: {modelName}");
-            Console.WriteLine($"Errore dettagliato: {ex.Message}");
+            await _logService.LogErrorAsync("Embedding", $"Errore nel formato del modello Gemini embedding. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
             throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'text-embedding-004'). Errore: {ex.Message}", ex);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Errore embedding Gemini: {ex.Message}");
+            await _logService.LogErrorAsync("Embedding", "Errore embedding Gemini", ex.Message, stackTrace: ex.StackTrace);
             throw; // Re-throw to allow fallback logic to work
         }
     }
@@ -336,7 +334,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Provider di chat primario ({provider}) fallito: {ex.Message}");
+            await _logService.LogErrorAsync("AI", $"Provider di chat primario ({provider}) fallito", ex.Message, stackTrace: ex.StackTrace);
             
             // If primary fails and fallback is enabled, try the alternative provider
             if (config.EnableFallback)
@@ -346,23 +344,23 @@ public class MultiProviderAIService : IMultiProviderAIService
                     // Try other providers as fallback
                     if (provider != AIProviderType.Gemini && !string.IsNullOrEmpty(config.GeminiApiKey))
                     {
-                        Console.WriteLine("Tentativo Gemini come fallback...");
+                        await _logService.LogInfoAsync("AI", "Tentativo Gemini come fallback");
                         return await GenerateChatWithGeminiAsync(systemPrompt, userPrompt, config);
                     }
                     else if (provider != AIProviderType.OpenAI && !string.IsNullOrEmpty(config.OpenAIApiKey))
                     {
-                        Console.WriteLine("Tentativo OpenAI come fallback...");
+                        await _logService.LogInfoAsync("AI", "Tentativo OpenAI come fallback");
                         return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt, config);
                     }
                     else if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrEmpty(config.AzureOpenAIKey))
                     {
-                        Console.WriteLine("Tentativo AzureOpenAI come fallback...");
+                        await _logService.LogInfoAsync("AI", "Tentativo AzureOpenAI come fallback");
                         return await GenerateChatWithAzureOpenAIAsync(systemPrompt, userPrompt, config);
                     }
                 }
                 catch (Exception ex2)
                 {
-                    Console.WriteLine($"Provider di chat di fallback fallito: {ex2.Message}");
+                    await _logService.LogErrorAsync("AI", "Provider di chat di fallback fallito", ex2.Message, stackTrace: ex2.StackTrace);
                     return $"Errore: Tutti i provider AI sono falliti. Primario: {ex.Message}, Fallback: {ex2.Message}";
                 }
             }
@@ -381,7 +379,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         
         if (string.IsNullOrEmpty(apiKey))
         {
-            Console.WriteLine("API key di Gemini non configurata");
+            await _logService.LogErrorAsync("AI", "API key di Gemini non configurata");
             throw new InvalidOperationException("API key di Gemini non configurata");
         }
 
@@ -397,17 +395,17 @@ public class MultiProviderAIService : IMultiProviderAIService
             var model = gemini.GenerativeModel(model: modelName);
             
             var fullPrompt = $"{systemPrompt}\n\n{userPrompt}";
-            Console.WriteLine($"[Gemini] Attempting to generate chat with model: {modelName}");
+            await _logService.LogDebugAsync("AI", $"[Gemini] Attempting to generate chat with model: {modelName}");
             var response = await model.GenerateContent(fullPrompt);
             
             if (response?.Text != null)
             {
-                Console.WriteLine($"Risposta di chat Gemini generata con successo");
+                await _logService.LogDebugAsync("AI", "Risposta di chat Gemini generata con successo");
                 return response.Text;
             }
             else
             {
-                Console.WriteLine("La risposta di chat Gemini era nulla");
+                await _logService.LogErrorAsync("AI", "La risposta di chat Gemini era nulla");
                 throw new InvalidOperationException("Nessuna risposta da Gemini");
             }
         }
@@ -416,7 +414,7 @@ public class MultiProviderAIService : IMultiProviderAIService
             ex.Message.Contains("Forbidden") || 
             ex.Message.Contains("403"))
         {
-            Console.WriteLine($"Problema con l'API key di Gemini (potrebbe essere non valida o segnalata): {ex.Message}");
+            await _logService.LogErrorAsync("AI", "Problema con l'API key di Gemini (potrebbe essere non valida o segnalata)", ex.Message, stackTrace: ex.StackTrace);
             throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
         }
         catch (System.Net.Http.HttpRequestException ex) when (
@@ -426,13 +424,12 @@ public class MultiProviderAIService : IMultiProviderAIService
             ex.Message.Contains("INVALID_ARGUMENT"))
         {
             var modelName = config.GeminiChatModel ?? "gemini-1.5-flash";
-            Console.WriteLine($"Errore nel formato del modello Gemini. Modello richiesto: {modelName}");
-            Console.WriteLine($"Errore dettagliato: {ex.Message}");
+            await _logService.LogErrorAsync("AI", $"Errore nel formato del modello Gemini. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
             throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'gemini-1.5-flash', 'gemini-2.0-flash-exp'). Errore: {ex.Message}", ex);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Errore chat Gemini: {ex.Message}");
+            await _logService.LogErrorAsync("AI", "Errore chat Gemini", ex.Message, stackTrace: ex.StackTrace);
             throw;
         }
     }
@@ -551,7 +548,7 @@ Rispondi in formato JSON:
             catch (System.Text.Json.JsonException)
             {
                 // If JSON parsing fails, try to extract category from response text
-                Console.WriteLine($"Failed to parse JSON response: {response}");
+                await _logService.LogWarningAsync("Category", "Failed to parse JSON response", response);
             }
             
             // Validate that we got a meaningful category
@@ -676,15 +673,14 @@ Respond in JSON format:
             catch (System.Text.Json.JsonException jsonEx)
             {
                 // If JSON parsing fails, log it
-                Console.WriteLine($"Failed to parse tags JSON response: {response}");
-                Console.WriteLine($"JSON error: {jsonEx.Message}");
+                await _logService.LogWarningAsync("Tag", "Failed to parse tags JSON response", $"Response: {response}\nJSON error: {jsonEx.Message}");
             }
             
             return result?.Tags ?? new List<string>();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error extracting tags: {ex.Message}");
+            await _logService.LogErrorAsync("Tag", "Error extracting tags", ex.Message, stackTrace: ex.StackTrace);
             return new List<string>();
         }
     }
@@ -739,19 +735,18 @@ Respond ONLY with valid JSON, no other comments.";
                 var metadata = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(response, 
                     new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 
-                Console.WriteLine($"Extracted {metadata?.Count ?? 0} metadata fields");
+                await _logService.LogDebugAsync("Metadata", $"Extracted {metadata?.Count ?? 0} metadata fields", fileName);
                 return metadata ?? new Dictionary<string, string>();
             }
             catch (System.Text.Json.JsonException jsonEx)
             {
-                Console.WriteLine($"Failed to parse metadata JSON response: {response}");
-                Console.WriteLine($"JSON error: {jsonEx.Message}");
+                await _logService.LogWarningAsync("Metadata", "Failed to parse metadata JSON response", $"Response: {response}\nJSON error: {jsonEx.Message}", fileName: fileName);
                 return new Dictionary<string, string>();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error extracting metadata: {ex.Message}");
+            await _logService.LogErrorAsync("Metadata", "Error extracting metadata", ex.Message, fileName: fileName, stackTrace: ex.StackTrace);
             return new Dictionary<string, string>();
         }
     }

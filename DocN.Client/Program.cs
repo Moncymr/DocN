@@ -61,6 +61,24 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     }
 });
 
+// Add DocArcContext for logging
+builder.Services.AddDbContext<DocArcContext>(options =>
+{
+    options.UseSqlServer(connectionString, sqlServerOptions =>
+    {
+        sqlServerOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null);
+    });
+
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.EnableDetailedErrors();
+    }
+});
+
 // Identity & Authentication
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
@@ -97,6 +115,7 @@ builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 builder.Services.AddScoped<IOCRService, TesseractOCRService>();
 builder.Services.AddScoped<IFileProcessingService, FileProcessingService>();
+builder.Services.AddScoped<ILogService, LogService>();
 
 // Configure Semantic Kernel for RAG Service (only if AI services are configured)
 var azureOpenAIEndpoint = builder.Configuration["AzureOpenAI:Endpoint"];
