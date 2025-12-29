@@ -1887,7 +1887,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                             else
                             {
                                 await LogService.LogWarningAsync("SimilaritySearch", "Cannot search for similar documents - currentUserId is empty", 
-                                    userId: currentUserId, 
+                                    userId: null, 
                                     fileName: selectedFile.Name);
                             }
                         }
@@ -1905,8 +1905,8 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                     {
                         embeddingError = "Embedding generation returned null. Check AI provider configuration (Gemini/OpenAI API keys).";
                         await LogService.LogWarningAsync("Embedding", "Embedding generation returned null", 
-                            fileName: selectedFile.Name, 
-                            userId: currentUserId);
+                            userId: currentUserId, 
+                            fileName: selectedFile.Name);
                     }
                 }
                 catch (Exception ex)
