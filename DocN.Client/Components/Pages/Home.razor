@@ -158,7 +158,6 @@
             foreach (var document in documents)
             {
                 currentDocument++;
-                StateHasChanged(); // Update UI with current progress
                 
                 try
                 {
@@ -193,16 +192,16 @@
                     await DbContext.SaveChangesAsync();
                     Logger.LogInformation("Recreated embeddings for document {Id}: {FileName}", 
                         document.Id, document.FileName);
-                    
-                    StateHasChanged(); // Update success count
                 }
                 catch (Exception ex)
                 {
                     errorCount++;
                     processedErrorCount++;
                     Logger.LogError(ex, "Error recreating embeddings for document {Id}", document.Id);
-                    StateHasChanged(); // Update error count
                 }
+                
+                // Update UI once per document (after all processing is complete)
+                StateHasChanged();
             }
 
             embeddingMessage = $"✅ Embeddings ricreati per {successCount} documenti. Errori: {errorCount}";
