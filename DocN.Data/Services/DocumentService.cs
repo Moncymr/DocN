@@ -21,10 +21,66 @@ public interface IDocumentService
 public class DocumentService : IDocumentService
 {
     private readonly ApplicationDbContext _context;
+    
+    // Constants for embedding dimensions
+    private const int GeminiEmbeddingDimension = 768;
+    private const int OpenAIEmbeddingDimension = 1536;
 
     public DocumentService(ApplicationDbContext context)
     {
         _context = context;
+    }
+    
+    /// <summary>
+    /// Validates embedding dimensions to ensure compatibility with database
+    /// </summary>
+    private static void ValidateEmbeddingDimensions(float[]? embeddingVector)
+    {
+        if (embeddingVector != null && embeddingVector.Length > 0)
+        {
+            var embeddingDimension = embeddingVector.Length;
+            
+            // Check if dimension is valid (768 for Gemini, 1536 for OpenAI/Azure)
+            if (embeddingDimension != GeminiEmbeddingDimension && embeddingDimension != OpenAIEmbeddingDimension)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid embedding dimension: {embeddingDimension}. " +
+                    $"Expected {GeminiEmbeddingDimension} (Gemini) or {OpenAIEmbeddingDimension} (OpenAI/Azure OpenAI). " +
+                    "Please check your AI provider configuration.");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Checks if an exception is a vector dimension mismatch error
+    /// </summary>
+    private static bool IsVectorDimensionMismatchError(string errorMessage)
+    {
+        return errorMessage.Contains("dimensioni del vettore") || 
+               errorMessage.Contains("vector") || 
+               errorMessage.Contains("1536") || 
+               errorMessage.Contains("768");
+    }
+    
+    /// <summary>
+    /// Creates a detailed error message for dimension mismatch errors
+    /// </summary>
+    private static string CreateDimensionMismatchErrorMessage(int embeddingDimension, string originalError)
+    {
+        return $"DATABASE DIMENSION MISMATCH ERROR:\n\n" +
+               $"📊 Generated embedding dimensions: {embeddingDimension}\n" +
+               $"❌ Database vector configuration mismatch detected.\n\n" +
+               $"SOLUTION:\n" +
+               $"1. If you're using Gemini ({GeminiEmbeddingDimension} dimensions):\n" +
+               $"   - Your database should be configured for VECTOR({GeminiEmbeddingDimension})\n" +
+               $"   - Run: database/Update_Vector_1536_to_768.sql (if exists)\n\n" +
+               $"2. If you're using OpenAI/Azure OpenAI ({OpenAIEmbeddingDimension} dimensions):\n" +
+               $"   - Your database should be configured for VECTOR({OpenAIEmbeddingDimension})\n" +
+               $"   - Run: database/Update_Vector_768_to_1536.sql\n\n" +
+               $"3. Switch AI provider to match your database configuration:\n" +
+               $"   - Go to AI Configuration page\n" +
+               $"   - Select the appropriate embedding provider\n\n" +
+               $"Original error: {originalError}";
     }
 
     public async Task<Document?> GetDocumentAsync(int documentId, string userId)
@@ -221,19 +277,7 @@ public class DocumentService : IDocumentService
         try
         {
             // Validate embedding dimensions before saving to avoid database errors
-            if (document.EmbeddingVector != null && document.EmbeddingVector.Length > 0)
-            {
-                var embeddingDimension = document.EmbeddingVector.Length;
-                
-                // Check if dimension is valid (768 for Gemini, 1536 for OpenAI/Azure)
-                if (embeddingDimension != 768 && embeddingDimension != 1536)
-                {
-                    throw new InvalidOperationException(
-                        $"Invalid embedding dimension: {embeddingDimension}. " +
-                        "Expected 768 (Gemini) or 1536 (OpenAI/Azure OpenAI). " +
-                        "Please check your AI provider configuration.");
-                }
-            }
+            ValidateEmbeddingDimensions(document.EmbeddingVector);
             
             _context.Documents.Add(document);
             await _context.SaveChangesAsync();
@@ -245,27 +289,11 @@ public class DocumentService : IDocumentService
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
             
             // Check for vector dimension mismatch error
-            if (innerMessage.Contains("dimensioni del vettore") || 
-                innerMessage.Contains("vector") || 
-                innerMessage.Contains("1536") || 
-                innerMessage.Contains("768"))
+            if (IsVectorDimensionMismatchError(innerMessage))
             {
                 var embeddingDim = document.EmbeddingVector?.Length ?? 0;
                 throw new InvalidOperationException(
-                    $"DATABASE DIMENSION MISMATCH ERROR:\n\n" +
-                    $"📊 Generated embedding dimensions: {embeddingDim}\n" +
-                    $"❌ Database vector configuration mismatch detected.\n\n" +
-                    $"SOLUTION:\n" +
-                    $"1. If you're using Gemini (768 dimensions):\n" +
-                    $"   - Your database should be configured for VECTOR(768)\n" +
-                    $"   - Run: database/Update_Vector_1536_to_768.sql (if exists)\n\n" +
-                    $"2. If you're using OpenAI/Azure OpenAI (1536 dimensions):\n" +
-                    $"   - Your database should be configured for VECTOR(1536)\n" +
-                    $"   - Run: database/Update_Vector_768_to_1536.sql\n\n" +
-                    $"3. Switch AI provider to match your database configuration:\n" +
-                    $"   - Go to AI Configuration page\n" +
-                    $"   - Select the appropriate embedding provider\n\n" +
-                    $"Original error: {innerMessage}",
+                    CreateDimensionMismatchErrorMessage(embeddingDim, innerMessage),
                     ex);
             }
             
@@ -287,19 +315,7 @@ public class DocumentService : IDocumentService
             throw new UnauthorizedAccessException("Only the document owner can update this document");
 
         // Validate embedding dimensions before updating
-        if (document.EmbeddingVector != null && document.EmbeddingVector.Length > 0)
-        {
-            var embeddingDimension = document.EmbeddingVector.Length;
-            
-            // Check if dimension is valid (768 for Gemini, 1536 for OpenAI/Azure)
-            if (embeddingDimension != 768 && embeddingDimension != 1536)
-            {
-                throw new InvalidOperationException(
-                    $"Invalid embedding dimension: {embeddingDimension}. " +
-                    "Expected 768 (Gemini) or 1536 (OpenAI/Azure OpenAI). " +
-                    "Please check your AI provider configuration.");
-            }
-        }
+        ValidateEmbeddingDimensions(document.EmbeddingVector);
 
         // Update document properties
         existingDocument.FileName = document.FileName;
@@ -350,27 +366,11 @@ public class DocumentService : IDocumentService
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
             
             // Check for vector dimension mismatch error
-            if (innerMessage.Contains("dimensioni del vettore") || 
-                innerMessage.Contains("vector") || 
-                innerMessage.Contains("1536") || 
-                innerMessage.Contains("768"))
+            if (IsVectorDimensionMismatchError(innerMessage))
             {
                 var embeddingDim = document.EmbeddingVector?.Length ?? 0;
                 throw new InvalidOperationException(
-                    $"DATABASE DIMENSION MISMATCH ERROR:\n\n" +
-                    $"📊 Generated embedding dimensions: {embeddingDim}\n" +
-                    $"❌ Database vector configuration mismatch detected.\n\n" +
-                    $"SOLUTION:\n" +
-                    $"1. If you're using Gemini (768 dimensions):\n" +
-                    $"   - Your database should be configured for VECTOR(768)\n" +
-                    $"   - Run: database/Update_Vector_1536_to_768.sql (if exists)\n\n" +
-                    $"2. If you're using OpenAI/Azure OpenAI (1536 dimensions):\n" +
-                    $"   - Your database should be configured for VECTOR(1536)\n" +
-                    $"   - Run: database/Update_Vector_768_to_1536.sql\n\n" +
-                    $"3. Switch AI provider to match your database configuration:\n" +
-                    $"   - Go to AI Configuration page\n" +
-                    $"   - Select the appropriate embedding provider\n\n" +
-                    $"Original error: {innerMessage}",
+                    CreateDimensionMismatchErrorMessage(embeddingDim, innerMessage),
                     ex);
             }
             
