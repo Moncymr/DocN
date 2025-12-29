@@ -2,10 +2,12 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using System.IO
 @using DocN.Core.Interfaces
+@using DocN.Data.Services
 @inject IDocumentService DocumentService
 @inject IMultiProviderAIService AIService
 @inject IFileProcessingService FileProcessingService
 @inject ISemanticRAGService SemanticRAGService
+@inject ILogService LogService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
@@ -1448,8 +1450,11 @@
                 {
                     // Don't expose sensitive system information to users
                     processingError = "Text extraction failed";
-                    Console.WriteLine($"Text extraction error: {ex.Message}");
-                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                    await LogService.LogErrorAsync("Upload", "Text extraction error", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
                     // Fallback to simple text reading on any error
                     try
                     {
@@ -1560,14 +1565,20 @@
                         }
                         catch (Exception simEx)
                         {
-                            Console.WriteLine($"Error searching similar documents: {simEx.Message}");
+                            await LogService.LogErrorAsync("SimilaritySearch", "Error searching similar documents", 
+                                simEx.Message, 
+                                userId: currentUserId, 
+                                fileName: selectedFile.Name, 
+                                stackTrace: simEx.StackTrace);
                             similarDocuments = null;
                         }
                     }
                     else
                     {
                         embeddingError = "Embedding generation returned null. Check AI provider configuration (Gemini/OpenAI API keys).";
-                        Console.WriteLine("Embedding generation returned null");
+                        await LogService.LogWarningAsync("Embedding", "Embedding generation returned null", 
+                            fileName: selectedFile.Name, 
+                            userId: currentUserId);
                     }
                 }
                 catch (Exception ex)
@@ -1575,8 +1586,11 @@
                     // Log but don't fail the whole process
                     embeddingGenerated = false;
                     embeddingError = "Errore nella generazione degli embeddings. Verifica la configurazione AI (Gemini/OpenAI/Azure OpenAI).";
-                    Console.WriteLine($"Embedding generation exception: {ex.Message}");
-                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                    await LogService.LogErrorAsync("Embedding", "Embedding generation exception", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
                 }
             }
             else
@@ -1650,13 +1664,17 @@
                     // Category suggestion failed - user can still enter manually
                     suggestedCategory = null;
                     categoryReasoning = "Errore durante l'analisi della categoria. Verifica la configurazione AI o inserisci manualmente una categoria.";
-                    Console.WriteLine($"Category suggestion exception: {ex.Message}");
-                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                    await LogService.LogErrorAsync("Category", "Category suggestion exception", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
                 }
             }
             else if (enableAICategory && !string.IsNullOrEmpty(suggestedCategory))
             {
-                Console.WriteLine($"[CATEGORY] Skipping AI category analysis - category already suggested from similar documents");
+                await LogService.LogDebugAsync("Category", "Skipping AI category analysis - category already suggested from similar documents", 
+                    fileName: selectedFile.Name);
             }
 
             // Step 4: AI tag extraction - always execute even if embeddings failed
@@ -1683,7 +1701,9 @@
                     {
                         tagExtractionSucceeded = false;
                         tagExtractionError = "L'AI non è riuscita a estrarre tag dal documento. Puoi inserirli manualmente.";
-                        Console.WriteLine("No tags were extracted by AI");
+                        await LogService.LogWarningAsync("Tag", "No tags were extracted by AI", 
+                            fileName: selectedFile.Name, 
+                            userId: currentUserId);
                     }
                 }
                 catch (Exception ex)
@@ -1691,8 +1711,11 @@
                     // Tag extraction failed - user can still enter manually
                     tagExtractionSucceeded = false;
                     tagExtractionError = "Errore nell'estrazione dei tag. Verifica la configurazione AI o inserisci i tag manualmente.";
-                    Console.WriteLine($"Tag extraction exception: {ex.Message}");
-                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                    await LogService.LogErrorAsync("Tag", "Tag extraction exception", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
                 }
             }
 
@@ -1729,8 +1752,11 @@
                 {
                     metadataExtractionSucceeded = false;
                     metadataExtractionError = "Errore nell'estrazione dei metadati. Verifica la configurazione AI.";
-                    Console.WriteLine($"Metadata extraction exception: {ex.Message}");
-                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                    await LogService.LogErrorAsync("Metadata", "Metadata extraction exception", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
                 }
             }
 
@@ -1749,8 +1775,11 @@
             errorMessage = "Errore durante l'elaborazione del documento. Riprova o contatta l'amministratore.";
             processingStatus = "Failed";
             processingError = ex.Message;
-            Console.WriteLine($"Document processing error: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            await LogService.LogErrorAsync("Upload", "Document processing error", 
+                ex.Message, 
+                userId: currentUserId, 
+                fileName: selectedFile.Name, 
+                stackTrace: ex.StackTrace);
         }
         finally
         {
@@ -1901,12 +1930,12 @@
                               $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
                               $"Contattare l'amministratore per completare il salvataggio.";
                 
-                // Log the error with full details for administrator
-                Console.WriteLine($"CRITICAL ERROR - File saved but DB failed:");
-                Console.WriteLine($"  File path: {filePath}");
-                Console.WriteLine($"  File name: {selectedFile.Name}");
-                Console.WriteLine($"  Error: {dbEx.Message}");
-                Console.WriteLine($"  Stack trace: {dbEx.StackTrace}");
+                // Log the error with full details for administrator - this will persist even if document save fails
+                await LogService.LogErrorAsync("Upload", "CRITICAL ERROR - File saved but DB failed", 
+                    $"File name: {selectedFile.Name}\nError: {dbEx.Message}", 
+                    userId: currentUserId, 
+                    fileName: selectedFile.Name, 
+                    stackTrace: dbEx.StackTrace);
                 
                 // Force UI update to show error message
                 StateHasChanged();
@@ -1924,19 +1953,24 @@
                 errorMessage = $"❌ Errore durante il processo di salvataggio. Il file potrebbe essere stato salvato parzialmente. " +
                               $"ID di riferimento: {Path.GetFileName(savedFilePath)}. Contattare l'amministratore.";
                 
-                // Log full details for debugging
-                Console.WriteLine($"Upload error - File saved but other issue: {ex.Message}");
-                Console.WriteLine($"  File path: {savedFilePath}");
-                Console.WriteLine($"  Stack trace: {ex.StackTrace}");
+                // Log full details for debugging - this will persist even if document save fails
+                await LogService.LogErrorAsync("Upload", "Upload error - File saved but other issue", 
+                    $"File path: {savedFilePath}\nError: {ex.Message}", 
+                    userId: currentUserId, 
+                    fileName: selectedFile.Name, 
+                    stackTrace: ex.StackTrace);
             }
             else
             {
                 // File was not saved
                 errorMessage = "❌ Errore durante il salvataggio del file. Riprovare o contattare l'amministratore se il problema persiste.";
                 
-                // Log full error details
-                Console.WriteLine($"Upload error - File not saved: {ex.Message}");
-                Console.WriteLine($"  Stack trace: {ex.StackTrace}");
+                // Log full error details - this will persist even if document save fails
+                await LogService.LogErrorAsync("Upload", "Upload error - File not saved", 
+                    $"Error: {ex.Message}", 
+                    userId: currentUserId, 
+                    fileName: selectedFile.Name, 
+                    stackTrace: ex.StackTrace);
             }
             
             // Force UI update to show error message
