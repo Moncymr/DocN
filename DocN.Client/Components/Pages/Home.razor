@@ -39,6 +39,21 @@
             </button>
         </div>
         
+        @if (isRecreatingEmbeddings && totalDocuments > 0)
+        {
+            <div class="progress-container">
+                <div class="progress-text">
+                    🔄 Rigenerando documento @currentDocument di @totalDocuments
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: @progressPercentage%"></div>
+                </div>
+                <div class="progress-stats">
+                    ✅ Successi: @processedSuccessCount | ❌ Errori: @processedErrorCount
+                </div>
+            </div>
+        }
+        
         @if (!string.IsNullOrEmpty(embeddingMessage))
         {
             <div class="@($"alert-message {(embeddingSuccess ? "alert-success" : "alert-error")}")">
@@ -107,12 +122,21 @@
     private bool isRecreatingEmbeddings = false;
     private string embeddingMessage = "";
     private bool embeddingSuccess = false;
+    private int totalDocuments = 0;
+    private int currentDocument = 0;
+    private int processedSuccessCount = 0;
+    private int processedErrorCount = 0;
+    private double progressPercentage => totalDocuments > 0 ? (double)currentDocument / totalDocuments * 100 : 0;
 
     private async Task RecreateAllEmbeddings()
     {
         isRecreatingEmbeddings = true;
         embeddingMessage = "";
         embeddingSuccess = false;
+        totalDocuments = 0;
+        currentDocument = 0;
+        processedSuccessCount = 0;
+        processedErrorCount = 0;
         StateHasChanged();
 
         try
@@ -124,13 +148,17 @@
                 .Where(d => !string.IsNullOrEmpty(d.ExtractedText))
                 .ToListAsync();
 
-            Logger.LogInformation("Found {Count} documents to process", documents.Count);
+            totalDocuments = documents.Count;
+            Logger.LogInformation("Found {Count} documents to process", totalDocuments);
+            StateHasChanged(); // Update UI with total count
 
             int successCount = 0;
             int errorCount = 0;
 
             foreach (var document in documents)
             {
+                currentDocument++;
+                
                 try
                 {
                     // Regenerate embedding for document
@@ -139,6 +167,7 @@
                     {
                         document.EmbeddingVector = embedding;
                         successCount++;
+                        processedSuccessCount++;
                     }
 
                     // Delete existing chunks and recreate them
@@ -167,8 +196,12 @@
                 catch (Exception ex)
                 {
                     errorCount++;
+                    processedErrorCount++;
                     Logger.LogError(ex, "Error recreating embeddings for document {Id}", document.Id);
                 }
+                
+                // Update UI once per document (after all processing is complete)
+                StateHasChanged();
             }
 
             embeddingMessage = $"✅ Embeddings ricreati per {successCount} documenti. Errori: {errorCount}";
@@ -317,6 +350,54 @@
         opacity: 0.7;
         cursor: not-allowed;
         transform: none;
+    }
+    
+    .progress-container {
+        margin-top: 2rem;
+        padding: 1.5rem 2rem;
+        background: linear-gradient(135deg, rgba(255, 107, 53, 0.05), rgba(247, 147, 30, 0.05));
+        border: 2px solid rgba(255, 107, 53, 0.3);
+        border-radius: 12px;
+        animation: fadeIn 0.5s ease-out;
+    }
+    
+    .progress-text {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #ff6b35;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+    
+    .progress-bar-container {
+        width: 100%;
+        height: 24px;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #ff6b35, #f7931e, #ff9a56);
+        border-radius: 12px;
+        transition: width 0.3s ease-out;
+        background-size: 200% 100%;
+        animation: progressShimmer 2s linear infinite;
+    }
+    
+    @@keyframes progressShimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
+    .progress-stats {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #666;
+        text-align: center;
     }
     
     .alert-message {
