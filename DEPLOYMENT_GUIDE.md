@@ -588,14 +588,77 @@ stages:
 
 ### 1. Database Setup
 
+**Automatic Migrations (Recommended)**
+
+Starting from version 1.1.0, DocN automatically applies pending database migrations on application startup. This includes the critical OwnerId foreign key fix.
+
+When the application starts:
+1. It checks for pending migrations
+2. If found, applies them automatically
+3. Logs the migration status
+4. Continues startup even if migration fails (allows manual intervention)
+
 ```bash
-# Run migrations
+# Simply start the application and check logs
+dotnet run --project DocN.Server
+
+# You should see in logs:
+# "Applying X pending database migrations..."
+# "Database migrations applied successfully"
+```
+
+**Manual Migration (Alternative)**
+
+If you prefer manual control or automatic migration fails:
+
+```bash
+# Option 1: Using Entity Framework CLI
 dotnet ef database update --project DocN.Data --startup-project DocN.Server
 
-# Or run SQL script
+# Option 2: Using SQL script (for production environments)
 sqlcmd -S your-server.database.windows.net -U sqladmin -P password \
-  -d DocN -i Database/SqlServer2025_Schema.sql
+  -d DocN -i Database/UpdateScripts/005_FixOwnerIdForeignKeyConstraint.sql
+
+# Option 3: Using SQL Server Management Studio (SSMS)
+# 1. Open SSMS and connect to your database
+# 2. Open Database/UpdateScripts/005_FixOwnerIdForeignKeyConstraint.sql
+# 3. Execute the script (F5)
 ```
+
+**Verifying OwnerId Fix**
+
+After migration, verify the fix was applied correctly:
+
+```sql
+-- Check that OwnerId is nullable
+SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_NAME = 'Documents' AND COLUMN_NAME = 'OwnerId';
+-- Expected: OwnerId | YES | nvarchar
+
+-- Check the FK constraint
+SELECT 
+    fk.name AS ForeignKeyName,
+    fk.delete_referential_action_desc AS DeleteAction
+FROM sys.foreign_keys AS fk
+WHERE fk.name LIKE '%OwnerId%' AND fk.parent_object_id = OBJECT_ID('Documents');
+-- Expected: DeleteAction = SET_NULL
+```
+
+**Troubleshooting Database Save Errors**
+
+If you encounter the error:
+```
+❌ ⚠️ ERRORE CRITICO: Il salvataggio nel database è fallito durante la creazione
+```
+
+This typically means the OwnerId migration hasn't been applied. Solutions:
+1. Restart the application (automatic migration will run)
+2. Manually apply migration using one of the methods above
+3. Check the application logs for migration errors
+4. Verify database user has permission to alter tables
+
+See `Database/UpdateScripts/README_005_FixOwnerIdConstraint.md` for detailed information.
 
 ### 2. Configurazione Applicazione
 
