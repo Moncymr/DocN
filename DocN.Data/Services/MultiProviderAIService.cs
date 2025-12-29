@@ -7,6 +7,7 @@ using OpenAI.Embeddings;
 using OpenAI.Chat;
 using System.IO;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace DocN.Data.Services;
 
@@ -256,68 +257,77 @@ public class MultiProviderAIService : IMultiProviderAIService
             throw new InvalidOperationException("API key di Gemini non configurata");
         }
 
-        try
+        return await ExecuteWithRetryAsync(async () =>
         {
-            var gemini = new GoogleAI(apiKey);
-            // Ensure model name has proper format - add "models/" prefix if not present
-            var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
-            if (!modelName.StartsWith("models/"))
+            try
             {
-                modelName = $"models/{modelName}";
-            }
-            var model = gemini.GenerativeModel(model: modelName);
-            
-            await _logService.LogDebugAsync("Embedding", $"[Gemini] Attempting to generate embedding with model: {modelName}");
-            var response = await model.EmbedContent(text);
-            
-            if (response?.Embedding?.Values != null)
-            {
-                var embedding = response.Embedding.Values.Select(v => (float)v).ToArray();
+                var gemini = new GoogleAI(apiKey);
+                // Ensure model name has proper format - add "models/" prefix if not present
+                var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
+                if (!modelName.StartsWith("models/"))
+                {
+                    modelName = $"models/{modelName}";
+                }
+                var model = gemini.GenerativeModel(model: modelName);
                 
-                // Log embedding info for debugging
-                await _logService.LogDebugAsync("Embedding", $"[Gemini] Generated embedding: {embedding.Length} dimensions", $"First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
+                await _logService.LogDebugAsync("Embedding", $"[Gemini] Attempting to generate embedding with model: {modelName}");
+                var response = await model.EmbedContent(text);
                 
-                return embedding;
+                if (response?.Embedding?.Values != null)
+                {
+                    var embedding = response.Embedding.Values.Select(v => (float)v).ToArray();
+                    
+                    // Log embedding info for debugging
+                    await _logService.LogDebugAsync("Embedding", $"[Gemini] Generated embedding: {embedding.Length} dimensions", $"First 5 values: [{string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6")))}]");
+                    
+                    return embedding;
+                }
+                else
+                {
+                    await _logService.LogErrorAsync("Embedding", "La risposta di Gemini era nulla o non conteneva valori di embedding");
+                    throw new InvalidOperationException("Gemini non ha restituito valori di embedding");
+                }
             }
-            else
+            catch (System.Net.Http.HttpRequestException ex) when (
+                (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.NotFound) || 
+                ex.Message.Contains("NotFound") || 
+                ex.Message.Contains("404") ||
+                ex.Message.Contains("NOT_FOUND"))
             {
-                await _logService.LogErrorAsync("Embedding", "La risposta di Gemini era nulla o non conteneva valori di embedding");
-                throw new InvalidOperationException("Gemini non ha restituito valori di embedding");
+                var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
+                await _logService.LogErrorAsync("Embedding", $"Modello Gemini embedding non trovato: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è stato trovato o non è supportato. Verifica che il modello sia disponibile per la tua API key e utilizza modelli supportati come 'text-embedding-004'. Errore: {ex.Message}", ex);
             }
-        }
-        catch (System.Net.Http.HttpRequestException ex) when (
-            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.NotFound) || 
-            ex.Message.Contains("NotFound") || 
-            ex.Message.Contains("404") ||
-            ex.Message.Contains("NOT_FOUND"))
-        {
-            var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
-            await _logService.LogErrorAsync("Embedding", $"Modello Gemini embedding non trovato: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-            throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è stato trovato o non è supportato. Verifica che il modello sia disponibile per la tua API key e utilizza modelli supportati come 'text-embedding-004'. Errore: {ex.Message}", ex);
-        }
-        catch (System.Net.Http.HttpRequestException ex) when (
-            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
-            ex.Message.Contains("Forbidden") || 
-            ex.Message.Contains("403"))
-        {
-            await _logService.LogErrorAsync("Embedding", "Problema con l'API key di Gemini (potrebbe essere non valida o segnalata)", ex.Message, stackTrace: ex.StackTrace);
-            throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
-        }
-        catch (System.Net.Http.HttpRequestException ex) when (
-            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.BadRequest) || 
-            ex.Message.Contains("BadRequest") || 
-            ex.Message.Contains("400") ||
-            ex.Message.Contains("INVALID_ARGUMENT"))
-        {
-            var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
-            await _logService.LogErrorAsync("Embedding", $"Errore nel formato del modello Gemini embedding. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-            throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'text-embedding-004'). Errore: {ex.Message}", ex);
-        }
-        catch (Exception ex)
-        {
-            await _logService.LogErrorAsync("Embedding", "Errore embedding Gemini", ex.Message, stackTrace: ex.StackTrace);
-            throw; // Re-throw to allow fallback logic to work
-        }
+            catch (System.Net.Http.HttpRequestException ex) when (
+                (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
+                ex.Message.Contains("Forbidden") || 
+                ex.Message.Contains("403"))
+            {
+                await _logService.LogErrorAsync("Embedding", "Problema con l'API key di Gemini (potrebbe essere non valida o segnalata)", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
+            }
+            catch (System.Net.Http.HttpRequestException ex) when (
+                (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.BadRequest) || 
+                ex.Message.Contains("BadRequest") || 
+                ex.Message.Contains("400") ||
+                ex.Message.Contains("INVALID_ARGUMENT"))
+            {
+                var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
+                await _logService.LogErrorAsync("Embedding", $"Errore nel formato del modello Gemini embedding. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'text-embedding-004'). Errore: {ex.Message}", ex);
+            }
+            catch (System.Net.Http.HttpRequestException ex) when (
+                ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                // Let the retry logic handle this
+                throw;
+            }
+            catch (Exception ex)
+            {
+                await _logService.LogErrorAsync("Embedding", "Errore embedding Gemini", ex.Message, stackTrace: ex.StackTrace);
+                throw; // Re-throw to allow fallback logic to work
+            }
+        }, "Gemini Embedding");
     }
 
     public async Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt)
@@ -393,65 +403,74 @@ public class MultiProviderAIService : IMultiProviderAIService
             throw new InvalidOperationException("API key di Gemini non configurata");
         }
 
-        try
+        return await ExecuteWithRetryAsync(async () =>
         {
-            var gemini = new GoogleAI(apiKey);
-            // Ensure model name has proper format - add "models/" prefix if not present
-            var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
-            if (!modelName.StartsWith("models/"))
+            try
             {
-                modelName = $"models/{modelName}";
+                var gemini = new GoogleAI(apiKey);
+                // Ensure model name has proper format - add "models/" prefix if not present
+                var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
+                if (!modelName.StartsWith("models/"))
+                {
+                    modelName = $"models/{modelName}";
+                }
+                var model = gemini.GenerativeModel(model: modelName);
+                
+                var fullPrompt = $"{systemPrompt}\n\n{userPrompt}";
+                await _logService.LogDebugAsync("AI", $"[Gemini] Attempting to generate chat with model: {modelName}");
+                var response = await model.GenerateContent(fullPrompt);
+                
+                if (response?.Text != null)
+                {
+                    await _logService.LogDebugAsync("AI", "Risposta di chat Gemini generata con successo");
+                    return response.Text;
+                }
+                else
+                {
+                    await _logService.LogErrorAsync("AI", "La risposta di chat Gemini era nulla");
+                    throw new InvalidOperationException("Nessuna risposta da Gemini");
+                }
             }
-            var model = gemini.GenerativeModel(model: modelName);
-            
-            var fullPrompt = $"{systemPrompt}\n\n{userPrompt}";
-            await _logService.LogDebugAsync("AI", $"[Gemini] Attempting to generate chat with model: {modelName}");
-            var response = await model.GenerateContent(fullPrompt);
-            
-            if (response?.Text != null)
+            catch (System.Net.Http.HttpRequestException ex) when (
+                (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.NotFound) || 
+                ex.Message.Contains("NotFound") || 
+                ex.Message.Contains("404") ||
+                ex.Message.Contains("NOT_FOUND"))
             {
-                await _logService.LogDebugAsync("AI", "Risposta di chat Gemini generata con successo");
-                return response.Text;
+                var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
+                await _logService.LogErrorAsync("AI", $"Modello Gemini non trovato: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è stato trovato o non è supportato. I modelli più vecchi come 'gemini-1.5-flash' potrebbero non essere più disponibili. Prova a utilizzare modelli più recenti come 'gemini-2.0-flash-exp', 'gemini-2.5-flash', o 'gemini-3-flash'. Puoi anche verificare i modelli disponibili con l'API ListModels. Errore: {ex.Message}", ex);
             }
-            else
+            catch (System.Net.Http.HttpRequestException ex) when (
+                (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
+                ex.Message.Contains("Forbidden") || 
+                ex.Message.Contains("403"))
             {
-                await _logService.LogErrorAsync("AI", "La risposta di chat Gemini era nulla");
-                throw new InvalidOperationException("Nessuna risposta da Gemini");
+                await _logService.LogErrorAsync("AI", "Problema con l'API key di Gemini (potrebbe essere non valida o segnalata)", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
             }
-        }
-        catch (System.Net.Http.HttpRequestException ex) when (
-            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.NotFound) || 
-            ex.Message.Contains("NotFound") || 
-            ex.Message.Contains("404") ||
-            ex.Message.Contains("NOT_FOUND"))
-        {
-            var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
-            await _logService.LogErrorAsync("AI", $"Modello Gemini non trovato: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-            throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è stato trovato o non è supportato. I modelli più vecchi come 'gemini-1.5-flash' potrebbero non essere più disponibili. Prova a utilizzare modelli più recenti come 'gemini-2.0-flash-exp', 'gemini-2.5-flash', o 'gemini-3-flash'. Puoi anche verificare i modelli disponibili con l'API ListModels. Errore: {ex.Message}", ex);
-        }
-        catch (System.Net.Http.HttpRequestException ex) when (
-            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
-            ex.Message.Contains("Forbidden") || 
-            ex.Message.Contains("403"))
-        {
-            await _logService.LogErrorAsync("AI", "Problema con l'API key di Gemini (potrebbe essere non valida o segnalata)", ex.Message, stackTrace: ex.StackTrace);
-            throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
-        }
-        catch (System.Net.Http.HttpRequestException ex) when (
-            (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.BadRequest) || 
-            ex.Message.Contains("BadRequest") || 
-            ex.Message.Contains("400") ||
-            ex.Message.Contains("INVALID_ARGUMENT"))
-        {
-            var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
-            await _logService.LogErrorAsync("AI", $"Errore nel formato del modello Gemini. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-            throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'gemini-2.0-flash-exp', 'gemini-2.5-flash', 'gemini-3-flash'). Errore: {ex.Message}", ex);
-        }
-        catch (Exception ex)
-        {
-            await _logService.LogErrorAsync("AI", "Errore chat Gemini", ex.Message, stackTrace: ex.StackTrace);
-            throw;
-        }
+            catch (System.Net.Http.HttpRequestException ex) when (
+                (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.BadRequest) || 
+                ex.Message.Contains("BadRequest") || 
+                ex.Message.Contains("400") ||
+                ex.Message.Contains("INVALID_ARGUMENT"))
+            {
+                var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
+                await _logService.LogErrorAsync("AI", $"Errore nel formato del modello Gemini. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'gemini-2.0-flash-exp', 'gemini-2.5-flash', 'gemini-3-flash'). Errore: {ex.Message}", ex);
+            }
+            catch (System.Net.Http.HttpRequestException ex) when (
+                ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                // Let the retry logic handle this
+                throw;
+            }
+            catch (Exception ex)
+            {
+                await _logService.LogErrorAsync("AI", "Errore chat Gemini", ex.Message, stackTrace: ex.StackTrace);
+                throw;
+            }
+        }, "Gemini Chat");
     }
 
     private async Task<string> GenerateChatWithOpenAIAsync(string systemPrompt, string userPrompt, AIConfiguration config)
@@ -777,6 +796,96 @@ Respond ONLY with valid JSON, no other comments.";
             return text;
 
         return text.Substring(0, maxLength) + "...";
+    }
+
+    /// <summary>
+    /// Extracts retry delay from Gemini API error response
+    /// </summary>
+    private TimeSpan? ExtractRetryDelayFromError(string errorMessage)
+    {
+        try
+        {
+            // Try to parse the JSON error response
+            var startIndex = errorMessage.IndexOf("{");
+            if (startIndex >= 0)
+            {
+                var jsonPart = errorMessage.Substring(startIndex);
+                using (JsonDocument doc = JsonDocument.Parse(jsonPart))
+                {
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("error", out var error) &&
+                        error.TryGetProperty("details", out var details) &&
+                        details.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var detail in details.EnumerateArray())
+                        {
+                            if (detail.TryGetProperty("@type", out var type) &&
+                                type.GetString()?.Contains("RetryInfo") == true &&
+                                detail.TryGetProperty("retryDelay", out var retryDelay))
+                            {
+                                var delayStr = retryDelay.GetString();
+                                if (!string.IsNullOrEmpty(delayStr) && delayStr.EndsWith("s"))
+                                {
+                                    // Parse delay like "23.509312193s" to seconds
+                                    var secondsStr = delayStr.TrimEnd('s');
+                                    if (double.TryParse(secondsStr, System.Globalization.NumberStyles.Float, 
+                                        System.Globalization.CultureInfo.InvariantCulture, out var seconds))
+                                    {
+                                        return TimeSpan.FromSeconds(Math.Ceiling(seconds));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // If parsing fails, log and return null to use default retry delay
+            _logService.LogDebugAsync("Retry", "Failed to extract retry delay from error", ex.Message).Wait();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Executes an async function with retry logic for rate limit (429) errors
+    /// </summary>
+    private async Task<T> ExecuteWithRetryAsync<T>(
+        Func<Task<T>> operation,
+        string operationName,
+        int maxRetries = 3)
+    {
+        int retryCount = 0;
+        TimeSpan baseDelay = TimeSpan.FromSeconds(5);
+
+        while (true)
+        {
+            try
+            {
+                return await operation();
+            }
+            catch (System.Net.Http.HttpRequestException ex) when (
+                ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests && 
+                retryCount < maxRetries)
+            {
+                retryCount++;
+                
+                // Try to extract retry delay from API response
+                TimeSpan delay = ExtractRetryDelayFromError(ex.Message) 
+                    ?? TimeSpan.FromSeconds(baseDelay.TotalSeconds * Math.Pow(2, retryCount - 1));
+
+                await _logService.LogWarningAsync(
+                    operationName, 
+                    $"Rate limit exceeded (429). Retry {retryCount}/{maxRetries}", 
+                    $"Waiting {delay.TotalSeconds:F1} seconds before retry");
+
+                await Task.Delay(delay);
+                
+                await _logService.LogInfoAsync(operationName, $"Retrying after rate limit... Attempt {retryCount + 1}");
+            }
+        }
     }
 
     private class CategorySuggestion
