@@ -1,5 +1,6 @@
 using DocN.Data.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace DocN.Data.Services;
