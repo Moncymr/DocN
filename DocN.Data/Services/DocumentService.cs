@@ -273,6 +273,7 @@ public class DocumentService : IDocumentService
         existingDocument.ActualCategory = document.ActualCategory;
         existingDocument.Visibility = document.Visibility;
         existingDocument.EmbeddingVector = document.EmbeddingVector;
+        existingDocument.EmbeddingDimension = document.EmbeddingVector?.Length;
         existingDocument.Notes = document.Notes;
         existingDocument.PageCount = document.PageCount;
         existingDocument.DetectedLanguage = document.DetectedLanguage;

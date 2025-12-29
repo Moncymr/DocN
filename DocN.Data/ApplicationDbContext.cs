@@ -73,6 +73,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasConversion(vectorConverter)
                 .IsRequired(false);
             
+            // Configure EmbeddingDimension to track the actual dimension of the stored vector
+            entity.Property(e => e.EmbeddingDimension)
+                .IsRequired(false);
+            
             // Index for performance with large number of documents
             entity.HasIndex(e => e.OwnerId);
             entity.HasIndex(e => e.UploadedAt);
@@ -204,6 +208,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.ChunkEmbedding)
                 .HasColumnType("nvarchar(max)")  // Use nvarchar(max) for JSON - compatible with VECTOR type
                 .HasConversion(chunkVectorConverter)
+                .IsRequired(false);
+            
+            // Configure EmbeddingDimension to track the actual dimension of the stored vector
+            entity.Property(e => e.EmbeddingDimension)
                 .IsRequired(false);
             
             // Relationship with Document

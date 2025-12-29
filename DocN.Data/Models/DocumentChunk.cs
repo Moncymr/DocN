@@ -32,9 +32,16 @@ public class DocumentChunk
     public string ChunkText { get; set; } = string.Empty;
 
     /// <summary>
-    /// Vector embedding for this chunk (1536 dimensions for text-embedding-ada-002)
+    /// Vector embedding for this chunk (supports variable dimensions: 700, 768, 1536, 1583, etc.)
     /// </summary>
     public float[]? ChunkEmbedding { get; set; }
+    
+    /// <summary>
+    /// The actual dimension of the embedding vector stored.
+    /// Tracks the dimension to support coexistence of different AI providers with different dimensions.
+    /// Common values: 700 (Gemini custom), 768 (Gemini default), 1536 (OpenAI ada-002), 1583 (OpenAI custom), 3072 (OpenAI large)
+    /// </summary>
+    public int? EmbeddingDimension { get; set; }
 
     /// <summary>
     /// Token count for this chunk (useful for staying within model limits)

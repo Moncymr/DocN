@@ -33,8 +33,15 @@ public class Document
     // Visibility management
     public DocumentVisibility Visibility { get; set; } = DocumentVisibility.Private;
     
-    // Vector embedding for semantic search (1536 dimensions for text-embedding-ada-002)
+    // Vector embedding for semantic search (supports variable dimensions: 700, 768, 1536, 1583, etc.)
     public float[]? EmbeddingVector { get; set; }
+    
+    /// <summary>
+    /// The actual dimension of the embedding vector stored.
+    /// Tracks the dimension to support coexistence of different AI providers with different dimensions.
+    /// Common values: 700 (Gemini custom), 768 (Gemini default), 1536 (OpenAI ada-002), 1583 (OpenAI custom), 3072 (OpenAI large)
+    /// </summary>
+    public int? EmbeddingDimension { get; set; }
     
     // Metadata
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;

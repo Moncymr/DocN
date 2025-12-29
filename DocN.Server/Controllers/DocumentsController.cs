@@ -147,6 +147,7 @@ public class DocumentsController : ControllerBase
             if (document.EmbeddingVector != null)
             {
                 existingDocument.EmbeddingVector = document.EmbeddingVector;
+                existingDocument.EmbeddingDimension = document.EmbeddingVector.Length;
             }
 
             // Update file path only if a new file was uploaded
@@ -273,6 +274,7 @@ public class DocumentsController : ControllerBase
                     if (embedding != null)
                     {
                         document.EmbeddingVector = embedding;
+                        document.EmbeddingDimension = embedding.Length;
                         successCount++;
                     }
 
@@ -291,6 +293,7 @@ public class DocumentsController : ControllerBase
                         if (chunkEmbedding != null)
                         {
                             chunk.ChunkEmbedding = chunkEmbedding;
+                            chunk.EmbeddingDimension = chunkEmbedding.Length;
                         }
                         _context.DocumentChunks.Add(chunk);
                     }
