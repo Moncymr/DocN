@@ -14,6 +14,7 @@ public interface IDocumentService
     Task<bool> ShareDocumentAsync(int documentId, string shareWithUserId, DocumentPermission permission, string currentUserId);
     Task<bool> UpdateDocumentVisibilityAsync(int documentId, DocumentVisibility visibility, string userId);
     Task<Document> CreateDocumentAsync(Document document);
+    Task<Document> UpdateDocumentAsync(Document document, string userId);
     Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments);
 }
 
@@ -220,6 +221,54 @@ public class DocumentService : IDocumentService
         _context.Documents.Add(document);
         await _context.SaveChangesAsync();
         return document;
+    }
+
+    public async Task<Document> UpdateDocumentAsync(Document document, string userId)
+    {
+        var existingDocument = await _context.Documents
+            .Include(d => d.Tags)
+            .FirstOrDefaultAsync(d => d.Id == document.Id);
+
+        if (existingDocument == null)
+            throw new InvalidOperationException($"Document with ID {document.Id} not found");
+
+        // Only owner can update (documents without owner cannot be updated)
+        if (string.IsNullOrEmpty(existingDocument.OwnerId) || existingDocument.OwnerId != userId)
+            throw new UnauthorizedAccessException("Only the document owner can update this document");
+
+        // Update document properties
+        existingDocument.FileName = document.FileName;
+        existingDocument.FilePath = document.FilePath;
+        existingDocument.ContentType = document.ContentType;
+        existingDocument.FileSize = document.FileSize;
+        existingDocument.ExtractedText = document.ExtractedText;
+        existingDocument.SuggestedCategory = document.SuggestedCategory;
+        existingDocument.CategoryReasoning = document.CategoryReasoning;
+        existingDocument.ActualCategory = document.ActualCategory;
+        existingDocument.Visibility = document.Visibility;
+        existingDocument.EmbeddingVector = document.EmbeddingVector;
+        existingDocument.Notes = document.Notes;
+        existingDocument.PageCount = document.PageCount;
+        existingDocument.DetectedLanguage = document.DetectedLanguage;
+        existingDocument.ProcessingStatus = document.ProcessingStatus;
+        existingDocument.ProcessingError = document.ProcessingError;
+        existingDocument.AIAnalysisDate = document.AIAnalysisDate;
+        existingDocument.AITagsJson = document.AITagsJson;
+        existingDocument.ExtractedMetadataJson = document.ExtractedMetadataJson;
+
+        // Update tags
+        existingDocument.Tags.Clear();
+        foreach (var tag in document.Tags)
+        {
+            existingDocument.Tags.Add(new DocumentTag
+            {
+                Name = tag.Name,
+                Document = existingDocument
+            });
+        }
+
+        await _context.SaveChangesAsync();
+        return existingDocument;
     }
 
     public async Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments)

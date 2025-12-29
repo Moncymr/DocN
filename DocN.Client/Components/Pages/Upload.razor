@@ -2249,7 +2249,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 }
             }
 
-            // Save to database
+            // Save to database - wrapped in try-catch for better error handling
             try
             {
                 await DocumentService.CreateDocumentAsync(document);
@@ -2269,13 +2269,28 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             catch (Exception dbEx)
             {
                 // Database save failed - file is on disk but not in database
-                errorMessage = $"⚠️ ERRORE CRITICO: Il file è stato salvato su disco ma NON nel database. " +
+                // Clean up the orphaned file to prevent disk space waste
+                try
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                        Console.WriteLine($"Deleted orphaned file after database save failure: {filePath}");
+                    }
+                }
+                catch (Exception cleanupEx)
+                {
+                    Console.WriteLine($"Failed to delete orphaned file: {filePath}. Error: {cleanupEx.Message}");
+                }
+
+                errorMessage = $"⚠️ ERRORE CRITICO: Il salvataggio nel database è fallito durante la creazione. " +
+                              $"Il file su disco è stato rimosso automaticamente. " +
                               $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
-                              $"Contattare l'amministratore per completare il salvataggio.";
+                              $"Contattare l'amministratore se il problema persiste.";
                 
-                // Log the error with full details for administrator - this will persist even if document save fails
-                await LogService.LogErrorAsync("Upload", "CRITICAL ERROR - File saved but DB failed", 
-                    $"File name: {selectedFile.Name}\nError: {dbEx.Message}", 
+                // Log the error with full details for administrator
+                await LogService.LogErrorAsync("Upload", "CRITICAL ERROR - File saved but DB create failed", 
+                    $"File name: {selectedFile.Name}\nFile path: {filePath}\nError: {dbEx.Message}", 
                     userId: currentUserId, 
                     fileName: selectedFile.Name, 
                     stackTrace: dbEx.StackTrace);

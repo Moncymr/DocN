@@ -105,6 +105,83 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    [HttpPut("{id}")]
+    public async Task<ActionResult<Document>> UpdateDocument(int id, Document document)
+    {
+        try
+        {
+            if (id != document.Id)
+            {
+                return BadRequest("Document ID mismatch");
+            }
+
+            var existingDocument = await _context.Documents.FindAsync(id);
+            if (existingDocument == null)
+            {
+                return NotFound($"Document with ID {id} not found");
+            }
+
+            // Update document properties
+            existingDocument.FileName = document.FileName;
+            existingDocument.ContentType = document.ContentType;
+            existingDocument.FileSize = document.FileSize;
+            existingDocument.ExtractedText = document.ExtractedText;
+            existingDocument.SuggestedCategory = document.SuggestedCategory;
+            existingDocument.CategoryReasoning = document.CategoryReasoning;
+            existingDocument.ActualCategory = document.ActualCategory;
+            existingDocument.Visibility = document.Visibility;
+            existingDocument.Notes = document.Notes;
+            existingDocument.PageCount = document.PageCount;
+            existingDocument.DetectedLanguage = document.DetectedLanguage;
+            existingDocument.ProcessingStatus = document.ProcessingStatus;
+            existingDocument.ProcessingError = document.ProcessingError;
+            existingDocument.AIAnalysisDate = document.AIAnalysisDate;
+            existingDocument.AITagsJson = document.AITagsJson;
+            existingDocument.ExtractedMetadataJson = document.ExtractedMetadataJson;
+
+            // Update embedding if provided
+            if (document.EmbeddingVector != null)
+            {
+                existingDocument.EmbeddingVector = document.EmbeddingVector;
+            }
+
+            // Update file path only if a new file was uploaded
+            if (!string.IsNullOrEmpty(document.FilePath) && document.FilePath != existingDocument.FilePath)
+            {
+                existingDocument.FilePath = document.FilePath;
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Recreate chunks if extracted text changed
+            if (!string.IsNullOrEmpty(document.ExtractedText) && document.ExtractedText != existingDocument.ExtractedText)
+            {
+                // Delete existing chunks
+                var existingChunks = await _context.DocumentChunks
+                    .Where(c => c.DocumentId == id)
+                    .ToListAsync();
+                _context.DocumentChunks.RemoveRange(existingChunks);
+
+                // Create new chunks
+                var newChunks = _chunkingService.ChunkDocument(existingDocument);
+                if (newChunks.Any())
+                {
+                    _context.DocumentChunks.AddRange(newChunks);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Updated {ChunkCount} chunks for document {Id}", newChunks.Count, id);
+                }
+            }
+
+            _logger.LogInformation("Updated document {Id} - {FileName}", id, document.FileName);
+            return Ok(existingDocument);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating document {Id}", id);
+            return StatusCode(500, "An error occurred while updating the document");
+        }
+    }
+
     [HttpGet("{id}/download")]
     public async Task<IActionResult> DownloadDocument(int id)
     {
