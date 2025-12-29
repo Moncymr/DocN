@@ -784,6 +784,7 @@
         if (_httpClient == null) return;
         
         isLoadingConversations = true;
+        errorMessage = null;
         try
         {
             var response = await _httpClient.GetFromJsonAsync<List<ConversationSummary>>(
@@ -794,9 +795,17 @@
                 conversations = response;
             }
         }
+        catch (HttpRequestException ex)
+        {
+            // Connection to backend API failed
+            errorMessage = "⚠️ Unable to connect to the backend service. Please ensure the DocN.Server is running on https://localhost:5211. " +
+                          "See README.md for setup instructions.";
+            Console.WriteLine($"Backend API connection error: {ex.Message}");
+        }
         catch (Exception ex)
         {
             errorMessage = $"Failed to load conversations: {ex.Message}";
+            Console.WriteLine($"Error loading conversations: {ex}");
         }
         finally
         {
@@ -808,6 +817,7 @@
     {
         if (_httpClient == null) return;
         
+        errorMessage = null;
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ConversationMessagesResponse>(
@@ -820,9 +830,15 @@
                 await ScrollToBottom();
             }
         }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = "⚠️ Unable to connect to the backend service. Please ensure the DocN.Server is running on https://localhost:5211.";
+            Console.WriteLine($"Backend API connection error: {ex.Message}");
+        }
         catch (Exception ex)
         {
             errorMessage = $"Failed to load conversation: {ex.Message}";
+            Console.WriteLine($"Error loading conversation: {ex}");
         }
     }
 
@@ -879,9 +895,27 @@
                 await LoadConversations();
             }
         }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = "⚠️ Unable to connect to the backend service. Please ensure the DocN.Server is running on https://localhost:5211.";
+            Console.WriteLine($"Backend API connection error: {ex.Message}");
+            
+            // Remove the user message since it wasn't sent successfully
+            if (messages.Any() && messages.Last().Role == "user")
+            {
+                messages.RemoveAt(messages.Count - 1);
+            }
+        }
         catch (Exception ex)
         {
             errorMessage = $"Error sending message: {ex.Message}";
+            Console.WriteLine($"Error sending message: {ex}");
+            
+            // Remove the user message since it wasn't sent successfully
+            if (messages.Any() && messages.Last().Role == "user")
+            {
+                messages.RemoveAt(messages.Count - 1);
+            }
         }
         finally
         {

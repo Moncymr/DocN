@@ -184,4 +184,7 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
+// Add health check endpoint
+app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", service = "DocN.Server" }));
+
 app.Run();

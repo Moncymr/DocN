@@ -180,10 +180,11 @@ else
 // Register ApplicationSeeder
 builder.Services.AddScoped<DocN.Data.Services.ApplicationSeeder>();
 
-// Configure HttpClient to call the backend API
+// Configure HttpClient to call the backend API with timeout
 builder.Services.AddHttpClient("BackendAPI", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["BackendApiUrl"] ?? "https://localhost:5211/");
+    client.Timeout = TimeSpan.FromSeconds(30);
 });
 
 var app = builder.Build();
