@@ -9,6 +9,38 @@
 <PageTitle>I Miei Agenti AI - DocN</PageTitle>
 
 <div class="agents-container">
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">
+            <span class="alert-icon">⚠️</span>
+            <span>@errorMessage</span>
+            <button class="alert-close" @onclick="() => errorMessage = null">×</button>
+        </div>
+    }
+    
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">
+            <span class="alert-icon">✅</span>
+            <span>@successMessage</span>
+            <button class="alert-close" @onclick="() => successMessage = null">×</button>
+        </div>
+    }
+    
+    @if (agentToDelete.HasValue)
+    {
+        <div class="modal-overlay">
+            <div class="modal-dialog">
+                <h3>⚠️ Conferma Eliminazione</h3>
+                <p>Sei sicuro di voler eliminare questo agente?</p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @onclick="CancelDelete">Annulla</button>
+                    <button class="btn btn-danger" @onclick="ConfirmDeleteAgent">Elimina</button>
+                </div>
+            </div>
+        </div>
+    }
+    
     <div class="page-header">
         <div>
             <h1>🤖 I Miei Assistenti AI</h1>
@@ -75,7 +107,7 @@
                                 <button class="btn btn-small btn-edit" @onclick="() => EditAgent(agent.Id)">
                                     ✏️ Modifica
                                 </button>
-                                <button class="btn btn-small btn-delete" @onclick="() => DeleteAgent(agent.Id)">
+                                <button class="btn btn-small btn-delete" @onclick="() => RequestDeleteAgent(agent.Id)">
                                     🗑️
                                 </button>
                             </div>
@@ -127,6 +159,9 @@
     private bool isLoading = true;
     private List<AgentConfiguration> myAgents = new();
     private List<AgentConfiguration> publicAgents = new();
+    private string? errorMessage;
+    private string? successMessage;
+    private int? agentToDelete;
 
     protected override async Task OnInitializedAsync()
     {
@@ -145,7 +180,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Errore caricamento agenti: {ex.Message}");
+            errorMessage = $"Errore caricamento agenti: {ex.Message}";
         }
     }
 
@@ -164,29 +199,42 @@
         Navigation.NavigateTo($"/agent-wizard/{agentId}");
     }
 
-    private async Task DeleteAgent(int agentId)
+    private void RequestDeleteAgent(int agentId)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Sei sicuro di voler eliminare questo agente?");
-        if (!confirmed) return;
+        agentToDelete = agentId;
+    }
+
+    private void CancelDelete()
+    {
+        agentToDelete = null;
+    }
+
+    private async Task ConfirmDeleteAgent()
+    {
+        if (!agentToDelete.HasValue) return;
 
         try
         {
             var client = HttpClientFactory.CreateClient("DocN.ServerAPI");
-            var response = await client.DeleteAsync($"api/agent/{agentId}");
+            var response = await client.DeleteAsync($"api/agent/{agentToDelete.Value}");
             
             if (response.IsSuccessStatusCode)
             {
-                await JS.InvokeVoidAsync("alert", "✅ Agente eliminato con successo");
+                successMessage = "✅ Agente eliminato con successo";
                 await LoadAgents();
             }
             else
             {
-                await JS.InvokeVoidAsync("alert", "❌ Errore nell'eliminazione dell'agente");
+                errorMessage = "❌ Errore nell'eliminazione dell'agente";
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Errore: {ex.Message}");
+            errorMessage = $"Errore: {ex.Message}";
+        }
+        finally
+        {
+            agentToDelete = null;
         }
     }
 }
@@ -416,5 +464,139 @@
 
     .btn-delete:hover {
         background: #c0392b;
+    }
+
+    .alert {
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.95rem;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    .alert-error {
+        background-color: #fee;
+        border: 1px solid #fcc;
+        color: #c33;
+    }
+
+    .alert-success {
+        background-color: #efe;
+        border: 1px solid #cfc;
+        color: #3c3;
+    }
+
+    .alert-icon {
+        font-size: 1.2rem;
+    }
+
+    .alert-close {
+        margin-left: auto;
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: inherit;
+        padding: 0;
+        line-height: 1;
+        opacity: 0.6;
+    }
+
+    .alert-close:hover {
+        opacity: 1;
+    }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .modal-dialog {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        animation: scaleIn 0.2s ease-out;
+    }
+
+    .modal-dialog h3 {
+        margin: 0 0 1rem 0;
+        color: #2c3e50;
+    }
+
+    .modal-dialog p {
+        margin: 0 0 1.5rem 0;
+        color: #7f8c8d;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    .btn-secondary {
+        background: #ecf0f1;
+        color: #2c3e50;
+        padding: 0.6rem 1.2rem;
+    }
+
+    .btn-secondary:hover {
+        background: #d5dbdb;
+    }
+
+    .btn-danger {
+        background: #e74c3c;
+        color: white;
+        padding: 0.6rem 1.2rem;
+    }
+
+    .btn-danger:hover {
+        background: #c0392b;
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes scaleIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
     }
 </style>
