@@ -230,8 +230,11 @@ SELECT * FROM sys.fulltext_indexes WHERE object_id = OBJECT_ID('Documents');
 
 -- Se necessario, ricreare l'indice
 DROP FULLTEXT INDEX ON Documents;
+-- Assicurarsi che esista l'indice univoco
+CREATE UNIQUE INDEX IX_Documents_Id_FullText ON Documents(Id);
+-- Creare l'indice full-text
 CREATE FULLTEXT INDEX ON Documents(ExtractedText, FileName)
-    KEY INDEX PK__Documents__3214EC07 ON DocumentFullTextCatalog;
+    KEY INDEX IX_Documents_Id_FullText ON DocumentFullTextCatalog;
 ```
 
 ### Problema: Tipo VECTOR non supportato
@@ -311,6 +314,8 @@ WITH DIFFERENTIAL, COMPRESSION;
 #### Fixed
 - OwnerId foreign key constraint allows documents without owner
 - Prevents accidental user deletion cascading to documents
+- Reduced LoginProvider, ProviderKey, Name to NVARCHAR(128) to avoid 900-byte PK warnings
+- Fixed full-text index by using explicit unique index IX_Documents_Id_FullText
 
 ---
 
