@@ -50,7 +50,25 @@
                     <h3>@dashboardCharts.UploadsOverTime.Title</h3>
                     <p class="chart-description">@dashboardCharts.UploadsOverTime.Description</p>
                     <div class="chart-wrapper">
-                        <canvas id="uploadsChart"></canvas>
+                        <div class="simple-line-chart">
+                            @{
+                                var uploadData = dashboardCharts.UploadsOverTime.Series.FirstOrDefault()?.Data ?? new List<double>();
+                                var maxValue = uploadData.Any() ? uploadData.Max() : 1;
+                            }
+                            @for (int i = 0; i < uploadData.Count; i++)
+                            {
+                                var height = maxValue > 0 ? (uploadData[i] / maxValue * 100) : 0;
+                                <div class="chart-bar" style="height: @(height)%;" title="@dashboardCharts.UploadsOverTime.Labels[i]: @uploadData[i]">
+                                    <span class="bar-value">@uploadData[i]</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="chart-labels">
+                            @foreach (var label in dashboardCharts.UploadsOverTime.Labels)
+                            {
+                                <span class="label">@label</span>
+                            }
+                        </div>
                     </div>
                 </div>
             }
@@ -62,7 +80,26 @@
                     <h3>@dashboardCharts.CategoryDistribution.Title</h3>
                     <p class="chart-description">@dashboardCharts.CategoryDistribution.Description</p>
                     <div class="chart-wrapper">
-                        <canvas id="categoryChart"></canvas>
+                        <div class="pie-chart-list">
+                            @{
+                                var categoryData = dashboardCharts.CategoryDistribution.Series.FirstOrDefault()?.Data ?? new List<double>();
+                                var total = categoryData.Sum();
+                                var colors = new[] { "#FF6B35", "#F7931E", "#FDC830", "#37B7C3", "#088395", "#071952", "#8E44AD", "#E74C3C" };
+                            }
+                            @for (int i = 0; i < categoryData.Count && i < dashboardCharts.CategoryDistribution.Labels.Count; i++)
+                            {
+                                var percentage = total > 0 ? (categoryData[i] / total * 100) : 0;
+                                var color = colors[i % colors.Length];
+                                <div class="pie-item">
+                                    <div class="pie-color" style="background-color: @color;"></div>
+                                    <div class="pie-label">@dashboardCharts.CategoryDistribution.Labels[i]</div>
+                                    <div class="pie-bar">
+                                        <div class="pie-fill" style="width: @percentage%; background-color: @color;"></div>
+                                    </div>
+                                    <div class="pie-value">@categoryData[i] (@percentage.ToString("F1")%)</div>
+                                </div>
+                            }
+                        </div>
                     </div>
                 </div>
             }
@@ -74,7 +111,24 @@
                     <h3>@dashboardCharts.FileTypeDistribution.Title</h3>
                     <p class="chart-description">@dashboardCharts.FileTypeDistribution.Description</p>
                     <div class="chart-wrapper">
-                        <canvas id="fileTypeChart"></canvas>
+                        <div class="horizontal-bar-chart">
+                            @{
+                                var fileTypeData = dashboardCharts.FileTypeDistribution.Series.FirstOrDefault()?.Data ?? new List<double>();
+                                var maxFileType = fileTypeData.Any() ? fileTypeData.Max() : 1;
+                            }
+                            @for (int i = 0; i < fileTypeData.Count && i < dashboardCharts.FileTypeDistribution.Labels.Count; i++)
+                            {
+                                var width = maxFileType > 0 ? (fileTypeData[i] / maxFileType * 100) : 0;
+                                <div class="h-bar-item">
+                                    <span class="h-bar-label">@dashboardCharts.FileTypeDistribution.Labels[i]</span>
+                                    <div class="h-bar">
+                                        <div class="h-bar-fill" style="width: @width%;">
+                                            <span class="h-bar-value">@fileTypeData[i]</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
                     </div>
                 </div>
             }
@@ -229,6 +283,153 @@
     .chart-wrapper {
         position: relative;
         height: 300px;
+    }
+
+    .chart-card.large .chart-wrapper {
+        height: 400px;
+    }
+
+    /* Simple Line Chart Styles */
+    .simple-line-chart {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-around;
+        height: 280px;
+        padding: 1rem;
+        border-bottom: 2px solid #ddd;
+        gap: 0.5rem;
+    }
+
+    .chart-bar {
+        flex: 1;
+        background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+        border-radius: 5px 5px 0 0;
+        min-height: 5px;
+        position: relative;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .chart-bar:hover {
+        opacity: 0.8;
+        transform: translateY(-5px);
+    }
+
+    .bar-value {
+        position: absolute;
+        top: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #333;
+        white-space: nowrap;
+    }
+
+    .chart-labels {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 0.5rem;
+        padding: 0 1rem;
+    }
+
+    .chart-labels .label {
+        flex: 1;
+        text-align: center;
+        font-size: 0.75rem;
+        color: #666;
+    }
+
+    /* Pie Chart List Styles */
+    .pie-chart-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .pie-item {
+        display: grid;
+        grid-template-columns: 30px 1fr 3fr 100px;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .pie-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+    }
+
+    .pie-label {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .pie-bar {
+        height: 30px;
+        background: #f0f0f0;
+        border-radius: 15px;
+        overflow: hidden;
+    }
+
+    .pie-fill {
+        height: 100%;
+        transition: width 0.5s ease;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 0.5rem;
+    }
+
+    .pie-value {
+        text-align: right;
+        font-weight: 600;
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    /* Horizontal Bar Chart Styles */
+    .horizontal-bar-chart {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .h-bar-item {
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .h-bar-label {
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-align: right;
+    }
+
+    .h-bar {
+        height: 35px;
+        background: #f0f0f0;
+        border-radius: 5px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .h-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        transition: width 0.5s ease;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 0.5rem;
+    }
+
+    .h-bar-value {
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
     }
 
     .chart-card.large .chart-wrapper {
