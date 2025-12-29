@@ -1,5 +1,11 @@
 ﻿@page "/"
-@inject IHttpClientFactory HttpClientFactory
+@using DocN.Data
+@using DocN.Data.Services
+@using Microsoft.EntityFrameworkCore
+@inject DocArcContext DbContext
+@inject DocN.Data.Services.IEmbeddingService EmbeddingService
+@inject DocN.Data.Services.IChunkingService ChunkingService
+@inject ILogger<Home> Logger
 @inject NavigationManager Navigation
 
 <PageTitle>DocN - Document Management</PageTitle>
@@ -111,25 +117,70 @@
 
         try
         {
-            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
-            var response = await httpClient.PostAsync("documents/recreate-embeddings", null);
-            
-            if (response.IsSuccessStatusCode)
+            Logger.LogInformation("Starting recreation of all embeddings");
+
+            // Get all documents
+            var documents = await DbContext.Documents
+                .Where(d => !string.IsNullOrEmpty(d.ExtractedText))
+                .ToListAsync();
+
+            Logger.LogInformation("Found {Count} documents to process", documents.Count);
+
+            int successCount = 0;
+            int errorCount = 0;
+
+            foreach (var document in documents)
             {
-                embeddingMessage = "✅ Rigenerazione degli embeddings avviata con successo!";
-                embeddingSuccess = true;
+                try
+                {
+                    // Regenerate embedding for document
+                    var embedding = await EmbeddingService.GenerateEmbeddingAsync(document.ExtractedText);
+                    if (embedding != null)
+                    {
+                        document.EmbeddingVector = embedding;
+                        successCount++;
+                    }
+
+                    // Delete existing chunks and recreate them
+                    var existingChunks = await DbContext.DocumentChunks
+                        .Where(c => c.DocumentId == document.Id)
+                        .ToListAsync();
+                    
+                    DbContext.DocumentChunks.RemoveRange(existingChunks);
+
+                    // Create new chunks with embeddings
+                    var newChunks = ChunkingService.ChunkDocument(document);
+                    foreach (var chunk in newChunks)
+                    {
+                        var chunkEmbedding = await EmbeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+                        if (chunkEmbedding != null)
+                        {
+                            chunk.ChunkEmbedding = chunkEmbedding;
+                        }
+                        DbContext.DocumentChunks.Add(chunk);
+                    }
+
+                    await DbContext.SaveChangesAsync();
+                    Logger.LogInformation("Recreated embeddings for document {Id}: {FileName}", 
+                        document.Id, document.FileName);
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    Logger.LogError(ex, "Error recreating embeddings for document {Id}", document.Id);
+                }
             }
-            else
-            {
-                var errorMessage = await response.Content.ReadAsStringAsync();
-                embeddingMessage = $"❌ Errore durante la rigenerazione: {errorMessage}";
-                embeddingSuccess = false;
-            }
+
+            embeddingMessage = $"✅ Embeddings ricreati per {successCount} documenti. Errori: {errorCount}";
+            embeddingSuccess = true;
+            Logger.LogInformation("Completed recreation of embeddings: {SuccessCount} successful, {ErrorCount} errors", 
+                successCount, errorCount);
         }
         catch (Exception ex)
         {
             embeddingMessage = $"❌ Errore: {ex.Message}";
             embeddingSuccess = false;
+            Logger.LogError(ex, "Error recreating all embeddings");
         }
         finally
         {
