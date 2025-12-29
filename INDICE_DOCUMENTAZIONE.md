@@ -6,27 +6,39 @@
 
 **Risposta Rapida:** Leggi **[RISPOSTA_GAP_ANALYSIS.md](RISPOSTA_GAP_ANALYSIS.md)** (15 minuti)
 
+**Domanda:** "Cosa suggerisci di fare ora?"
+
+**Risposta Rapida:** Leggi **[PROSSIMI_PASSI.md](PROSSIMI_PASSI.md)** ⭐ **NUOVO** (10 minuti)
+
 ---
 
 ## 📚 Guida alla Documentazione
 
 ### Per Manager e Decision Makers
 
-1. **[RISPOSTA_GAP_ANALYSIS.md](RISPOSTA_GAP_ANALYSIS.md)** ⭐ **INIZIA QUI**
+1. **[PROSSIMI_PASSI.md](PROSSIMI_PASSI.md)** ⭐ **INIZIA QUI** - **NUOVO**
+   - Raccomandazioni concrete e actionable
+   - 3 opzioni con effort e ROI
+   - Quick wins vs strategia long-term
+   - Checklist implementazione
+   - Come iniziare domani
+   - **Tempo lettura:** 10-15 minuti
+
+2. **[RISPOSTA_GAP_ANALYSIS.md](RISPOSTA_GAP_ANALYSIS.md)** 
    - Analisi completa di cosa manca
    - Priorità e impatti business
    - Investimento e ROI
    - Raccomandazioni esecutive
    - **Tempo lettura:** 15-20 minuti
 
-2. **[README.md](README.md)** 
+3. **[README.md](README.md)** 
    - Panoramica progetto
    - Caratteristiche principali
    - Quick start
    - Casi d'uso
    - **Tempo lettura:** 10 minuti
 
-3. **[ENTERPRISE_RAG_ROADMAP.md](ENTERPRISE_RAG_ROADMAP.md)**
+4. **[ENTERPRISE_RAG_ROADMAP.md](ENTERPRISE_RAG_ROADMAP.md)**
    - Roadmap dettagliata implementazione
    - Stime effort per ogni feature
    - Matrice prioritizzazione
@@ -35,7 +47,7 @@
 
 ### Per Technical Leaders e Architects
 
-4. **[SECURITY_BEST_PRACTICES.md](SECURITY_BEST_PRACTICES.md)**
+5. **[SECURITY_BEST_PRACTICES.md](SECURITY_BEST_PRACTICES.md)**
    - Best practices sicurezza enterprise
    - Autenticazione e autorizzazione
    - Gestione secrets
@@ -43,7 +55,7 @@
    - Encryption e protezione dati
    - **Tempo lettura:** 30 minuti
 
-5. **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**
+6. **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**
    - Deploy su vari ambienti
    - Docker e Kubernetes
    - Azure App Service
@@ -51,7 +63,7 @@
    - Troubleshooting
    - **Tempo lettura:** 30 minuti
 
-6. **[MONITORING_OBSERVABILITY.md](MONITORING_OBSERVABILITY.md)**
+7. **[MONITORING_OBSERVABILITY.md](MONITORING_OBSERVABILITY.md)**
    - Metriche business e tecniche
    - Logging strutturato
    - Distributed tracing
@@ -61,7 +73,7 @@
 
 ### Per Developers e Integrators
 
-7. **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)**
+8. **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)**
    - Specifica API REST completa
    - Endpoint documenti, search, RAG
    - Autenticazione API
@@ -72,30 +84,30 @@
 
 ### Documentazione Esistente (Pre-esistente)
 
-8. **[MULTI_PROVIDER_CONFIG.md](MULTI_PROVIDER_CONFIG.md)**
+9. **[MULTI_PROVIDER_CONFIG.md](MULTI_PROVIDER_CONFIG.md)**
    - Configurazione AI providers
    - Gemini, OpenAI, Azure OpenAI
    - Service assignment
    - Fallback configuration
 
-9. **[OCR_IMPLEMENTATION.md](OCR_IMPLEMENTATION.md)**
-   - Implementazione OCR Tesseract
-   - Estrazione testo da immagini
-   - Setup e configurazione
+10. **[OCR_IMPLEMENTATION.md](OCR_IMPLEMENTATION.md)**
+    - Implementazione OCR Tesseract
+    - Estrazione testo da immagini
+    - Setup e configurazione
 
-10. **[VECTOR_TYPE_GUIDE.md](VECTOR_TYPE_GUIDE.md)**
+11. **[VECTOR_TYPE_GUIDE.md](VECTOR_TYPE_GUIDE.md)**
     - Guida tipi vettoriali SQL Server 2025
     - Configurazione embeddings
     - Performance optimization
 
-11. **Database/**
+12. **Database/**
     - [Database/README.md](Database/README.md) - Setup database
     - [Database/QUICK_START.md](Database/QUICK_START.md) - Quick start
     - [Database/SOLUTION_EXPLAINED.md](Database/SOLUTION_EXPLAINED.md) - Schema spiegato
 
 ### Documentazione Funzionalità Avanzate
 
-12. **🔎 Guida alle Funzionalità di Ricerca e RAG** ⭐ **NUOVO**
+13. **🔎 Guida alle Funzionalità di Ricerca e RAG** ⭐ **NUOVO**
     - Tipi di ricerca disponibili (Hybrid, Vector, Text)
     - Esempi pratici su documenti di esempio
     - Configurazione RAG step-by-step
@@ -110,12 +122,23 @@
 
 ## 🚀 Percorsi di Lettura Consigliati
 
+### Path 0: Quick Action Plan (10 minuti) ⭐ **NUOVO - INIZIA QUI**
+Per chi vuole sapere **subito cosa fare ora**:
+
+1. ✅ **PROSSIMI_PASSI.md** - Raccomandazioni immediate e actionable
+2. ✅ **README.md** - Sezione "Quick Start" per setup rapido
+
+**Output:** Piano d'azione chiaro per i prossimi giorni/settimane
+
+---
+
 ### Path 1: Executive Overview (30 minuti)
 Per CEO, CTO, Product Managers che vogliono capire rapidamente gaps e investimenti:
 
-1. ✅ **RISPOSTA_GAP_ANALYSIS.md** - Sintesi completa
-2. ✅ **ENTERPRISE_RAG_ROADMAP.md** - Sezioni: "Matrice Prioritizzazione" e "Roadmap Implementazione"
-3. ✅ **README.md** - Sezione "Roadmap"
+1. ✅ **PROSSIMI_PASSI.md** - Raccomandazioni e opzioni
+2. ✅ **RISPOSTA_GAP_ANALYSIS.md** - Sintesi completa
+3. ✅ **ENTERPRISE_RAG_ROADMAP.md** - Sezioni: "Matrice Prioritizzazione" e "Roadmap Implementazione"
+4. ✅ **README.md** - Sezione "Roadmap"
 
 **Output:** Decisione su priorità e budget
 
@@ -124,12 +147,13 @@ Per CEO, CTO, Product Managers che vogliono capire rapidamente gaps e investimen
 ### Path 2: Technical Deep Dive (2-3 ore)
 Per Architects, Tech Leads che devono pianificare implementazione:
 
-1. ✅ **RISPOSTA_GAP_ANALYSIS.md** - Capire cosa serve
-2. ✅ **ENTERPRISE_RAG_ROADMAP.md** - Dettagli implementativi
-3. ✅ **SECURITY_BEST_PRACTICES.md** - Requisiti sicurezza
-4. ✅ **DEPLOYMENT_GUIDE.md** - Strategia deployment
-5. ✅ **MONITORING_OBSERVABILITY.md** - Setup monitoring
-6. ✅ **API_DOCUMENTATION.md** - Design API
+1. ✅ **PROSSIMI_PASSI.md** - Opzioni implementazione dettagliate
+2. ✅ **RISPOSTA_GAP_ANALYSIS.md** - Capire cosa serve
+3. ✅ **ENTERPRISE_RAG_ROADMAP.md** - Dettagli implementativi
+4. ✅ **SECURITY_BEST_PRACTICES.md** - Requisiti sicurezza
+5. ✅ **DEPLOYMENT_GUIDE.md** - Strategia deployment
+6. ✅ **MONITORING_OBSERVABILITY.md** - Setup monitoring
+7. ✅ **API_DOCUMENTATION.md** - Design API
 
 **Output:** Piano tecnico dettagliato e architettura
 
@@ -138,8 +162,9 @@ Per Architects, Tech Leads che devono pianificare implementazione:
 ### Path 3: Implementation Focus (1-2 ore)
 Per Developers che devono iniziare subito con quick wins:
 
-1. ✅ **RISPOSTA_GAP_ANALYSIS.md** - Sezione "Quick Wins"
-2. ✅ **ENTERPRISE_RAG_ROADMAP.md** - Sezione "Fase 1"
+1. ✅ **PROSSIMI_PASSI.md** - Sezione "Quick Wins" e "Come Iniziare Domani"
+2. ✅ **RISPOSTA_GAP_ANALYSIS.md** - Sezione "Quick Wins"
+3. ✅ **ENTERPRISE_RAG_ROADMAP.md** - Sezione "Fase 1"
 3. ✅ **SECURITY_BEST_PRACTICES.md** - Sezioni specifiche (es. Rate Limiting, Health Checks)
 4. ✅ **API_DOCUMENTATION.md** - Design endpoint
 
