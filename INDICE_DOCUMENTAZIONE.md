@@ -70,25 +70,33 @@
    - **Tempo lettura:** 40 minuti
    - **Riferimento:** Da consultare durante sviluppo
 
+8. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** ⚠️ **NUOVO**
+   - Risoluzione errori comuni
+   - "Impossibile stabilire la connessione (localhost:5211)"
+   - Architettura dual-server spiegata
+   - Script di avvio automatico
+   - Health check e diagnostica
+   - **Tempo lettura:** 10 minuti
+
 ### Documentazione Esistente (Pre-esistente)
 
-8. **[MULTI_PROVIDER_CONFIG.md](MULTI_PROVIDER_CONFIG.md)**
+9. **[MULTI_PROVIDER_CONFIG.md](MULTI_PROVIDER_CONFIG.md)**
    - Configurazione AI providers
    - Gemini, OpenAI, Azure OpenAI
    - Service assignment
    - Fallback configuration
 
-9. **[OCR_IMPLEMENTATION.md](OCR_IMPLEMENTATION.md)**
+10. **[OCR_IMPLEMENTATION.md](OCR_IMPLEMENTATION.md)**
    - Implementazione OCR Tesseract
    - Estrazione testo da immagini
    - Setup e configurazione
 
-10. **[VECTOR_TYPE_GUIDE.md](VECTOR_TYPE_GUIDE.md)**
+11. **[VECTOR_TYPE_GUIDE.md](VECTOR_TYPE_GUIDE.md)**
     - Guida tipi vettoriali SQL Server 2025
     - Configurazione embeddings
     - Performance optimization
 
-11. **Database/**
+12. **Database/**
     - [Database/README.md](Database/README.md) - Setup database
     - [Database/QUICK_START.md](Database/QUICK_START.md) - Quick start
     - [Database/SOLUTION_EXPLAINED.md](Database/SOLUTION_EXPLAINED.md) - Schema spiegato
