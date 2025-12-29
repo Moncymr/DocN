@@ -258,13 +258,16 @@ public class DocumentService : IDocumentService
 
         // Update tags
         existingDocument.Tags.Clear();
-        foreach (var tag in document.Tags)
+        if (document.Tags != null)
         {
-            existingDocument.Tags.Add(new DocumentTag
+            foreach (var tag in document.Tags)
             {
-                Name = tag.Name,
-                Document = existingDocument
-            });
+                existingDocument.Tags.Add(new DocumentTag
+                {
+                    Name = tag.Name,
+                    Document = existingDocument
+                });
+            }
         }
 
         await _context.SaveChangesAsync();

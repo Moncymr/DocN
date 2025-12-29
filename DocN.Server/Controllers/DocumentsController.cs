@@ -121,6 +121,10 @@ public class DocumentsController : ControllerBase
                 return NotFound($"Document with ID {id} not found");
             }
 
+            // Check if extracted text will change (before updating)
+            bool extractedTextChanged = !string.IsNullOrEmpty(document.ExtractedText) && 
+                                       document.ExtractedText != existingDocument.ExtractedText;
+
             // Update document properties
             existingDocument.FileName = document.FileName;
             existingDocument.ContentType = document.ContentType;
@@ -154,7 +158,7 @@ public class DocumentsController : ControllerBase
             await _context.SaveChangesAsync();
 
             // Recreate chunks if extracted text changed
-            if (!string.IsNullOrEmpty(document.ExtractedText) && document.ExtractedText != existingDocument.ExtractedText)
+            if (extractedTextChanged)
             {
                 // Delete existing chunks
                 var existingChunks = await _context.DocumentChunks
