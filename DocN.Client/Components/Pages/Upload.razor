@@ -2283,10 +2283,11 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 // since it contains actionable steps for the user/administrator
                 if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(dbEx.Message))
                 {
-                    errorMessage = $"CRITICAL ERROR - File saved but DB create failed\n" +
+                    errorMessage = $"⚠️ CRITICAL ERROR - Database save failed\n" +
                                   $"📄 File: {selectedFile.Name}\n" +
                                   $"File path: {filePath}\n" +
-                                  $"Error: {dbEx.Message}";
+                                  $"(File has been removed from disk)\n\n" +
+                                  $"{dbEx.Message}";
                 }
                 else
                 {
