@@ -35,9 +35,9 @@ public class GeminiProvider : BaseAIProvider
 
     public override async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(text))
+        if (string.IsNullOrWhiteSpace(text))
         {
-            throw new ArgumentException("Text cannot be null or empty", nameof(text));
+            throw new ArgumentException("Text cannot be null, empty, or whitespace", nameof(text));
         }
 
         _logger.LogInformation("Generating embedding with Gemini for text of length {Length}", text.Length);
@@ -45,19 +45,25 @@ public class GeminiProvider : BaseAIProvider
         try
         {
             var model = _client.GenerativeModel(model: _config.EmbeddingModel);
-            // Use RETRIEVAL_DOCUMENT task type for better semantic retrieval quality
+            // Use TaskType.RetrievalDocument for better semantic retrieval quality
             var response = await model.EmbedContent(
                 content: text,
                 taskType: Mscc.GenerativeAI.TaskType.RetrievalDocument,
                 cancellationToken: cancellationToken);
             
-            if (response?.Embedding?.Values != null)
+            if (response == null)
             {
-                _logger.LogInformation("Successfully generated embedding with {Dimensions} dimensions", response.Embedding.Values.Count);
-                return response.Embedding.Values.ToArray();
+                throw new InvalidOperationException("Failed to generate embedding with Gemini: Response was null");
             }
-
-            throw new InvalidOperationException("Failed to generate embedding with Gemini: Response or Embedding.Values was null");
+            
+            if (response.Embedding?.Values == null)
+            {
+                throw new InvalidOperationException("Failed to generate embedding with Gemini: Embedding.Values was null");
+            }
+            
+            var embedding = response.Embedding.Values.ToArray();
+            _logger.LogInformation("Successfully generated embedding with {Dimensions} dimensions", embedding.Length);
+            return embedding;
         }
         catch (Exception ex)
         {
