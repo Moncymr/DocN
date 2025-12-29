@@ -5,10 +5,10 @@ namespace DocN.Server.Services;
 
 public class DatabaseSeeder
 {
-    private readonly DocArcContext _context;
+    private readonly ApplicationDbContext _context;
     private readonly ILogger<DatabaseSeeder> _logger;
 
-    public DatabaseSeeder(DocArcContext context, ILogger<DatabaseSeeder> logger)
+    public DatabaseSeeder(ApplicationDbContext context, ILogger<DatabaseSeeder> logger)
     {
         _context = context;
         _logger = logger;

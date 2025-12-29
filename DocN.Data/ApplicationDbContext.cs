@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<DocumentTag> DocumentTags { get; set; }
     public DbSet<SimilarDocument> SimilarDocuments { get; set; }
     public DbSet<AIConfiguration> AIConfigurations { get; set; }
+    public DbSet<LogEntry> LogEntries { get; set; }
     
     // Conversazioni e messaggi per RAG
     public DbSet<Conversation> Conversations { get; set; }
@@ -240,6 +241,26 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => e.SourceDocumentId);
             entity.HasIndex(e => new { e.SourceDocumentId, e.Rank });
             entity.HasIndex(e => new { e.SourceDocumentId, e.SimilarityScore });
+        });
+
+        // LogEntry configuration
+        modelBuilder.Entity<LogEntry>(entity =>
+        {
+            entity.ToTable("LogEntries");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Timestamp).IsRequired();
+            entity.Property(e => e.Level).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Message).IsRequired().HasMaxLength(2000);
+            entity.Property(e => e.Details).HasColumnType("nvarchar(max)").IsRequired(false);
+            entity.Property(e => e.UserId).HasMaxLength(450).IsRequired(false);
+            entity.Property(e => e.FileName).HasMaxLength(500).IsRequired(false);
+            entity.Property(e => e.StackTrace).HasColumnType("nvarchar(max)").IsRequired(false);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.Category, e.Timestamp });
+            entity.HasIndex(e => new { e.UserId, e.Timestamp });
         });
     }
     

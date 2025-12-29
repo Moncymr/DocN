@@ -10,14 +10,14 @@ namespace DocN.Server.Controllers;
 [Route("[controller]")]
 public class DocumentsController : ControllerBase
 {
-    private readonly DocArcContext _context;
+    private readonly ApplicationDbContext _context;
     private readonly ILogger<DocumentsController> _logger;
     private readonly IChunkingService _chunkingService;
     private readonly IBatchProcessingService _batchProcessingService;
     private readonly IEmbeddingService _embeddingService;
 
     public DocumentsController(
-        DocArcContext context, 
+        ApplicationDbContext context, 
         ILogger<DocumentsController> logger,
         IChunkingService chunkingService,
         IBatchProcessingService batchProcessingService,
