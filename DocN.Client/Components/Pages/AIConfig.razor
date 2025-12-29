@@ -5,7 +5,7 @@
 @using System.Text.Json
 @inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
-@inject HttpClient HttpClient
+@inject IHttpClientFactory HttpClientFactory
 @rendermode InteractiveServer
 
 <PageTitle>Configurazione AI - DocN</PageTitle>
@@ -941,8 +941,9 @@
             // First save the current configuration
             await SaveConfiguration();
 
-            // Call the test endpoint
-            var response = await HttpClient.PostAsync("api/config/test", null);
+            // Call the test endpoint using HttpClientFactory
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var response = await httpClient.PostAsync("api/config/test", null);
 
             if (response.IsSuccessStatusCode)
             {
