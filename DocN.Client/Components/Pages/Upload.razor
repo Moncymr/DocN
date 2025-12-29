@@ -2143,11 +2143,6 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             errorMessage = "Please process the document first before saving";
             return;
         }
-        
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            currentUserId = "EAF99226-173B-41F0-BBB4-588355A05935";
-        }
 
         isUploading = true;
         errorMessage = null;
