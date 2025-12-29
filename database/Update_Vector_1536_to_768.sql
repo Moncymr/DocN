@@ -11,6 +11,9 @@
 --
 -- Run this script only if you have a database with VECTOR(1536) columns
 -- and want to use Gemini embeddings (768 dimensions)
+--
+-- NOTE: This script assumes your database is named 'DocN'. 
+-- If your database has a different name, modify the USE statement below.
 -- ============================================================================
 
 USE DocN;

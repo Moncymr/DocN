@@ -206,7 +206,7 @@ You should see `VECTOR(1536)` for all columns.
 
 1. **database/SqlServer2025_Schema.sql** - Schema aggiornato con VECTOR(1536)
 2. **database/Update_Vector_768_to_1536.sql** - Script di migrazione da 768 a 1536 dimensioni
-3. **database/Update_Vector_1536_to_768.sql** - Script di migrazione da 1536 a 768 dimensioni (NUOVO)
+3. **database/Update_Vector_1536_to_768.sql** - Script di migrazione da 1536 a 768 dimensioni
 4. **database/README.md** - Documentazione aggiornata
 5. **Database/README.md** - Documentazione aggiornata
 6. **DocN.Data/Utilities/EmbeddingValidationHelper.cs** - Messaggi di errore aggiornati
