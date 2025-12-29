@@ -257,14 +257,21 @@ public class DocumentService : IDocumentService
         existingDocument.ExtractedMetadataJson = document.ExtractedMetadataJson;
 
         // Update tags
-        existingDocument.Tags.Clear();
-        foreach (var tag in document.Tags)
+        if (existingDocument.Tags != null)
         {
-            existingDocument.Tags.Add(new DocumentTag
+            existingDocument.Tags.Clear();
+        }
+        
+        if (document.Tags != null)
+        {
+            foreach (var tag in document.Tags)
             {
-                Name = tag.Name,
-                Document = existingDocument
-            });
+                existingDocument.Tags.Add(new DocumentTag
+                {
+                    Name = tag.Name,
+                    Document = existingDocument
+                });
+            }
         }
 
         await _context.SaveChangesAsync();
