@@ -6,6 +6,7 @@ using DocN.Server.Controllers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Microsoft.AspNetCore.Mvc;
+using DocN.Data.Services;
 
 namespace DocN.Server.Tests;
 
@@ -20,12 +21,30 @@ public class DocumentsControllerTests
         return new DocArcContext(options);
     }
 
+    private DocumentsController CreateController(DocArcContext context)
+    {
+        var loggerMock = new Mock<ILogger<DocumentsController>>();
+        var chunkingServiceMock = new Mock<IChunkingService>();
+        var batchProcessingServiceMock = new Mock<IBatchProcessingService>();
+        var embeddingServiceMock = new Mock<IEmbeddingService>();
+
+        // Setup default behavior for chunking service to return empty list
+        chunkingServiceMock.Setup(s => s.ChunkDocument(It.IsAny<Document>()))
+            .Returns(new List<DocumentChunk>());
+
+        return new DocumentsController(
+            context, 
+            loggerMock.Object, 
+            chunkingServiceMock.Object,
+            batchProcessingServiceMock.Object,
+            embeddingServiceMock.Object);
+    }
+
     [Fact]
     public async Task GetDocuments_ReturnsAllDocuments_IncludingThoseWithoutVectors()
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var loggerMock = new Mock<ILogger<DocumentsController>>();
         
         // Add test documents - mix of with and without vectors
         context.Documents.AddRange(
@@ -50,7 +69,7 @@ public class DocumentsControllerTests
         );
         await context.SaveChangesAsync();
 
-        var controller = new DocumentsController(context, loggerMock.Object);
+        var controller = CreateController(context);
 
         // Act
         var result = await controller.GetDocuments();
@@ -77,8 +96,7 @@ public class DocumentsControllerTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var loggerMock = new Mock<ILogger<DocumentsController>>();
-        var controller = new DocumentsController(context, loggerMock.Object);
+        var controller = CreateController(context);
 
         // Act
         var result = await controller.GetDocuments();
@@ -94,7 +112,6 @@ public class DocumentsControllerTests
     {
         // Arrange
         using var context = CreateInMemoryContext();
-        var loggerMock = new Mock<ILogger<DocumentsController>>();
         
         var testDocument = new Document
         {
@@ -105,7 +122,7 @@ public class DocumentsControllerTests
         context.Documents.Add(testDocument);
         await context.SaveChangesAsync();
 
-        var controller = new DocumentsController(context, loggerMock.Object);
+        var controller = CreateController(context);
 
         // Act
         var result = await controller.GetDocument(testDocument.Id);
@@ -116,5 +133,87 @@ public class DocumentsControllerTests
         Assert.Equal(testDocument.Id, document.Id);
         Assert.Equal("test_document.pdf", document.FileName);
         Assert.Null(document.EmbeddingVector); // Confirm vector is null
+    }
+
+    [Fact]
+    public async Task UpdateDocument_UpdatesDocumentSuccessfully()
+    {
+        // Arrange
+        using var context = CreateInMemoryContext();
+        
+        var originalDocument = new Document
+        {
+            FileName = "original.pdf",
+            ContentType = "application/pdf",
+            FileSize = 1024,
+            ExtractedText = "Original text",
+            ActualCategory = "Original Category",
+            UploadedAt = DateTime.UtcNow
+        };
+        context.Documents.Add(originalDocument);
+        await context.SaveChangesAsync();
+
+        var controller = CreateController(context);
+
+        var updatedDocument = new Document
+        {
+            Id = originalDocument.Id,
+            FileName = "updated.pdf",
+            ContentType = "application/pdf",
+            FileSize = 2048,
+            ExtractedText = "Updated text",
+            ActualCategory = "Updated Category"
+        };
+
+        // Act
+        var result = await controller.UpdateDocument(originalDocument.Id, updatedDocument);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var document = Assert.IsType<Document>(okResult.Value);
+        Assert.Equal("updated.pdf", document.FileName);
+        Assert.Equal(2048, document.FileSize);
+        Assert.Equal("Updated text", document.ExtractedText);
+        Assert.Equal("Updated Category", document.ActualCategory);
+    }
+
+    [Fact]
+    public async Task UpdateDocument_ReturnsNotFound_WhenDocumentDoesNotExist()
+    {
+        // Arrange
+        using var context = CreateInMemoryContext();
+        var controller = CreateController(context);
+
+        var updatedDocument = new Document
+        {
+            Id = 999,
+            FileName = "nonexistent.pdf"
+        };
+
+        // Act
+        var result = await controller.UpdateDocument(999, updatedDocument);
+
+        // Assert
+        Assert.IsType<NotFoundObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task UpdateDocument_ReturnsBadRequest_WhenIdMismatch()
+    {
+        // Arrange
+        using var context = CreateInMemoryContext();
+        var controller = CreateController(context);
+
+        var document = new Document
+        {
+            Id = 1,
+            FileName = "test.pdf"
+        };
+
+        // Act
+        var result = await controller.UpdateDocument(2, document);
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result.Result);
     }
 }
