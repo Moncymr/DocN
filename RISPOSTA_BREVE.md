@@ -111,13 +111,14 @@ cd DocN
 # 2. Restore packages
 dotnet restore
 
-# 3. Setup database
+# 3. Setup database (IMPORTANT: Use your own secure password!)
 cd Database
-sqlcmd -S localhost -U sa -P YourPassword -i SqlServer2025_Schema.sql
+sqlcmd -S localhost -U sa -P <YOUR_SECURE_PASSWORD> -i SqlServer2025_Schema.sql
 
-# 4. Configure AI
+# 4. Configure AI (IMPORTANT: Keep API keys secret, never commit to git!)
 cd ../DocN.Server
-dotnet user-secrets set "Gemini:ApiKey" "your-key"
+dotnet user-secrets set "Gemini:ApiKey" "<YOUR_GEMINI_API_KEY>"
+# User secrets are stored securely outside the repo
 
 # 5. Run
 dotnet run

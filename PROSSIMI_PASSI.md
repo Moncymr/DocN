@@ -369,15 +369,16 @@ git clone https://github.com/Moncymr/DocN.git
 cd DocN
 dotnet restore
 
-# 3. Database
+# 3. Database (IMPORTANT: Use a secure password!)
 cd Database
-sqlcmd -S localhost -U sa -P YourPassword -i SqlServer2025_Schema.sql
+sqlcmd -S localhost -U sa -P <YOUR_SECURE_PASSWORD> -i SqlServer2025_Schema.sql
 
-# 4. Configurazione
+# 4. Configurazione (IMPORTANT: Keep secrets secure!)
 cd ../DocN.Server
 dotnet user-secrets init
-dotnet user-secrets set "Gemini:ApiKey" "your-key"
-dotnet user-secrets set "OpenAI:ApiKey" "your-key"
+dotnet user-secrets set "Gemini:ApiKey" "<YOUR_GEMINI_API_KEY>"
+dotnet user-secrets set "OpenAI:ApiKey" "<YOUR_OPENAI_API_KEY>"
+# Note: user-secrets stores keys securely outside the repo
 
 # 5. Test avvio
 dotnet run
