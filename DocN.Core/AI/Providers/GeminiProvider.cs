@@ -35,23 +35,34 @@ public class GeminiProvider : BaseAIProvider
 
     public override async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Generating embedding with Gemini");
+        if (string.IsNullOrEmpty(text))
+        {
+            throw new ArgumentException("Text cannot be null or empty", nameof(text));
+        }
+
+        _logger.LogInformation("Generating embedding with Gemini for text of length {Length}", text.Length);
 
         try
         {
             var model = _client.GenerativeModel(model: _config.EmbeddingModel);
-            var response = await model.EmbedContent(text);
+            // Use RETRIEVAL_DOCUMENT task type for better semantic retrieval quality
+            var response = await model.EmbedContent(
+                content: text,
+                taskType: Mscc.GenerativeAI.TaskType.RetrievalDocument,
+                cancellationToken: cancellationToken);
             
             if (response?.Embedding?.Values != null)
             {
+                _logger.LogInformation("Successfully generated embedding with {Dimensions} dimensions", response.Embedding.Values.Count);
                 return response.Embedding.Values.ToArray();
             }
 
-            throw new InvalidOperationException("Failed to generate embedding with Gemini");
+            throw new InvalidOperationException("Failed to generate embedding with Gemini: Response or Embedding.Values was null");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating embedding with Gemini");
+            _logger.LogError(ex, "Error generating embedding with Gemini. Model: {Model}, Text length: {Length}", 
+                _config.EmbeddingModel, text.Length);
             throw;
         }
     }
