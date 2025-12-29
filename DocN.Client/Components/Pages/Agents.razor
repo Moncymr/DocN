@@ -19,6 +19,15 @@
         </button>
     </div>
 
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-alert">
+            <span class="error-icon">⚠️</span>
+            <span class="error-text">@errorMessage</span>
+            <button class="error-close" @onclick="@(() => errorMessage = null)">✕</button>
+        </div>
+    }
+
     @if (isLoading)
     {
         <div class="loading">
@@ -125,6 +134,8 @@
 
 @code {
     private bool isLoading = true;
+    private bool hasRendered = false;
+    private string? errorMessage = null;
     private List<AgentConfiguration> myAgents = new();
     private List<AgentConfiguration> publicAgents = new();
 
@@ -132,6 +143,15 @@
     {
         await LoadAgents();
         isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            hasRendered = true;
+        }
+        await base.OnAfterRenderAsync(firstRender);
     }
 
     private async Task LoadAgents()
@@ -142,10 +162,11 @@
             
             myAgents = await client.GetFromJsonAsync<List<AgentConfiguration>>("api/agent/my-agents") ?? new();
             publicAgents = await client.GetFromJsonAsync<List<AgentConfiguration>>("api/agent/public") ?? new();
+            errorMessage = null;
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Errore caricamento agenti: {ex.Message}");
+            errorMessage = $"Errore caricamento agenti: {ex.Message}";
         }
     }
 
@@ -166,6 +187,8 @@
 
     private async Task DeleteAgent(int agentId)
     {
+        if (!hasRendered) return;
+        
         var confirmed = await JS.InvokeAsync<bool>("confirm", "Sei sicuro di voler eliminare questo agente?");
         if (!confirmed) return;
 
@@ -203,6 +226,42 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 3rem;
+    }
+
+    .error-alert {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        margin-bottom: 2rem;
+        background-color: #fee;
+        border: 1px solid #fcc;
+        border-radius: 8px;
+        color: #c33;
+    }
+
+    .error-icon {
+        font-size: 1.5rem;
+    }
+
+    .error-text {
+        flex: 1;
+        font-weight: 500;
+    }
+
+    .error-close {
+        background: none;
+        border: none;
+        color: #c33;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        line-height: 1;
+    }
+
+    .error-close:hover {
+        background-color: rgba(204, 51, 51, 0.1);
+        border-radius: 4px;
     }
 
     .page-header h1 {
