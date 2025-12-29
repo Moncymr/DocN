@@ -23,6 +23,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     // Conversazioni e messaggi per RAG
     public DbSet<Conversation> Conversations { get; set; }
     public DbSet<Message> Messages { get; set; }
+    
+    // Agent configuration and templates
+    public DbSet<AgentConfiguration> AgentConfigurations { get; set; }
+    public DbSet<AgentTemplate> AgentTemplates { get; set; }
+    public DbSet<AgentUsageLog> AgentUsageLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -241,6 +246,95 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => e.SourceDocumentId);
             entity.HasIndex(e => new { e.SourceDocumentId, e.Rank });
             entity.HasIndex(e => new { e.SourceDocumentId, e.SimilarityScore });
+        });
+
+        // AgentConfiguration configuration
+        modelBuilder.Entity<AgentConfiguration>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.SystemPrompt).IsRequired();
+            entity.Property(e => e.CustomInstructions).HasMaxLength(2000);
+            entity.Property(e => e.CategoryFilter).HasMaxLength(1000);
+            entity.Property(e => e.TagFilter).HasMaxLength(1000);
+            
+            // Relationships
+            entity.HasOne(e => e.Owner)
+                .WithMany()
+                .HasForeignKey(e => e.OwnerId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasOne(e => e.Tenant)
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasOne(e => e.Template)
+                .WithMany(t => t.Agents)
+                .HasForeignKey(e => e.TemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            // Indexes
+            entity.HasIndex(e => e.OwnerId);
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => e.AgentType);
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => new { e.TenantId, e.IsActive });
+        });
+
+        // AgentTemplate configuration
+        modelBuilder.Entity<AgentTemplate>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.Category).HasMaxLength(100);
+            entity.Property(e => e.DefaultSystemPrompt).IsRequired();
+            entity.Property(e => e.DefaultParametersJson).HasMaxLength(4000);
+            
+            // Relationships
+            entity.HasOne(e => e.Owner)
+                .WithMany()
+                .HasForeignKey(e => e.OwnerId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            // Indexes
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.AgentType);
+            entity.HasIndex(e => e.IsBuiltIn);
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        // AgentUsageLog configuration
+        modelBuilder.Entity<AgentUsageLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Query).IsRequired();
+            entity.Property(e => e.Response).HasMaxLength(int.MaxValue);
+            
+            // Relationships
+            entity.HasOne(e => e.AgentConfiguration)
+                .WithMany()
+                .HasForeignKey(e => e.AgentConfigurationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasOne(e => e.Tenant)
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            // Indexes for analytics
+            entity.HasIndex(e => e.AgentConfigurationId);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => new { e.AgentConfigurationId, e.CreatedAt });
         });
     }
     
