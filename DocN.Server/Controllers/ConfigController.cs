@@ -12,13 +12,16 @@ public class ConfigController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ConfigController> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public ConfigController(
         ApplicationDbContext context,
-        ILogger<ConfigController> logger)
+        ILogger<ConfigController> logger,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
     [HttpPost("test")]
@@ -117,10 +120,11 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key validity by making a simple request
-            using var httpClient = new HttpClient();
+            var httpClient = _httpClientFactory.CreateClient();
             httpClient.DefaultRequestHeaders.Add("x-goog-api-key", config.GeminiApiKey);
 
-            var testUrl = $"https://generativelanguage.googleapis.com/v1beta/models?key={config.GeminiApiKey}";
+            // Use models endpoint without API key in URL for security
+            var testUrl = "https://generativelanguage.googleapis.com/v1beta/models";
             var response = await httpClient.GetAsync(testUrl);
 
             if (response.IsSuccessStatusCode)
@@ -207,7 +211,7 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key validity by listing models
-            using var httpClient = new HttpClient();
+            var httpClient = _httpClientFactory.CreateClient();
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {config.OpenAIApiKey}");
 
             var response = await httpClient.GetAsync("https://api.openai.com/v1/models");
@@ -296,7 +300,7 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key and endpoint validity
-            using var httpClient = new HttpClient();
+            var httpClient = _httpClientFactory.CreateClient();
             httpClient.DefaultRequestHeaders.Add("api-key", config.AzureOpenAIKey);
 
             // Try to list deployments to verify connection
@@ -374,30 +378,4 @@ public class ConfigController : ControllerBase
 
         return result;
     }
-}
-
-// DTOs for test results
-public class ConfigurationTestResult
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public List<ProviderTestResult> ProviderResults { get; set; } = new();
-}
-
-public class ProviderTestResult
-{
-    public string ProviderName { get; set; } = string.Empty;
-    public AIProviderType ProviderType { get; set; }
-    public bool IsConfigured { get; set; }
-    public bool IsValid { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public List<ServiceTestResult> Services { get; set; } = new();
-}
-
-public class ServiceTestResult
-{
-    public string ServiceName { get; set; } = string.Empty;
-    public string Model { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public bool IsHealthy { get; set; }
 }
