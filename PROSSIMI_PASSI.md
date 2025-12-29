@@ -370,6 +370,8 @@ cd DocN
 dotnet restore
 
 # 3. Database (IMPORTANT: Use a secure password!)
+# Note: Password in command line is visible in shell history
+# For production, use Windows Authentication or environment variables
 cd Database
 sqlcmd -S localhost -U sa -P <YOUR_SECURE_PASSWORD> -i SqlServer2025_Schema.sql
 
