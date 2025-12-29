@@ -68,7 +68,7 @@ public static class EmbeddingValidationHelper
                $"SOLUTION:\n" +
                $"1. If you're using Gemini ({GeminiEmbeddingDimension} dimensions):\n" +
                $"   - Your database should be configured for VECTOR({GeminiEmbeddingDimension})\n" +
-               $"   - Run: database/Update_Vector_1536_to_768.sql (if exists)\n\n" +
+               $"   - Run: database/Update_Vector_1536_to_768.sql\n\n" +
                $"2. If you're using OpenAI/Azure OpenAI ({OpenAIEmbeddingDimension} dimensions):\n" +
                $"   - Your database should be configured for VECTOR({OpenAIEmbeddingDimension})\n" +
                $"   - Run: database/Update_Vector_768_to_1536.sql\n\n" +
