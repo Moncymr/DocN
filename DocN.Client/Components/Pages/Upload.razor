@@ -3,6 +3,7 @@
 @using System.IO
 @using DocN.Core.Interfaces
 @using DocN.Data.Services
+@using DocN.Data.Utilities
 @inject IDocumentService DocumentService
 @inject IMultiProviderAIService AIService
 @inject IFileProcessingService FileProcessingService
@@ -2278,10 +2279,23 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                     Console.WriteLine($"Failed to delete orphaned file: {filePath}. Error: {cleanupEx.Message}");
                 }
 
-                errorMessage = $"⚠️ ERRORE CRITICO: Il salvataggio nel database è fallito durante la creazione. " +
-                              $"Il file su disco è stato rimosso automaticamente. " +
-                              $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
-                              $"Contattare l'amministratore se il problema persiste.";
+                // Check if this is a vector dimension mismatch error - if so, show the detailed error message
+                // since it contains actionable steps for the user/administrator
+                if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(dbEx.Message))
+                {
+                    errorMessage = $"⚠️ ERRORE CRITICO - File salvato ma creazione DB fallita\n" +
+                                  $"📄 File: {selectedFile.Name}\n" +
+                                  $"File name: {selectedFile.Name}\n" +
+                                  $"File path: {filePath}\n" +
+                                  $"Error: {dbEx.Message}";
+                }
+                else
+                {
+                    errorMessage = $"⚠️ ERRORE CRITICO: Il salvataggio nel database è fallito durante la creazione. " +
+                                  $"Il file su disco è stato rimosso automaticamente. " +
+                                  $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
+                                  $"Contattare l'amministratore se il problema persiste.";
+                }
                 
                 // Log the error with full details for administrator including inner exceptions
                 var fullErrorMessage = dbEx.Message;
