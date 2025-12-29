@@ -2200,6 +2200,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 ActualCategory = finalCategory,
                 Visibility = (DocumentVisibility)selectedVisibility,
                 EmbeddingVector = embedding,
+                EmbeddingDimension = embedding?.Length,
                 OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
                 UploadedAt = DateTime.UtcNow,
                 

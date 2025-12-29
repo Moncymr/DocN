@@ -224,6 +224,12 @@ public class DocumentService : IDocumentService
             // Validate embedding dimensions before saving to avoid database errors
             EmbeddingValidationHelper.ValidateEmbeddingDimensions(document.EmbeddingVector);
             
+            // Ensure EmbeddingDimension is set when EmbeddingVector is present
+            if (document.EmbeddingVector != null && document.EmbeddingVector.Length > 0)
+            {
+                document.EmbeddingDimension = document.EmbeddingVector.Length;
+            }
+            
             _context.Documents.Add(document);
             await _context.SaveChangesAsync();
             return document;
