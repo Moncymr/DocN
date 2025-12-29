@@ -125,8 +125,8 @@ GO
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AspNetUserLogins' and xtype='U')
 BEGIN
     CREATE TABLE AspNetUserLogins (
-        LoginProvider NVARCHAR(450) NOT NULL,
-        ProviderKey NVARCHAR(450) NOT NULL,
+        LoginProvider NVARCHAR(128) NOT NULL,
+        ProviderKey NVARCHAR(128) NOT NULL,
         ProviderDisplayName NVARCHAR(MAX) NULL,
         UserId NVARCHAR(450) NOT NULL,
         CONSTRAINT PK_AspNetUserLogins PRIMARY KEY (LoginProvider, ProviderKey),
@@ -162,8 +162,8 @@ IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AspNetUserTokens' and xtype=
 BEGIN
     CREATE TABLE AspNetUserTokens (
         UserId NVARCHAR(450) NOT NULL,
-        LoginProvider NVARCHAR(450) NOT NULL,
-        Name NVARCHAR(450) NOT NULL,
+        LoginProvider NVARCHAR(128) NOT NULL,
+        Name NVARCHAR(128) NOT NULL,
         Value NVARCHAR(MAX) NULL,
         CONSTRAINT PK_AspNetUserTokens PRIMARY KEY (UserId, LoginProvider, Name),
         CONSTRAINT FK_AspNetUserTokens_AspNetUsers FOREIGN KEY (UserId) 
@@ -301,8 +301,11 @@ BEGIN
         CREATE FULLTEXT CATALOG DocumentFullTextCatalog AS DEFAULT;
     END
     
+    -- Crea indice univoco per full-text search (richiesto per KEY INDEX)
+    CREATE UNIQUE INDEX IX_Documents_Id_FullText ON Documents(Id);
+    
     CREATE FULLTEXT INDEX ON Documents(ExtractedText, FileName)
-        KEY INDEX PK__Documents__3214EC07 ON DocumentFullTextCatalog;
+        KEY INDEX IX_Documents_Id_FullText ON DocumentFullTextCatalog;
     
     PRINT '  ✓ Documents creata con full-text search e tipo VECTOR(1536)';
     PRINT '  ℹ️  NOTA: EF Core non supporta nativamente VECTOR, usa varbinary(max) nei migration';
