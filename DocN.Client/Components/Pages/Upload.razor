@@ -1723,11 +1723,45 @@
                             }
                             
                             metadataExtractionSucceeded = true;
-                            Console.WriteLine($"File processing extracted {processingResult.Metadata.Count} metadata fields from {selectedFile.Name}");
-                            foreach (var kvp in processingResult.Metadata)
+                            
+                            // Check if OCR was used and log accordingly
+                            if (processingResult.Metadata.TryGetValue("OCR_Enabled", out var ocrEnabled) && ocrEnabled == "true")
                             {
-                                Console.WriteLine($"  {kvp.Key}: {kvp.Value}");
+                                if (processingResult.Metadata.TryGetValue("OCR_CharCount", out var charCount))
+                                {
+                                    var ocrLang = processingResult.Metadata.TryGetValue("OCR_Language", out var lang) ? lang : "unknown";
+                                    await LogService.LogInfoAsync("OCR", "OCR text extraction successful", 
+                                        $"Extracted {charCount} characters using {ocrLang} language model",
+                                        userId: currentUserId, 
+                                        fileName: selectedFile.Name);
+                                }
+                                else if (processingResult.Metadata.TryGetValue("OCR_Error", out var ocrError))
+                                {
+                                    await LogService.LogWarningAsync("OCR", "OCR extraction failed", 
+                                        $"Error: {ocrError}",
+                                        userId: currentUserId, 
+                                        fileName: selectedFile.Name);
+                                }
+                                else if (processingResult.Metadata.TryGetValue("OCR_Result", out var ocrResult) && ocrResult == "No text detected")
+                                {
+                                    await LogService.LogInfoAsync("OCR", "OCR completed but no text detected", 
+                                        "The image was processed successfully but no text was found",
+                                        userId: currentUserId, 
+                                        fileName: selectedFile.Name);
+                                }
                             }
+                            else if (processingResult.Metadata.TryGetValue("OCR_Enabled", out var ocrDisabled) && ocrDisabled == "false")
+                            {
+                                await LogService.LogInfoAsync("OCR", "OCR not available", 
+                                    "Tesseract OCR is not configured. Install tessdata files to enable OCR text extraction from images",
+                                    userId: currentUserId, 
+                                    fileName: selectedFile.Name);
+                            }
+                            
+                            await LogService.LogInfoAsync("Upload", "File processing extracted metadata", 
+                                $"Extracted {processingResult.Metadata.Count} metadata fields: {string.Join(", ", processingResult.Metadata.Select(kvp => $"{kvp.Key}={kvp.Value}"))}",
+                                userId: currentUserId, 
+                                fileName: selectedFile.Name);
                         }
                     }
                     else
@@ -1782,36 +1816,36 @@
 
                 try
                 {
-                    Console.WriteLine($"[DEBUG] enableEmbeddings=true, attempting to generate embedding for text length: {extractedText.Length}");
+                    await LogService.LogDebugAsync("Embedding", "Starting embedding generation", 
+                        $"Text length: {extractedText.Length} characters",
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
                     embedding = await AIService.GenerateEmbeddingAsync(extractedText);
                     embeddingGenerated = embedding != null && embedding.Length > 0;
                     
                     if (embeddingGenerated)
                     {
                         embeddingError = null;
-                        Console.WriteLine($"Embedding generated successfully: {embedding!.Length} dimensions");
                         
-                        // Log embedding vector details for debugging
-                        Console.WriteLine($"=== EMBEDDING VECTOR DEBUG INFO ===");
-                        Console.WriteLine($"File: {selectedFile.Name}");
-                        Console.WriteLine($"User ID: {currentUserId}");
-                        Console.WriteLine($"Embedding Length: {embedding.Length}");
-                        Console.WriteLine($"First 10 values: [{string.Join(", ", embedding.Take(10).Select(v => v.ToString("F8")))}]");
-                        Console.WriteLine($"Values 11-20: [{string.Join(", ", embedding.Skip(10).Take(10).Select(v => v.ToString("F8")))}]");
-                        Console.WriteLine($"Last 10 values: [{string.Join(", ", embedding.Skip(Math.Max(0, embedding.Length - 10)).Select(v => v.ToString("F8")))}]");
-                        
-                        // Calculate and log statistics
+                        // Calculate embedding statistics
                         var mean = embedding.Average();
                         var stdDev = Math.Sqrt(embedding.Select(v => Math.Pow(v - mean, 2)).Average());
                         var min = embedding.Min();
                         var max = embedding.Max();
                         var sum = embedding.Sum();
                         var magnitude = Math.Sqrt(embedding.Select(v => (double)v * v).Sum());
-                        Console.WriteLine($"Statistics:");
-                        Console.WriteLine($"  Mean={mean:F8}, StdDev={stdDev:F8}");
-                        Console.WriteLine($"  Min={min:F8}, Max={max:F8}");
-                        Console.WriteLine($"  Sum={sum:F8}, Magnitude={magnitude:F8}");
-                        Console.WriteLine($"=== END EMBEDDING VECTOR DEBUG INFO ===");
+                        
+                        // Log embedding vector details for debugging
+                        var embeddingDetails = $@"Embedding Length: {embedding.Length} dimensions
+First 10 values: [{string.Join(", ", embedding.Take(10).Select(v => v.ToString("F8")))}]
+Values 11-20: [{string.Join(", ", embedding.Skip(10).Take(10).Select(v => v.ToString("F8")))}]
+Last 10 values: [{string.Join(", ", embedding.Skip(Math.Max(0, embedding.Length - 10)).Select(v => v.ToString("F8")))}]
+Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum={sum:F8}, Magnitude={magnitude:F8}";
+                        
+                        await LogService.LogInfoAsync("Embedding", "Embedding generated successfully", 
+                            embeddingDetails,
+                            userId: currentUserId, 
+                            fileName: selectedFile.Name);
                         
                         // Step 2.5: Search for similar documents using the generated embedding
                         try
@@ -1822,13 +1856,11 @@
                             
                             if (!string.IsNullOrEmpty(currentUserId))
                             {
-                                Console.WriteLine($"[DEBUG] === STARTING SIMILARITY SEARCH ===");
-                                Console.WriteLine($"[DEBUG] Current UserId: '{currentUserId}'");
-                                Console.WriteLine($"[DEBUG] Embedding length: {embedding!.Length}");
-                                Console.WriteLine($"[DEBUG] MinSimilarity threshold: {SIMILAR_DOCUMENTS_MIN_SIMILARITY} ({SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0})");
-                                Console.WriteLine($"[DEBUG] Calling SearchDocumentsWithEmbeddingAsync...");
+                                await LogService.LogDebugAsync("SimilaritySearch", "Starting similarity search", 
+                                    $"Embedding length: {embedding!.Length}, MinSimilarity threshold: {SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0}",
+                                    userId: currentUserId, 
+                                    fileName: selectedFile.Name);
                                 
-                                Console.WriteLine($"Searching for similar documents. UserId: {currentUserId}, MinSimilarity: {SIMILAR_DOCUMENTS_MIN_SIMILARITY}");
                                 // Use the embedding we already generated instead of regenerating it from text
                                 similarDocuments = await SemanticRAGService.SearchDocumentsWithEmbeddingAsync(
                                     embedding!,
@@ -1836,34 +1868,27 @@
                                     topK: SIMILAR_DOCUMENTS_COUNT,
                                     minSimilarity: SIMILAR_DOCUMENTS_MIN_SIMILARITY);
                                 
-                                Console.WriteLine($"[DEBUG] SearchDocumentsWithEmbeddingAsync returned");
-                                Console.WriteLine($"[DEBUG] similarDocuments is null: {similarDocuments == null}");
-                                Console.WriteLine($"[DEBUG] similarDocuments count: {similarDocuments?.Count ?? 0}");
-                                
-                                Console.WriteLine($"Search completed. Found {similarDocuments?.Count ?? 0} similar documents");
                                 if (similarDocuments != null && similarDocuments.Any())
                                 {
-                                    foreach (var doc in similarDocuments)
-                                    {
-                                        Console.WriteLine($"  - {doc.FileName} (Similarity: {doc.SimilarityScore:P2})");
-                                    }
+                                    var docList = string.Join(", ", similarDocuments.Select(doc => $"{doc.FileName} ({doc.SimilarityScore:P2})"));
+                                    await LogService.LogInfoAsync("SimilaritySearch", "Similar documents found", 
+                                        $"Found {similarDocuments.Count} similar documents: {docList}",
+                                        userId: currentUserId, 
+                                        fileName: selectedFile.Name);
                                 }
                                 else
                                 {
-                                    Console.WriteLine($"[DEBUG] ⚠️ NO SIMILAR DOCUMENTS FOUND!");
-                                    Console.WriteLine($"[DEBUG] Possibili cause:");
-                                    Console.WriteLine($"[DEBUG] 1. Nessun documento precedente con embeddings salvato nel database");
-                                    Console.WriteLine($"[DEBUG] 2. I documenti precedenti hanno un OwnerId diverso da '{currentUserId}'");
-                                    Console.WriteLine($"[DEBUG] 3. La similarità dei documenti è sotto la soglia del {SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0}");
-                                    Console.WriteLine($"[DEBUG] 4. Controlla i log del server per '=== SIMILARITY SEARCH DEBUG ===' per dettagli");
-                                    Console.WriteLine("  No similar documents found or result was null");
+                                    await LogService.LogDebugAsync("SimilaritySearch", "No similar documents found", 
+                                        $"Possible causes: 1) No previous documents with embeddings, 2) Documents have different OwnerId, 3) Similarity below threshold ({SIMILAR_DOCUMENTS_MIN_SIMILARITY:P0})",
+                                        userId: currentUserId, 
+                                        fileName: selectedFile.Name);
                                 }
-                                Console.WriteLine($"[DEBUG] === END SIMILARITY SEARCH ===");
                             }
                             else
                             {
-                                Console.WriteLine($"[DEBUG] ⚠️ Cannot search for similar documents: currentUserId is EMPTY");
-                                Console.WriteLine("Cannot search for similar documents: currentUserId is empty");
+                                await LogService.LogWarningAsync("SimilaritySearch", "Cannot search for similar documents - currentUserId is empty", 
+                                    userId: null, 
+                                    fileName: selectedFile.Name);
                             }
                         }
                         catch (Exception simEx)
@@ -1880,8 +1905,8 @@
                     {
                         embeddingError = "Embedding generation returned null. Check AI provider configuration (Gemini/OpenAI API keys).";
                         await LogService.LogWarningAsync("Embedding", "Embedding generation returned null", 
-                            fileName: selectedFile.Name, 
-                            userId: currentUserId);
+                            userId: currentUserId, 
+                            fileName: selectedFile.Name);
                     }
                 }
                 catch (Exception ex)
@@ -1901,13 +1926,16 @@
                 // Log why embeddings were not generated
                 if (!enableEmbeddings)
                 {
-                    Console.WriteLine($"[DEBUG] ⚠️ EMBEDDINGS NOT GENERATED: 'Genera embeddings' checkbox is UNCHECKED");
-                    Console.WriteLine($"[DEBUG] Per cercare documenti simili, devi abilitare l'opzione '🧠 Genera embeddings' nelle Opzioni di Elaborazione!");
-                    Console.WriteLine($"[DEBUG] Senza embeddings, questo documento NON potrà essere trovato come simile ad altri documenti.");
+                    await LogService.LogDebugAsync("Embedding", "Embeddings not generated - checkbox unchecked", 
+                        "To search for similar documents, enable the 'Genera embeddings' option",
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
                 }
                 else if (string.IsNullOrEmpty(extractedText))
                 {
-                    Console.WriteLine($"[DEBUG] ⚠️ EMBEDDINGS NOT GENERATED: extractedText is empty or null");
+                    await LogService.LogWarningAsync("Embedding", "Embeddings not generated - extracted text is empty", 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
                 }
             }
 
@@ -1926,12 +1954,16 @@
                         similarDocuments.Count);
                     aiProvider = "Similarity-Based";
                     
-                    Console.WriteLine($"[CATEGORY] Category suggested from similar document: '{suggestedCategory}'");
-                    Console.WriteLine($"[CATEGORY] Most similar document: '{mostSimilarDoc.FileName}' (Score: {mostSimilarDoc.SimilarityScore:P2})");
+                    await LogService.LogInfoAsync("Category", "Category suggested from similar document", 
+                        $"Category: '{suggestedCategory}', Most similar: '{mostSimilarDoc.FileName}' (Score: {mostSimilarDoc.SimilarityScore:P2})",
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
                 }
                 else
                 {
-                    Console.WriteLine($"[CATEGORY] Most similar document has no category assigned");
+                    await LogService.LogDebugAsync("Category", "Most similar document has no category assigned", 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
                 }
             }
 
@@ -1947,7 +1979,10 @@
                     var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
                     
                     aiProvider = result.Provider;
-                    Console.WriteLine($"Category suggestion result: Category='{result.Category}', Reasoning='{result.Reasoning}', Provider='{result.Provider}'");
+                    await LogService.LogInfoAsync("Category", "AI category suggestion completed", 
+                        $"Category: '{result.Category}', Reasoning: '{result.Reasoning}', Provider: '{result.Provider}'",
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
                     
                     // Check if category is valid
                     if (!string.IsNullOrEmpty(result.Category) && result.Category != "Uncategorized")
@@ -1998,7 +2033,10 @@
                         documentTags = string.Join(", ", aiExtractedTags);
                         tagExtractionSucceeded = true;
                         tagExtractionError = null;
-                        Console.WriteLine($"AI extracted {aiExtractedTags.Count} tags: {documentTags}");
+                        await LogService.LogInfoAsync("Tag", "Tags extracted successfully", 
+                            $"Extracted {aiExtractedTags.Count} tags: {documentTags}",
+                            userId: currentUserId, 
+                            fileName: selectedFile.Name);
                     }
                     else
                     {
@@ -2038,17 +2076,19 @@
                     {
                         metadataExtractionSucceeded = true;
                         metadataExtractionError = null;
-                        Console.WriteLine($"AI extracted {extractedMetadata.Count} metadata fields");
-                        foreach (var kvp in extractedMetadata)
-                        {
-                            Console.WriteLine($"  {kvp.Key}: {kvp.Value}");
-                        }
+                        var metadataList = string.Join(", ", extractedMetadata.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+                        await LogService.LogInfoAsync("Metadata", "AI metadata extraction completed", 
+                            $"Extracted {extractedMetadata.Count} metadata fields: {metadataList}",
+                            userId: currentUserId, 
+                            fileName: selectedFile.Name);
                     }
                     else
                     {
                         metadataExtractionSucceeded = false;
                         metadataExtractionError = "L'AI non è riuscita a estrarre metadati dal documento.";
-                        Console.WriteLine("No metadata was extracted by AI");
+                        await LogService.LogWarningAsync("Metadata", "No metadata extracted by AI", 
+                            userId: currentUserId, 
+                            fileName: selectedFile.Name);
                     }
                 }
                 catch (Exception ex)
@@ -2306,7 +2346,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error serializing tags: {ex.Message}");
+            _ = LogService.LogErrorAsync("Upload", "Error serializing tags", ex.Message, userId: currentUserId, fileName: selectedFile?.Name);
             return null;
         }
     }
@@ -2322,7 +2362,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error serializing metadata: {ex.Message}");
+            _ = LogService.LogErrorAsync("Upload", "Error serializing metadata", ex.Message, userId: currentUserId, fileName: selectedFile?.Name);
             return null;
         }
     }
