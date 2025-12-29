@@ -43,20 +43,36 @@ DocN è un sistema avanzato di gestione documentale enterprise con Retrieval-Aug
 
 ## 🏗️ Architettura
 
+DocN utilizza un'architettura multi-server per separare le responsabilità e ottimizzare le prestazioni:
+
 ```
 DocN/
-├── DocN.Server/          # API Backend (ASP.NET Core)
-├── DocN.Client/          # Frontend (Blazor WebAssembly)
+├── DocN.Server/          # API Backend (ASP.NET Core) - porta 5211
+├── DocN.Client/          # Frontend (Blazor Server) - porta 7114
 ├── DocN.Data/            # Data Layer, Services, Migrations
 ├── DocN.Core/            # Domain Models, Interfaces
 ├── tests/                # Unit e Integration Tests
 └── Database/             # Script SQL, Migrations
 ```
 
+### Architettura di Runtime
+
+**DocN.Client** (Blazor Server - porta 7114):
+- Gestisce l'interfaccia utente e l'autenticazione
+- Esegue operazioni di base sui documenti
+- Comunica con DocN.Server per funzionalità RAG avanzate
+
+**DocN.Server** (Backend API - porta 5211):
+- Fornisce servizi RAG (Retrieval-Augmented Generation)
+- Gestisce chat semantica con Semantic Kernel
+- Elabora query vettoriali avanzate
+
+**⚠️ Entrambi i server devono essere in esecuzione per utilizzare tutte le funzionalità dell'applicazione.**
+
 ### Stack Tecnologico
 
 - **Framework**: .NET 10.0
-- **Frontend**: Blazor WebAssembly
+- **Frontend**: Blazor Server
 - **Backend**: ASP.NET Core Web API
 - **Database**: SQL Server 2025 (con supporto VECTOR)
 - **ORM**: Entity Framework Core 10.0
@@ -103,9 +119,37 @@ DocN/
    ```
 
 4. **Avvio Applicazione**
+   
+   **⚠️ IMPORTANTE: DocN richiede due server in esecuzione contemporaneamente:**
+   
+   **Opzione 1: Script Automatico (Consigliato)**
    ```bash
-   dotnet run --project DocN.Server
+   # Linux/Mac
+   ./start-dev.sh
+   
+   # Windows PowerShell
+   .\start-dev.ps1
    ```
+   
+   **Opzione 2: Manuale (Due terminali separati)**
+   
+   Terminal 1 - Backend API:
+   ```bash
+   cd DocN.Server
+   dotnet run
+   # Il server sarà disponibile su https://localhost:5211
+   ```
+   
+   Terminal 2 - Frontend Client:
+   ```bash
+   cd DocN.Client
+   dotnet run
+   # L'applicazione sarà disponibile su https://localhost:7114
+   ```
+   
+   **Nota:** Il Backend API (DocN.Server) deve essere avviato PRIMA del Frontend (DocN.Client). 
+   Se vedi errori di connessione come "Impossibile stabilire la connessione (localhost:5211)", 
+   verifica che il Backend API sia in esecuzione.
 
 5. **Accedi all'applicazione**
    - Naviga su: https://localhost:7114 (URL predefinito in sviluppo)
