@@ -86,9 +86,12 @@ DocN/
 
 2. **Configurazione Database**
    ```bash
-   # Modifica appsettings.json con la tua connection string
+   # Crea il database e lo schema iniziale
    cd Database
    sqlcmd -S localhost -U sa -P YourPassword -i SqlServer2025_Schema.sql
+   
+   # NOTA: Le migrazioni vengono applicate automaticamente all'avvio dell'applicazione
+   # Non è necessario eseguire manualmente dotnet ef database update
    ```
 
 3. **Configurazione AI Providers**
@@ -246,6 +249,29 @@ Per domande, problemi o feature request:
 - Apri un [Issue](https://github.com/Moncymr/DocN/issues)
 - Consulta la [Wiki](https://github.com/Moncymr/DocN/wiki)
 - Email: support@docn.example.com
+
+### Problemi Comuni
+
+**Errore: "ERRORE CRITICO: Il salvataggio nel database è fallito"**
+
+Questo errore indica che la migrazione del database non è stata applicata. Soluzioni:
+1. Riavvia l'applicazione (le migrazioni vengono applicate automaticamente)
+2. Verifica i log per errori di migrazione
+3. Controlla che l'utente del database abbia i permessi per modificare le tabelle
+4. Consulta `Database/UpdateScripts/README_005_FixOwnerIdConstraint.md` per dettagli
+
+**Errore: "Connection to database failed"**
+
+- Verifica la connection string in `appsettings.json`
+- Assicurati che SQL Server sia in esecuzione
+- Verifica le credenziali di accesso
+- Controlla il firewall per la porta 1433
+
+**Errore: "OCR non disponibile"**
+
+- Installa Tesseract OCR (vedi sezione Quick Start)
+- Verifica che `tessdata` sia nella cartella corretta
+- Controlla i permessi di lettura su `tessdata`
 
 ## 🗺️ Roadmap
 

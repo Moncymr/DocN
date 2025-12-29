@@ -52,6 +52,20 @@ dotnet ef database update --project DocN.Data --startup-project DocN.Server --co
 ## Verification
 After applying the script, verify the changes:
 
+### Quick Verification (Recommended)
+Run the verification script to check all aspects of the fix:
+```bash
+sqlcmd -S localhost -d DocNDb -i VerifyOwnerIdFix.sql
+```
+
+This script will check:
+- ✅ OwnerId column is nullable
+- ✅ FK constraint uses SET_NULL on delete
+- ✅ No documents with invalid OwnerId references
+
+### Manual Verification
+If you prefer to check manually:
+
 ```sql
 -- Check that OwnerId is nullable
 SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE
