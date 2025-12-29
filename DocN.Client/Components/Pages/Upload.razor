@@ -28,9 +28,14 @@
     
     <div class="upload-header">
         <h2>📤 Upload Document</h2>
-        <button class="btn btn-secondary" @onclick="GoBack">
-            ← Back to Documents
-        </button>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-info" @onclick="ToggleLogsModal">
+                📋 View Upload Logs
+            </button>
+            <button class="btn btn-secondary" @onclick="GoBack">
+                ← Back to Documents
+            </button>
+        </div>
     </div>
 
     @if (!string.IsNullOrEmpty(errorMessage))
@@ -601,6 +606,75 @@
         </EditForm>
     </div>
 </div>
+
+@* Logs Modal *@
+@if (showLogsModal)
+{
+    <div class="modal-overlay" @onclick="ToggleLogsModal">
+        <div class="modal-content logs-modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>📋 Upload Logs</h3>
+                <button class="btn-close" @onclick="ToggleLogsModal">×</button>
+            </div>
+            <div class="modal-body">
+                @if (isLoadingLogs)
+                {
+                    <div class="loading-message">
+                        <span class="spinner"></span> Loading logs...
+                    </div>
+                }
+                else if (uploadLogs == null || !uploadLogs.Any())
+                {
+                    <div class="no-logs-message">
+                        ℹ️ No logs available for the last 24 hours.
+                    </div>
+                }
+                else
+                {
+                    <div class="logs-container">
+                        @foreach (var log in uploadLogs)
+                        {
+                            <div class="log-entry log-@log.Level.ToLower()">
+                                <div class="log-header">
+                                    <span class="log-timestamp">@log.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
+                                    <span class="log-level">@log.Level</span>
+                                    <span class="log-category">@log.Category</span>
+                                </div>
+                                <div class="log-message">@log.Message</div>
+                                @if (!string.IsNullOrEmpty(log.FileName))
+                                {
+                                    <div class="log-filename">📄 File: @log.FileName</div>
+                                }
+                                @if (!string.IsNullOrEmpty(log.Details))
+                                {
+                                    <div class="log-details">
+                                        <details>
+                                            <summary>Details</summary>
+                                            <pre>@log.Details</pre>
+                                        </details>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(log.StackTrace))
+                                {
+                                    <div class="log-stacktrace">
+                                        <details>
+                                            <summary>Stack Trace</summary>
+                                            <pre>@log.StackTrace</pre>
+                                        </details>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="ToggleLogsModal">Close</button>
+                <button class="btn btn-primary" @onclick="LoadUploadLogs">🔄 Refresh</button>
+            </div>
+        </div>
+    </div>
+}
 
 <style>
     .upload-container {
@@ -1247,6 +1321,230 @@
         color: #856404;
     }
 
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        max-width: 90%;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .logs-modal {
+        width: 900px;
+    }
+
+    .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .btn-close {
+        background: none;
+        border: none;
+        font-size: 2rem;
+        cursor: pointer;
+        color: #666;
+        line-height: 1;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+    }
+
+    .btn-close:hover {
+        color: #333;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .logs-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .log-entry {
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        padding: 12px;
+        background: #f9f9f9;
+    }
+
+    .log-entry.log-error {
+        border-left: 4px solid #dc3545;
+        background: #fff5f5;
+    }
+
+    .log-entry.log-warning {
+        border-left: 4px solid #ffc107;
+        background: #fffef5;
+    }
+
+    .log-entry.log-info {
+        border-left: 4px solid #17a2b8;
+        background: #f5fcfd;
+    }
+
+    .log-entry.log-debug {
+        border-left: 4px solid #6c757d;
+        background: #f8f9fa;
+    }
+
+    .log-header {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+        flex-wrap: wrap;
+    }
+
+    .log-timestamp {
+        color: #666;
+    }
+
+    .log-level {
+        font-weight: bold;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    .log-entry.log-error .log-level {
+        background: #dc3545;
+        color: white;
+    }
+
+    .log-entry.log-warning .log-level {
+        background: #ffc107;
+        color: #333;
+    }
+
+    .log-entry.log-info .log-level {
+        background: #17a2b8;
+        color: white;
+    }
+
+    .log-entry.log-debug .log-level {
+        background: #6c757d;
+        color: white;
+    }
+
+    .log-category {
+        background: #e9ecef;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        color: #495057;
+    }
+
+    .log-message {
+        margin-bottom: 6px;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .log-filename {
+        font-size: 0.85rem;
+        color: #666;
+        margin-top: 6px;
+    }
+
+    .log-details details,
+    .log-stacktrace details {
+        margin-top: 8px;
+    }
+
+    .log-details summary,
+    .log-stacktrace summary {
+        cursor: pointer;
+        color: #007bff;
+        font-size: 0.85rem;
+        user-select: none;
+    }
+
+    .log-details summary:hover,
+    .log-stacktrace summary:hover {
+        text-decoration: underline;
+    }
+
+    .log-details pre,
+    .log-stacktrace pre {
+        background: #f4f4f4;
+        padding: 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        overflow-x: auto;
+        margin-top: 6px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .loading-message,
+    .no-logs-message {
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+        font-size: 1.1rem;
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top-color: #007bff;
+        animation: spin 1s ease-in-out infinite;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .btn-info {
+        background: #17a2b8;
+        color: white;
+    }
+
+    .btn-info:hover {
+        background: #138496;
+    }
+
 </style>
 
 @code {
@@ -1313,6 +1611,11 @@
     private bool enableEmbeddings = true;
     private bool enableTagExtraction = true;
     private bool enableMetadataExtraction = true;
+    
+    // Logs modal
+    private bool showLogsModal = false;
+    private List<DocN.Data.Models.LogEntry> uploadLogs = new();
+    private bool isLoadingLogs = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -2058,5 +2361,36 @@
             return "Inserisci categoria (opzionale - analizza prima il documento)";
         }
         return "Inserisci categoria manualmente";
+    }
+    
+    private async Task ToggleLogsModal()
+    {
+        showLogsModal = !showLogsModal;
+        if (showLogsModal)
+        {
+            await LoadUploadLogs();
+        }
+    }
+    
+    private async Task LoadUploadLogs()
+    {
+        isLoadingLogs = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Load logs for the current user from the last 24 hours
+            var fromDate = DateTime.UtcNow.AddHours(-24);
+            uploadLogs = await LogService.GetUploadLogsAsync(currentUserId, fromDate, 100);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading logs: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingLogs = false;
+            StateHasChanged();
+        }
     }
 }
