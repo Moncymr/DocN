@@ -32,6 +32,11 @@ public class SemanticRAGService : ISemanticRAGService
     private ChatCompletionAgent? _synthesisAgent;
     private AgentGroupChat? _agentChat;
 
+    // Constants for vector search optimization
+    private const int CandidateLimitMultiplier = 10; // Get 10x topK candidates for better results
+    private const int MinCandidateLimit = 100; // Always get at least 100 candidates
+    private const int VectorDimension = 1536; // Text-embedding-ada-002 dimension (or compatible models)
+
     public SemanticRAGService(
         Kernel kernel,
         ApplicationDbContext context,
@@ -317,7 +322,7 @@ Always cite your sources using [Document N] format where N is the document numbe
             // Optimized approach: Limit candidate set at database level before in-memory calculation
             // This significantly reduces memory usage and computation compared to loading ALL documents
             
-            var candidateLimit = Math.Max(topK * 10, 100); // Get reasonable number of candidates
+            var candidateLimit = Math.Max(topK * CandidateLimitMultiplier, MinCandidateLimit); // Get reasonable number of candidates
             
             // Get recent documents with embeddings (most recent are often most relevant)
             var documents = await _context.Documents
@@ -441,18 +446,18 @@ Always cite your sources using [Document N] format where N is the document numbe
 
         // Use raw SQL with VECTOR_DISTANCE function for document-level search
         // Note: This requires SQL Server 2025 with VECTOR type support
-        var sql = @"
+        var sql = $@"
             WITH DocumentScores AS (
                 SELECT TOP (@topK)
                     d.Id,
                     d.FileName,
                     d.ActualCategory,
                     d.ExtractedText,
-                    CAST(VECTOR_DISTANCE('cosine', d.EmbeddingVector, CAST(@queryEmbedding AS VECTOR(1536))) AS FLOAT) AS SimilarityScore
+                    CAST(VECTOR_DISTANCE('cosine', d.EmbeddingVector, CAST(@queryEmbedding AS VECTOR({VectorDimension}))) AS FLOAT) AS SimilarityScore
                 FROM Documents d
                 WHERE d.OwnerId = @userId
                     AND d.EmbeddingVector IS NOT NULL
-                    AND VECTOR_DISTANCE('cosine', d.EmbeddingVector, CAST(@queryEmbedding AS VECTOR(1536))) >= @minSimilarity
+                    AND VECTOR_DISTANCE('cosine', d.EmbeddingVector, CAST(@queryEmbedding AS VECTOR({VectorDimension}))) >= @minSimilarity
                 ORDER BY SimilarityScore DESC
             ),
             ChunkScores AS (
@@ -462,12 +467,12 @@ Always cite your sources using [Document N] format where N is the document numbe
                     d.ActualCategory,
                     dc.ChunkText,
                     dc.ChunkIndex,
-                    CAST(VECTOR_DISTANCE('cosine', dc.ChunkEmbedding, CAST(@queryEmbedding AS VECTOR(1536))) AS FLOAT) AS SimilarityScore
+                    CAST(VECTOR_DISTANCE('cosine', dc.ChunkEmbedding, CAST(@queryEmbedding AS VECTOR({VectorDimension}))) AS FLOAT) AS SimilarityScore
                 FROM DocumentChunks dc
                 INNER JOIN Documents d ON dc.DocumentId = d.Id
                 WHERE d.OwnerId = @userId
                     AND dc.ChunkEmbedding IS NOT NULL
-                    AND VECTOR_DISTANCE('cosine', dc.ChunkEmbedding, CAST(@queryEmbedding AS VECTOR(1536))) >= @minSimilarity
+                    AND VECTOR_DISTANCE('cosine', dc.ChunkEmbedding, CAST(@queryEmbedding AS VECTOR({VectorDimension}))) >= @minSimilarity
                 ORDER BY SimilarityScore DESC
             )
             SELECT 
@@ -509,7 +514,7 @@ Always cite your sources using [Document N] format where N is the document numbe
         
         var topKParam = command.CreateParameter();
         topKParam.ParameterName = "@topK";
-        topKParam.Value = topK * 2; // Get more candidates for merging
+        topKParam.Value = topK * CandidateLimitMultiplier; // Get more candidates for merging
         command.Parameters.Add(topKParam);
         
         var minSimParam = command.CreateParameter();
