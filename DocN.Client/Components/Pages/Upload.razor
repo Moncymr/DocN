@@ -2217,20 +2217,19 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             // Set embedding in the appropriate field based on dimension
             if (embedding != null && embedding.Length > 0)
             {
-                document.EmbeddingDimension = embedding.Length;
-                
                 if (embedding.Length == 768)
                 {
                     document.EmbeddingVector768 = embedding;
+                    document.EmbeddingDimension = 768;
                 }
                 else if (embedding.Length == 1536)
                 {
                     document.EmbeddingVector1536 = embedding;
+                    document.EmbeddingDimension = 1536;
                 }
                 else
                 {
-                    // For other dimensions, store in the closest matching field
-                    // or handle as error if strict dimension matching is required
+                    // Unsupported dimension - set error message
                     errorMessage = $"⚠️ Unsupported embedding dimension: {embedding.Length}. Expected 768 or 1536.";
                 }
             }

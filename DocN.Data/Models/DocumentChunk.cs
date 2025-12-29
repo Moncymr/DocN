@@ -70,21 +70,24 @@ public class DocumentChunk
                 ChunkEmbedding1536 = null;
                 EmbeddingDimension = null;
             }
-            else if (value.Length == 768)
+            else if (value.Length == Utilities.EmbeddingValidationHelper.SupportedDimension768)
             {
                 ChunkEmbedding768 = value;
                 ChunkEmbedding1536 = null;
-                EmbeddingDimension = 768;
+                EmbeddingDimension = Utilities.EmbeddingValidationHelper.SupportedDimension768;
             }
-            else if (value.Length == 1536)
+            else if (value.Length == Utilities.EmbeddingValidationHelper.SupportedDimension1536)
             {
                 ChunkEmbedding768 = null;
                 ChunkEmbedding1536 = value;
-                EmbeddingDimension = 1536;
+                EmbeddingDimension = Utilities.EmbeddingValidationHelper.SupportedDimension1536;
             }
             else
             {
-                throw new ArgumentException($"Unsupported embedding dimension: {value.Length}. Expected 768 or 1536.");
+                throw new ArgumentException(
+                    $"Unsupported embedding dimension: {value.Length}. " +
+                    $"Expected {Utilities.EmbeddingValidationHelper.SupportedDimension768} or " +
+                    $"{Utilities.EmbeddingValidationHelper.SupportedDimension1536}.");
             }
         }
     }
