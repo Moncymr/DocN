@@ -54,6 +54,10 @@ public class HybridSearchService : IHybridSearchService
     private readonly ApplicationDbContext _context;
     private readonly IEmbeddingService _embeddingService;
 
+    // Constants for vector search optimization
+    private const int CandidateLimitMultiplier = 10; // Get 10x topK candidates for better results
+    private const int MinCandidateLimit = 100; // Always get at least 100 candidates
+
     public HybridSearchService(ApplicationDbContext context, IEmbeddingService embeddingService)
     {
         _context = context;
@@ -86,11 +90,14 @@ public class HybridSearchService : IHybridSearchService
     }
 
     /// <summary>
-    /// Perform vector similarity search
+    /// Perform vector similarity search with database optimization
     /// </summary>
     public async Task<List<SearchResult>> VectorSearchAsync(float[] queryEmbedding, SearchOptions options)
     {
-        // Get all documents with embeddings
+        // Check if using SQL Server for optimization
+        var isSqlServer = _context.Database.IsSqlServer();
+        
+        // Build query with filters
         var documentsQuery = _context.Documents
             .Where(d => d.EmbeddingVector != null);
 
@@ -109,6 +116,10 @@ public class HybridSearchService : IHybridSearchService
         {
             documentsQuery = documentsQuery.Where(d => d.Visibility == options.VisibilityFilter.Value);
         }
+
+        // Optimize: Limit candidates before loading into memory
+        var candidateLimit = isSqlServer ? Math.Max(options.TopK * CandidateLimitMultiplier, MinCandidateLimit) : int.MaxValue;
+        documentsQuery = documentsQuery.OrderByDescending(d => d.UploadedAt).Take(candidateLimit);
 
         var documents = await documentsQuery.ToListAsync();
 
