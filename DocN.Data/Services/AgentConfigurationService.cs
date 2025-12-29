@@ -130,8 +130,20 @@ public class AgentConfigurationService : IAgentConfigurationService
             throw new ArgumentException($"Template with ID {templateId} not found");
         }
 
-        // Parse default parameters from template
-        var defaultParams = JsonSerializer.Deserialize<Dictionary<string, object>>(template.DefaultParametersJson);
+        // Parse default parameters from template with validation
+        Dictionary<string, object>? defaultParams = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(template.DefaultParametersJson))
+            {
+                defaultParams = JsonSerializer.Deserialize<Dictionary<string, object>>(template.DefaultParametersJson);
+            }
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to parse template parameters for template {TemplateId}", templateId);
+            // Continue with empty parameters rather than failing
+        }
 
         var agent = new AgentConfiguration
         {
@@ -148,23 +160,28 @@ public class AgentConfigurationService : IAgentConfigurationService
             CreatedAt = DateTime.UtcNow
         };
 
-        // Apply default parameters if available
-        if (defaultParams != null)
+        // Apply default parameters if available with safe conversion
+        if (defaultParams != null && defaultParams.Count > 0)
         {
-            if (defaultParams.ContainsKey("maxDocumentsToRetrieve"))
-                agent.MaxDocumentsToRetrieve = Convert.ToInt32(defaultParams["maxDocumentsToRetrieve"]);
+            if (defaultParams.TryGetValue("maxDocumentsToRetrieve", out var maxDocs) && 
+                TryConvertToInt(maxDocs, out var maxDocsInt))
+                agent.MaxDocumentsToRetrieve = maxDocsInt;
             
-            if (defaultParams.ContainsKey("similarityThreshold"))
-                agent.SimilarityThreshold = Convert.ToDouble(defaultParams["similarityThreshold"]);
+            if (defaultParams.TryGetValue("similarityThreshold", out var threshold) && 
+                TryConvertToDouble(threshold, out var thresholdDouble))
+                agent.SimilarityThreshold = thresholdDouble;
             
-            if (defaultParams.ContainsKey("temperature"))
-                agent.Temperature = Convert.ToDouble(defaultParams["temperature"]);
+            if (defaultParams.TryGetValue("temperature", out var temp) && 
+                TryConvertToDouble(temp, out var tempDouble))
+                agent.Temperature = tempDouble;
             
-            if (defaultParams.ContainsKey("maxTokensForContext"))
-                agent.MaxTokensForContext = Convert.ToInt32(defaultParams["maxTokensForContext"]);
+            if (defaultParams.TryGetValue("maxTokensForContext", out var contextTokens) && 
+                TryConvertToInt(contextTokens, out var contextTokensInt))
+                agent.MaxTokensForContext = contextTokensInt;
             
-            if (defaultParams.ContainsKey("maxTokensForResponse"))
-                agent.MaxTokensForResponse = Convert.ToInt32(defaultParams["maxTokensForResponse"]);
+            if (defaultParams.TryGetValue("maxTokensForResponse", out var responseTokens) && 
+                TryConvertToInt(responseTokens, out var responseTokensInt))
+                agent.MaxTokensForResponse = responseTokensInt;
         }
 
         _context.AgentConfigurations.Add(agent);
@@ -177,6 +194,42 @@ public class AgentConfigurationService : IAgentConfigurationService
         _logger.LogInformation($"Agent created from template: {agent.Name} (Template: {template.Name})");
 
         return agent;
+    }
+
+    private bool TryConvertToInt(object value, out int result)
+    {
+        result = 0;
+        try
+        {
+            if (value is JsonElement jsonElement)
+            {
+                return jsonElement.TryGetInt32(out result);
+            }
+            result = Convert.ToInt32(value);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool TryConvertToDouble(object value, out double result)
+    {
+        result = 0;
+        try
+        {
+            if (value is JsonElement jsonElement)
+            {
+                return jsonElement.TryGetDouble(out result);
+            }
+            result = Convert.ToDouble(value);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task<bool> TestAgentAsync(int agentId, string testQuery)

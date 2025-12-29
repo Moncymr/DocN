@@ -161,8 +161,15 @@
 
     private async Task SaveAndNext()
     {
-        // Note: API keys should be stored securely in the AIConfiguration table
-        // This is a simplified version - in production, encrypt keys before storing
+        // SECURITY NOTE: In production, API keys should be encrypted before storing
+        // Consider implementing:
+        // 1. Encryption at rest using Azure Key Vault or similar
+        // 2. Encryption in transit (already covered by HTTPS)
+        // 3. Key rotation policies
+        // 4. Audit logging for key access
+        // 
+        // Current implementation stores keys as entered for MVP purposes.
+        // TODO: Implement proper key encryption before production deployment
         
         await OnNext.InvokeAsync();
     }

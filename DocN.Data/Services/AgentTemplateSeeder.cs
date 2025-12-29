@@ -11,9 +11,9 @@ namespace DocN.Data.Services;
 public class AgentTemplateSeeder
 {
     private readonly ApplicationDbContext _context;
-    private readonly ILogger<AgentTemplateSeeder>? _logger;
+    private readonly ILogger<AgentTemplateSeeder> _logger;
 
-    public AgentTemplateSeeder(ApplicationDbContext context, ILogger<AgentTemplateSeeder>? logger = null)
+    public AgentTemplateSeeder(ApplicationDbContext context, ILogger<AgentTemplateSeeder> logger)
     {
         _context = context;
         _logger = logger;
@@ -23,7 +23,7 @@ public class AgentTemplateSeeder
     {
         if (await _context.AgentTemplates.AnyAsync())
         {
-            _logger?.LogInformation("Agent templates already exist. Skipping seeding.");
+            _logger.LogInformation("Agent templates already exist. Skipping seeding.");
             return;
         }
 
@@ -330,6 +330,6 @@ FORMATO OUTPUT:
         _context.AgentTemplates.AddRange(templates);
         await _context.SaveChangesAsync();
 
-        _logger?.LogInformation($"Seeded {templates.Count} agent templates successfully");
+        _logger.LogInformation($"Seeded {templates.Count} agent templates successfully");
     }
 }
