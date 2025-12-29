@@ -218,9 +218,18 @@ public class DocumentService : IDocumentService
 
     public async Task<Document> CreateDocumentAsync(Document document)
     {
-        _context.Documents.Add(document);
-        await _context.SaveChangesAsync();
-        return document;
+        try
+        {
+            _context.Documents.Add(document);
+            await _context.SaveChangesAsync();
+            return document;
+        }
+        catch (DbUpdateException ex)
+        {
+            // Extract the inner exception details for better error reporting
+            var innerMessage = ex.InnerException?.Message ?? ex.Message;
+            throw new InvalidOperationException($"Database save failed: {innerMessage}", ex);
+        }
     }
 
     public async Task<Document> UpdateDocumentAsync(Document document, string userId)

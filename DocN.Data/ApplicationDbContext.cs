@@ -81,11 +81,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => e.ActualCategory);
             entity.HasIndex(e => e.TenantId);
             
-            // Relationship with owner
+            // Relationship with owner (optional - documents can exist without owner)
             entity.HasOne(e => e.Owner)
                 .WithMany(u => u.Documents)
                 .HasForeignKey(e => e.OwnerId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
             
             // Relationship with tenant
             entity.HasOne(e => e.Tenant)

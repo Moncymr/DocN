@@ -2283,9 +2283,19 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                               $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
                               $"Contattare l'amministratore se il problema persiste.";
                 
-                // Log the error with full details for administrator
+                // Log the error with full details for administrator including inner exceptions
+                var fullErrorMessage = dbEx.Message;
+                var innerEx = dbEx.InnerException;
+                var depth = 1;
+                while (innerEx != null && depth <= 3)
+                {
+                    fullErrorMessage += $"\n--- Inner Exception {depth} ---\n{innerEx.Message}";
+                    innerEx = innerEx.InnerException;
+                    depth++;
+                }
+                
                 await LogService.LogErrorAsync("Upload", "CRITICAL ERROR - File saved but DB create failed", 
-                    $"File name: {selectedFile.Name}\nFile path: {filePath}\nError: {dbEx.Message}", 
+                    $"File name: {selectedFile.Name}\nFile path: {filePath}\nError: {fullErrorMessage}", 
                     userId: currentUserId, 
                     fileName: selectedFile.Name, 
                     stackTrace: dbEx.StackTrace);
