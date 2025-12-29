@@ -11,6 +11,7 @@ namespace DocN.Server.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ChartsController : ControllerBase
 {
     private readonly IChartGenerationAgent _chartAgent;
@@ -155,11 +156,11 @@ public class ChartsController : ControllerBase
             
             var dashboardCharts = new DashboardCharts
             {
-                UploadsOverTime = await uploadsTask,
-                CategoryDistribution = await categoryTask,
-                FileTypeDistribution = await fileTypeTask,
-                AccessTrends = await accessTask,
-                ComparativeMetrics = await comparativeTask
+                UploadsOverTime = uploadsTask.Result,
+                CategoryDistribution = categoryTask.Result,
+                FileTypeDistribution = fileTypeTask.Result,
+                AccessTrends = accessTask.Result,
+                ComparativeMetrics = comparativeTask.Result
             };
             
             return Ok(dashboardCharts);

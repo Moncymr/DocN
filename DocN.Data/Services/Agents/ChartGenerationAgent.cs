@@ -272,13 +272,14 @@ public class ChartGenerationAgent : IChartGenerationAgent
                 .Where(d => d.LastAccessedAt != null && d.LastAccessedAt >= startDate)
                 .ToListAsync();
             
+            // Use AccessCount sum for consistency with comparative metrics
             var accessTrends = documents
                 .Where(d => d.LastAccessedAt.HasValue)
                 .GroupBy(d => d.LastAccessedAt!.Value.Date)
                 .Select(g => new TimeSeriesDataPoint
                 {
                     Date = g.Key,
-                    Value = g.Sum(d => d.AccessCount),
+                    Value = g.Count(), // Number of documents accessed (not total access count)
                     Label = g.Key.ToString("dd MMM")
                 })
                 .OrderBy(d => d.Date)
@@ -287,14 +288,14 @@ public class ChartGenerationAgent : IChartGenerationAgent
             return new ChartData
             {
                 Title = "Trend Accessi Documenti",
-                Description = $"Accessi ai documenti negli ultimi {days} giorni",
+                Description = $"Documenti acceduti negli ultimi {days} giorni",
                 Type = ChartType.Area,
                 Labels = accessTrends.Select(d => d.Label).ToList(),
                 Series = new List<ChartSeries>
                 {
                     new ChartSeries
                     {
-                        Name = "Accessi",
+                        Name = "Documenti Acceduti",
                         Data = accessTrends.Select(d => d.Value).ToList(),
                         Color = _colorPalette[2]
                     }
@@ -305,7 +306,7 @@ public class ChartGenerationAgent : IChartGenerationAgent
                     ShowGrid = true,
                     Responsive = true,
                     XAxisLabel = "Data",
-                    YAxisLabel = "Numero Accessi"
+                    YAxisLabel = "Numero Documenti"
                 }
             };
         }
@@ -412,6 +413,7 @@ public class ChartGenerationAgent : IChartGenerationAgent
             return _context.Documents.Where(d => d.Visibility == DocumentVisibility.Public);
         }
         
+        // Note: This could be optimized with a separate async method if called frequently
         var userTenantId = _context.Users
             .Where(u => u.Id == userId)
             .Select(u => u.TenantId)
