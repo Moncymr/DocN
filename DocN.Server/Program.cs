@@ -120,6 +120,7 @@ builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
 builder.Services.AddScoped<IRetrievalAgent, RetrievalAgent>();
 builder.Services.AddScoped<ISynthesisAgent, SynthesisAgent>();
 builder.Services.AddScoped<IClassificationAgent, ClassificationAgent>();
+builder.Services.AddScoped<IChartGenerationAgent, ChartGenerationAgent>();
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
 // Register background services
