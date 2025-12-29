@@ -1,4 +1,5 @@
 using DocN.Data.Models;
+using DocN.Data.Utilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,10 +15,6 @@ public class BatchEmbeddingProcessor : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<BatchEmbeddingProcessor> _logger;
     private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(30);
-    
-    // Constants for embedding dimensions
-    private const int GeminiEmbeddingDimension = 768;
-    private const int OpenAIEmbeddingDimension = 1536;
 
     public BatchEmbeddingProcessor(
         IServiceProvider serviceProvider,
@@ -25,53 +22,6 @@ public class BatchEmbeddingProcessor : BackgroundService
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
-    }
-    
-    /// <summary>
-    /// Validates embedding dimensions to ensure compatibility with database
-    /// </summary>
-    private void ValidateEmbeddingDimensions(float[] embeddingVector)
-    {
-        if (embeddingVector.Length != GeminiEmbeddingDimension && embeddingVector.Length != OpenAIEmbeddingDimension)
-        {
-            _logger.LogError("Invalid chunk embedding dimension: {Dimension}. Expected {Gemini} (Gemini) or {OpenAI} (OpenAI/Azure)", 
-                embeddingVector.Length, GeminiEmbeddingDimension, OpenAIEmbeddingDimension);
-            throw new InvalidOperationException(
-                $"Invalid chunk embedding dimension: {embeddingVector.Length}. " +
-                $"Expected {GeminiEmbeddingDimension} (Gemini) or {OpenAIEmbeddingDimension} (OpenAI/Azure OpenAI). " +
-                "Please check your AI provider configuration.");
-        }
-    }
-    
-    /// <summary>
-    /// Checks if an exception is a vector dimension mismatch error
-    /// </summary>
-    private static bool IsVectorDimensionMismatchError(string errorMessage)
-    {
-        return errorMessage.Contains("dimensioni del vettore") || 
-               errorMessage.Contains("vector") || 
-               errorMessage.Contains("1536") || 
-               errorMessage.Contains("768");
-    }
-    
-    /// <summary>
-    /// Creates a detailed error message for dimension mismatch errors
-    /// </summary>
-    private static string CreateDimensionMismatchErrorMessage(string originalError)
-    {
-        return $"DATABASE DIMENSION MISMATCH ERROR:\n\n" +
-               $"❌ Database vector configuration mismatch detected.\n\n" +
-               $"SOLUTION:\n" +
-               $"1. If you're using Gemini ({GeminiEmbeddingDimension} dimensions):\n" +
-               $"   - Your database should be configured for VECTOR({GeminiEmbeddingDimension})\n" +
-               $"   - Run: database/Update_Vector_1536_to_768.sql (if exists)\n\n" +
-               $"2. If you're using OpenAI/Azure OpenAI ({OpenAIEmbeddingDimension} dimensions):\n" +
-               $"   - Your database should be configured for VECTOR({OpenAIEmbeddingDimension})\n" +
-               $"   - Run: database/Update_Vector_768_to_1536.sql\n\n" +
-               $"3. Switch AI provider to match your database configuration:\n" +
-               $"   - Go to AI Configuration page\n" +
-               $"   - Select the appropriate embedding provider\n\n" +
-               $"Original error: {originalError}";
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -153,7 +103,7 @@ public class BatchEmbeddingProcessor : BackgroundService
                         if (chunkEmbedding != null)
                         {
                             // Validate embedding dimensions
-                            ValidateEmbeddingDimensions(chunkEmbedding);
+                            EmbeddingValidationHelper.ValidateEmbeddingDimensions(chunkEmbedding, _logger);
                             chunk.ChunkEmbedding = chunkEmbedding;
                         }
                         
@@ -171,7 +121,7 @@ public class BatchEmbeddingProcessor : BackgroundService
                     var innerMessage = ex.InnerException?.Message ?? ex.Message;
                     
                     // Check for vector dimension mismatch error
-                    if (IsVectorDimensionMismatchError(innerMessage))
+                    if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(innerMessage))
                     {
                         _logger.LogError(ex, "Vector dimension mismatch for document {Id}: {FileName}", 
                             document.Id, document.FileName);
@@ -284,10 +234,6 @@ public class BatchProcessingService : IBatchProcessingService
     private readonly IEmbeddingService _embeddingService;
     private readonly IChunkingService _chunkingService;
     private readonly ILogger<BatchProcessingService> _logger;
-    
-    // Constants for embedding dimensions
-    private const int GeminiEmbeddingDimension = 768;
-    private const int OpenAIEmbeddingDimension = 1536;
 
     public BatchProcessingService(
         ApplicationDbContext context,
@@ -299,53 +245,6 @@ public class BatchProcessingService : IBatchProcessingService
         _embeddingService = embeddingService;
         _chunkingService = chunkingService;
         _logger = logger;
-    }
-    
-    /// <summary>
-    /// Validates embedding dimensions to ensure compatibility with database
-    /// </summary>
-    private void ValidateEmbeddingDimensions(float[] embeddingVector)
-    {
-        if (embeddingVector.Length != GeminiEmbeddingDimension && embeddingVector.Length != OpenAIEmbeddingDimension)
-        {
-            _logger.LogError("Invalid chunk embedding dimension: {Dimension}. Expected {Gemini} (Gemini) or {OpenAI} (OpenAI/Azure)", 
-                embeddingVector.Length, GeminiEmbeddingDimension, OpenAIEmbeddingDimension);
-            throw new InvalidOperationException(
-                $"Invalid chunk embedding dimension: {embeddingVector.Length}. " +
-                $"Expected {GeminiEmbeddingDimension} (Gemini) or {OpenAIEmbeddingDimension} (OpenAI/Azure OpenAI). " +
-                "Please check your AI provider configuration.");
-        }
-    }
-    
-    /// <summary>
-    /// Checks if an exception is a vector dimension mismatch error
-    /// </summary>
-    private static bool IsVectorDimensionMismatchError(string errorMessage)
-    {
-        return errorMessage.Contains("dimensioni del vettore") || 
-               errorMessage.Contains("vector") || 
-               errorMessage.Contains("1536") || 
-               errorMessage.Contains("768");
-    }
-    
-    /// <summary>
-    /// Creates a detailed error message for dimension mismatch errors
-    /// </summary>
-    private static string CreateDimensionMismatchErrorMessage(string originalError)
-    {
-        return $"DATABASE DIMENSION MISMATCH ERROR:\n\n" +
-               $"❌ Database vector configuration mismatch detected.\n\n" +
-               $"SOLUTION:\n" +
-               $"1. If you're using Gemini ({GeminiEmbeddingDimension} dimensions):\n" +
-               $"   - Your database should be configured for VECTOR({GeminiEmbeddingDimension})\n" +
-               $"   - Run: database/Update_Vector_1536_to_768.sql (if exists)\n\n" +
-               $"2. If you're using OpenAI/Azure OpenAI ({OpenAIEmbeddingDimension} dimensions):\n" +
-               $"   - Your database should be configured for VECTOR({OpenAIEmbeddingDimension})\n" +
-               $"   - Run: database/Update_Vector_768_to_1536.sql\n\n" +
-               $"3. Switch AI provider to match your database configuration:\n" +
-               $"   - Go to AI Configuration page\n" +
-               $"   - Select the appropriate embedding provider\n\n" +
-               $"Original error: {originalError}";
     }
 
     public async Task ProcessDocumentAsync(int documentId)
@@ -389,7 +288,7 @@ public class BatchProcessingService : IBatchProcessingService
                     if (chunkEmbedding != null)
                     {
                         // Validate embedding dimensions
-                        ValidateEmbeddingDimensions(chunkEmbedding);
+                        EmbeddingValidationHelper.ValidateEmbeddingDimensions(chunkEmbedding, _logger);
                         chunk.ChunkEmbedding = chunkEmbedding;
                     }
                     _context.DocumentChunks.Add(chunk);
@@ -405,11 +304,11 @@ public class BatchProcessingService : IBatchProcessingService
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
             
             // Check for vector dimension mismatch error
-            if (IsVectorDimensionMismatchError(innerMessage))
+            if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(innerMessage))
             {
                 _logger.LogError(ex, "Vector dimension mismatch for document {Id}", documentId);
                 throw new InvalidOperationException(
-                    CreateDimensionMismatchErrorMessage(innerMessage),
+                    EmbeddingValidationHelper.CreateDimensionMismatchErrorMessage(0, innerMessage),
                     ex);
             }
             
