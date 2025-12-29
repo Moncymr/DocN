@@ -46,16 +46,20 @@ PRINT 'NOTE: Embeddings will need to be regenerated after this migration.';
 PRINT '';
 
 -- Clear existing embeddings to avoid conversion issues
+DECLARE @DocumentsCleared INT;
+DECLARE @ChunksCleared INT;
+
 UPDATE [dbo].[Documents] 
 SET [Embedding] = NULL 
 WHERE [Embedding] IS NOT NULL;
+SET @DocumentsCleared = @@ROWCOUNT;
 
 UPDATE [dbo].[DocumentChunks] 
 SET [Embedding] = NULL 
 WHERE [Embedding] IS NOT NULL;
+SET @ChunksCleared = @@ROWCOUNT;
 
-DECLARE @DocumentsCleared INT = @@ROWCOUNT;
-PRINT 'Cleared embeddings from Documents and DocumentChunks tables.';
+PRINT 'Cleared embeddings: ' + CAST(@DocumentsCleared AS NVARCHAR) + ' documents, ' + CAST(@ChunksCleared AS NVARCHAR) + ' chunks.';
 PRINT '';
 
 -- ============================================================================
