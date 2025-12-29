@@ -3,6 +3,7 @@
 @using System.IO
 @using DocN.Core.Interfaces
 @using DocN.Data.Services
+@using DocN.Data.Utilities
 @inject IDocumentService DocumentService
 @inject IMultiProviderAIService AIService
 @inject IFileProcessingService FileProcessingService
@@ -2278,10 +2279,30 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                     Console.WriteLine($"Failed to delete orphaned file: {filePath}. Error: {cleanupEx.Message}");
                 }
 
-                errorMessage = $"⚠️ ERRORE CRITICO: Il salvataggio nel database è fallito durante la creazione. " +
-                              $"Il file su disco è stato rimosso automaticamente. " +
-                              $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
-                              $"Contattare l'amministratore se il problema persiste.";
+                // Check if this is a vector dimension mismatch error - if so, show the detailed error message
+                // since it contains actionable steps for the user/administrator
+                // Check both the main exception and inner exceptions for dimension mismatch
+                var isDimensionMismatch = EmbeddingValidationHelper.IsVectorDimensionMismatchError(dbEx.Message);
+                if (!isDimensionMismatch && dbEx.InnerException != null)
+                {
+                    isDimensionMismatch = EmbeddingValidationHelper.IsVectorDimensionMismatchError(dbEx.InnerException.Message);
+                }
+                
+                if (isDimensionMismatch)
+                {
+                    errorMessage = $"⚠️ ERRORE CRITICO - Salvataggio database fallito\n" +
+                                  $"📄 File: {selectedFile.Name}\n" +
+                                  $"Percorso file: {filePath}\n" +
+                                  $"(Il file è stato rimosso dal disco)\n\n" +
+                                  $"{dbEx.Message}";
+                }
+                else
+                {
+                    errorMessage = $"⚠️ ERRORE CRITICO: Il salvataggio nel database è fallito durante la creazione. " +
+                                  $"Il file su disco è stato rimosso automaticamente. " +
+                                  $"ID di riferimento per l'amministratore: {Path.GetFileName(filePath)}. " +
+                                  $"Contattare l'amministratore se il problema persiste.";
+                }
                 
                 // Log the error with full details for administrator including inner exceptions
                 var fullErrorMessage = dbEx.Message;
