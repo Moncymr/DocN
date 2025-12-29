@@ -183,7 +183,7 @@ builder.Services.AddScoped<DocN.Data.Services.ApplicationSeeder>();
 // Configure HttpClient to call the backend API
 builder.Services.AddHttpClient("BackendAPI", client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["BackendApiUrl"] ?? "https://localhost:5001/");
+    client.BaseAddress = new Uri(builder.Configuration["BackendApiUrl"] ?? "https://localhost:5211/");
 });
 
 var app = builder.Build();
