@@ -79,7 +79,7 @@ O tramite SQL Server Management Studio (SSMS):
 #### Tabelle Principali
 
 1. **Categories** - Categorie gerarchiche per documenti
-2. **Documents** - Documenti con embeddings vettoriali (VECTOR(768))
+2. **Documents** - Documenti con embeddings vettoriali (VECTOR(1536))
 3. **DocumentChunks** - Chunks con embeddings per ricerca granulare
 4. **Conversations** - Cronologia conversazioni RAG
 5. **Messages** - Messaggi con riferimenti a documenti
@@ -87,8 +87,8 @@ O tramite SQL Server Management Studio (SSMS):
 
 #### Supporto VECTOR (SQL Server 2025)
 
-Lo schema utilizza il tipo `VECTOR(768)` per:
-- **Document.Embedding**: Embedding dell'intero documento (Gemini text-embedding-004)
+Lo schema utilizza il tipo `VECTOR(1536)` per:
+- **Document.Embedding**: Embedding dell'intero documento (OpenAI text-embedding-ada-002 / Azure OpenAI)
 - **DocumentChunk.Embedding**: Embedding di ogni chunk per ricerca precisa
 
 #### Stored Procedures
@@ -160,6 +160,25 @@ sqlcmd -S localhost -U sa -P YourPassword -i database/SqlServer2025_Schema.sql
 dotnet ef database update --project src/DocN.Data --startup-project src/DocN.Server
 ```
 
+### Step 3b: Migrazione da VECTOR(768) a VECTOR(1536) (se necessario)
+
+Se hai già un database esistente con `VECTOR(768)`, usa lo script di migrazione:
+
+```bash
+# Eseguire lo script di aggiornamento
+sqlcmd -S localhost -U sa -P YourPassword -i database/Update_Vector_768_to_1536.sql
+```
+
+**⚠️ IMPORTANTE:**
+- Lo script cancella tutti gli embeddings esistenti
+- Dopo la migrazione, dovrai ri-processare i documenti per rigenerare gli embeddings
+- Fai un backup del database prima di eseguire la migrazione
+
+```sql
+-- Backup del database prima della migrazione
+BACKUP DATABASE [DocN] TO DISK = N'C:\Backup\DocN_Before_Vector_Migration.bak' WITH INIT;
+```
+
 ### Step 4: Verificare la Connessione
 
 ```bash
@@ -174,7 +193,7 @@ Controlla i log per confermare la connessione al database.
 ### Ricerca Ibrida
 
 ```sql
-DECLARE @QueryVector VECTOR(768) = ... -- Vector from embedding service
+DECLARE @QueryVector VECTOR(1536) = ... -- Vector from embedding service
 
 EXEC [dbo].[sp_HybridDocumentSearch]
     @QueryEmbedding = @QueryVector,
@@ -198,7 +217,7 @@ EXEC [dbo].[sp_FindSimilarDocuments]
 ### Ricerca Chunk Semantica (per RAG)
 
 ```sql
-DECLARE @QueryVector VECTOR(768) = ... -- Vector della query utente
+DECLARE @QueryVector VECTOR(1536) = ... -- Vector della query utente
 
 EXEC [dbo].[sp_SemanticChunkSearch]
     @QueryEmbedding = @QueryVector,

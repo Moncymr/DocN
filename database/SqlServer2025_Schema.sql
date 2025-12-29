@@ -57,8 +57,8 @@ BEGIN
         [FullText] NVARCHAR(MAX) NULL,
         
         -- Vector embedding for semantic search (SQL Server 2025 VECTOR type)
-        -- Gemini text-embedding-004 produces 768-dimensional vectors
-        [Embedding] VECTOR(768) NULL,
+        -- OpenAI text-embedding-ada-002 produces 1536-dimensional vectors
+        [Embedding] VECTOR(1536) NULL,
         
         -- Category information
         [CategoryId] INT NULL,
@@ -117,7 +117,7 @@ BEGIN
         [Content] NVARCHAR(MAX) NOT NULL,
         
         -- Vector embedding for chunk-level semantic search
-        [Embedding] VECTOR(768) NULL,
+        [Embedding] VECTOR(1536) NULL,
         
         -- Position information
         [StartPosition] INT NULL,
@@ -243,7 +243,7 @@ GO
 -- Stored Procedure: Hybrid Vector + Full-Text Search
 -- ============================================================================
 CREATE OR ALTER PROCEDURE [dbo].[sp_HybridDocumentSearch]
-    @QueryEmbedding VECTOR(768),
+    @QueryEmbedding VECTOR(1536),
     @QueryText NVARCHAR(1000),
     @CategoryId INT = NULL,
     @TopN INT = 10,
@@ -342,7 +342,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    DECLARE @SourceEmbedding VECTOR(768);
+    DECLARE @SourceEmbedding VECTOR(1536);
     
     SELECT @SourceEmbedding = [Embedding]
     FROM [dbo].[Documents]
@@ -376,7 +376,7 @@ GO
 -- Stored Procedure: Chunk-level Semantic Search
 -- ============================================================================
 CREATE OR ALTER PROCEDURE [dbo].[sp_SemanticChunkSearch]
-    @QueryEmbedding VECTOR(768),
+    @QueryEmbedding VECTOR(1536),
     @CategoryId INT = NULL,
     @TopN INT = 20,
     @MinSimilarity FLOAT = 0.7
