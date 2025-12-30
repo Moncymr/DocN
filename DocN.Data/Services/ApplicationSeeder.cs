@@ -34,8 +34,12 @@ public class ApplicationSeeder
             // Verify database connection before seeding
             if (!await CanConnectToDatabaseAsync())
             {
-                _logger.LogError("Cannot connect to database. Please verify connection string and database availability.");
-                throw new InvalidOperationException("Database connection failed. Please check your connection string configuration.");
+                var errorMessage = "Cannot connect to database. Please verify:\n" +
+                    "1. Connection string is correct and database server is accessible\n" +
+                    "2. Database has been created using SQL scripts in Database/ folder\n" +
+                    "3. Database user has appropriate permissions";
+                _logger.LogError(errorMessage);
+                throw new InvalidOperationException(errorMessage);
             }
             
             // Note: MigrateAsync is commented out because EF Core doesn't support VECTOR type yet
