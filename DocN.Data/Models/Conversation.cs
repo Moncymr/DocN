@@ -95,10 +95,24 @@ public class Message
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public List<int> ReferencedDocumentIds
     {
-        get => string.IsNullOrEmpty(ReferencedDocumentIdsJson) 
-            ? new List<int>() 
-            : System.Text.Json.JsonSerializer.Deserialize<List<int>>(ReferencedDocumentIdsJson) ?? new List<int>();
-        set => ReferencedDocumentIdsJson = System.Text.Json.JsonSerializer.Serialize(value);
+        get
+        {
+            if (string.IsNullOrEmpty(ReferencedDocumentIdsJson))
+                return new List<int>();
+            
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<List<int>>(ReferencedDocumentIdsJson) ?? new List<int>();
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // Return empty list if JSON is malformed
+                return new List<int>();
+            }
+        }
+        set => ReferencedDocumentIdsJson = value == null || value.Count == 0 
+            ? null 
+            : System.Text.Json.JsonSerializer.Serialize(value);
     }
 
     /// <summary>
