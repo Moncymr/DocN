@@ -5,7 +5,7 @@ using DocN.Data.Models;
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// API endpoints for document search functionality
+/// Endpoints per la funzionalità di ricerca documenti con supporto ibrido (vettoriale + full-text)
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -24,14 +24,17 @@ public class SearchController : ControllerBase
     }
 
     /// <summary>
-    /// Perform hybrid search combining vector similarity and full-text search
+    /// Esegue una ricerca ibrida combinando similarità vettoriale e ricerca full-text
     /// </summary>
-    /// <param name="request">Search request parameters</param>
-    /// <returns>List of search results with relevance scores</returns>
+    /// <param name="request">Parametri della richiesta di ricerca</param>
+    /// <returns>Lista dei risultati di ricerca con punteggi di rilevanza</returns>
+    /// <response code="200">Ricerca completata con successo</response>
+    /// <response code="400">Richiesta non valida (query vuota)</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost("hybrid")]
-    [ProducesResponseType(typeof(SearchResponse), 200)]
-    [ProducesResponseType(400)]
-    [ProducesResponseType(500)]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<SearchResponse>> HybridSearch([FromBody] SearchRequest request)
     {
         try
@@ -76,10 +79,17 @@ public class SearchController : ControllerBase
     }
 
     /// <summary>
-    /// Perform vector-only search using semantic similarity
+    /// Esegue una ricerca solo vettoriale utilizzando la similarità semantica
     /// </summary>
+    /// <param name="request">Parametri della richiesta di ricerca</param>
+    /// <returns>Lista dei risultati di ricerca basati su similarità vettoriale</returns>
+    /// <response code="200">Ricerca completata con successo</response>
+    /// <response code="400">Richiesta non valida</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost("vector")]
-    [ProducesResponseType(typeof(SearchResponse), 200)]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<SearchResponse>> VectorSearch([FromBody] SearchRequest request)
     {
         try
@@ -126,10 +136,17 @@ public class SearchController : ControllerBase
     }
 
     /// <summary>
-    /// Perform full-text search only
+    /// Esegue una ricerca solo full-text
     /// </summary>
+    /// <param name="request">Parametri della richiesta di ricerca</param>
+    /// <returns>Lista dei risultati di ricerca basati su corrispondenza testuale</returns>
+    /// <response code="200">Ricerca completata con successo</response>
+    /// <response code="400">Richiesta non valida</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost("text")]
-    [ProducesResponseType(typeof(SearchResponse), 200)]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<SearchResponse>> TextSearch([FromBody] SearchRequest request)
     {
         try
@@ -176,68 +193,68 @@ public class SearchController : ControllerBase
 }
 
 /// <summary>
-/// Request model for search operations
+/// Modello di richiesta per operazioni di ricerca
 /// </summary>
 public class SearchRequest
 {
     /// <summary>
-    /// The search query text
+    /// Il testo della query di ricerca
     /// </summary>
     public string Query { get; set; } = string.Empty;
 
     /// <summary>
-    /// Maximum number of results to return
+    /// Numero massimo di risultati da restituire (default: 10)
     /// </summary>
     public int? TopK { get; set; }
 
     /// <summary>
-    /// Minimum similarity threshold (0-1)
+    /// Soglia minima di similarità (0-1, default: 0.7)
     /// </summary>
     public double? MinSimilarity { get; set; }
 
     /// <summary>
-    /// Filter by category
+    /// Filtro per categoria
     /// </summary>
     public string? CategoryFilter { get; set; }
 
     /// <summary>
-    /// Filter by user ID (for private documents)
+    /// Filtro per ID utente (per documenti privati)
     /// </summary>
     public string? UserId { get; set; }
 
     /// <summary>
-    /// Filter by visibility level
+    /// Filtro per livello di visibilità
     /// </summary>
     public DocumentVisibility? VisibilityFilter { get; set; }
 }
 
 /// <summary>
-/// Response model for search operations
+/// Modello di risposta per operazioni di ricerca
 /// </summary>
 public class SearchResponse
 {
     /// <summary>
-    /// The original query
+    /// La query originale
     /// </summary>
     public string Query { get; set; } = string.Empty;
 
     /// <summary>
-    /// Search results with scores
+    /// Risultati di ricerca con punteggi
     /// </summary>
     public List<SearchResult> Results { get; set; } = new();
 
     /// <summary>
-    /// Total number of results found
+    /// Numero totale di risultati trovati
     /// </summary>
     public int TotalResults { get; set; }
 
     /// <summary>
-    /// Time taken for the query in milliseconds
+    /// Tempo impiegato per la query in millisecondi
     /// </summary>
     public double QueryTimeMs { get; set; }
 
     /// <summary>
-    /// Type of search performed
+    /// Tipo di ricerca eseguita (hybrid, vector, text)
     /// </summary>
     public string SearchType { get; set; } = string.Empty;
 }

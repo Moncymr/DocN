@@ -14,7 +14,31 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+
+// Configure Swagger/OpenAPI
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.OpenApiInfo
+    {
+        Title = "DocN API",
+        Version = "v1",
+        Description = "API REST per la gestione di documenti con RAG (Retrieval-Augmented Generation) e ricerca semantica",
+        Contact = new Microsoft.OpenApi.OpenApiContact
+        {
+            Name = "DocN Support",
+            Email = "api-support@docn.example.com"
+        }
+    });
+
+    // Include XML comments
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
+});
 
 // Add memory cache for caching service
 builder.Services.AddMemoryCache(options =>
@@ -174,10 +198,15 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Enable Swagger in all environments for API documentation
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.MapOpenApi();
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "DocN API v1");
+    options.RoutePrefix = "swagger"; // Swagger UI at /swagger
+    options.DocumentTitle = "DocN API Documentation";
+    options.DisplayRequestDuration();
+});
 
 app.UseCors();
 app.UseHttpsRedirection();

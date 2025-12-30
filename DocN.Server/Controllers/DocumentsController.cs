@@ -6,6 +6,9 @@ using DocN.Data.Services;
 
 namespace DocN.Server.Controllers;
 
+/// <summary>
+/// Endpoints per la gestione dei documenti
+/// </summary>
 [ApiController]
 [Route("[controller]")]
 public class DocumentsController : ControllerBase
@@ -30,7 +33,15 @@ public class DocumentsController : ControllerBase
         _embeddingService = embeddingService;
     }
 
+    /// <summary>
+    /// Ottiene tutti i documenti
+    /// </summary>
+    /// <returns>Lista di tutti i documenti nel sistema</returns>
+    /// <response code="200">Ritorna la lista dei documenti</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<Document>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<Document>>> GetDocuments()
     {
         try
@@ -51,7 +62,18 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Ottiene un documento specifico per ID
+    /// </summary>
+    /// <param name="id">ID del documento</param>
+    /// <returns>Il documento richiesto</returns>
+    /// <response code="200">Ritorna il documento</response>
+    /// <response code="404">Documento non trovato</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(Document), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<Document>> GetDocument(int id)
     {
         try
@@ -72,7 +94,16 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Crea un nuovo documento
+    /// </summary>
+    /// <param name="document">Dati del documento da creare</param>
+    /// <returns>Il documento creato con ID assegnato</returns>
+    /// <response code="201">Documento creato con successo</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost]
+    [ProducesResponseType(typeof(Document), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<Document>> CreateDocument(Document document)
     {
         try
@@ -105,7 +136,21 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Aggiorna un documento esistente
+    /// </summary>
+    /// <param name="id">ID del documento da aggiornare</param>
+    /// <param name="document">Dati aggiornati del documento</param>
+    /// <returns>Il documento aggiornato</returns>
+    /// <response code="200">Documento aggiornato con successo</response>
+    /// <response code="400">Richiesta non valida (ID mismatch)</response>
+    /// <response code="404">Documento non trovato</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPut("{id}")]
+    [ProducesResponseType(typeof(Document), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<Document>> UpdateDocument(int id, Document document)
     {
         try
@@ -187,7 +232,18 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Scarica il file di un documento
+    /// </summary>
+    /// <param name="id">ID del documento da scaricare</param>
+    /// <returns>Il file del documento</returns>
+    /// <response code="200">Ritorna il file del documento</response>
+    /// <response code="404">Documento o file non trovato</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("{id}/download")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DownloadDocument(int id)
     {
         try
@@ -220,7 +276,15 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Ottiene tutte le categorie uniche dei documenti
+    /// </summary>
+    /// <returns>Lista delle categorie disponibili</returns>
+    /// <response code="200">Ritorna la lista delle categorie</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("categories")]
+    [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<string>>> GetCategories()
     {
         try
@@ -248,7 +312,19 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Ricrea gli embeddings per tutti i documenti
+    /// </summary>
+    /// <remarks>
+    /// Questa operazione rigenerera gli embeddings vettoriali per tutti i documenti che hanno testo estratto.
+    /// Può richiedere molto tempo per database di grandi dimensioni.
+    /// </remarks>
+    /// <returns>Statistiche dell'operazione di ricreazione</returns>
+    /// <response code="200">Operazione completata con successo</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost("recreate-embeddings")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult> RecreateAllEmbeddings()
     {
         try

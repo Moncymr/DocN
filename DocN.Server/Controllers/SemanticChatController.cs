@@ -6,8 +6,8 @@ using DocN.Core.Interfaces;
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// API endpoints for Semantic Kernel RAG-based chat functionality
-/// Provides vector-based document search and intelligent chat responses
+/// Endpoints per il sistema RAG basato su Semantic Kernel con ricerca vettoriale
+/// Fornisce ricerca semantica e risposte intelligenti basate sui documenti
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -29,12 +29,17 @@ public class SemanticChatController : ControllerBase
     }
 
     /// <summary>
-    /// Process a chat query using Semantic Kernel RAG with vector search
+    /// Elabora una query di chat utilizzando Semantic Kernel RAG con ricerca vettoriale
     /// </summary>
+    /// <param name="request">Richiesta di chat semantica</param>
+    /// <returns>Risposta generata con documenti di riferimento e punteggi di similarità</returns>
+    /// <response code="200">Risposta generata con successo</response>
+    /// <response code="400">Richiesta non valida</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost("query")]
-    [ProducesResponseType(typeof(SemanticChatResponse), 200)]
-    [ProducesResponseType(400)]
-    [ProducesResponseType(500)]
+    [ProducesResponseType(typeof(SemanticChatResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<SemanticChatResponse>> Query([FromBody] SemanticChatRequest request)
     {
         try

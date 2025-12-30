@@ -6,9 +6,13 @@ using System.Security.Claims;
 
 namespace DocN.Server.Controllers;
 
+/// <summary>
+/// Endpoints per la gestione degli agenti AI configurabili
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[Produces("application/json")]
 public class AgentController : ControllerBase
 {
     private readonly IAgentConfigurationService _agentService;
@@ -30,9 +34,14 @@ public class AgentController : ControllerBase
     }
 
     /// <summary>
-    /// Get all agent templates available for creating new agents
+    /// Ottiene tutti i template di agenti disponibili per creare nuovi agenti
     /// </summary>
+    /// <returns>Lista dei template disponibili</returns>
+    /// <response code="200">Ritorna la lista dei template</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("templates")]
+    [ProducesResponseType(typeof(List<AgentTemplate>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<List<AgentTemplate>>> GetTemplates()
     {
         try
@@ -48,9 +57,17 @@ public class AgentController : ControllerBase
     }
 
     /// <summary>
-    /// Get a specific template by ID
+    /// Ottiene un template specifico per ID
     /// </summary>
+    /// <param name="id">ID del template</param>
+    /// <returns>Il template richiesto</returns>
+    /// <response code="200">Ritorna il template</response>
+    /// <response code="404">Template non trovato</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("templates/{id}")]
+    [ProducesResponseType(typeof(AgentTemplate), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<AgentTemplate>> GetTemplate(int id)
     {
         try
@@ -70,9 +87,14 @@ public class AgentController : ControllerBase
     }
 
     /// <summary>
-    /// Get all agents for the current user
+    /// Ottiene tutti gli agenti dell'utente corrente
     /// </summary>
+    /// <returns>Lista degli agenti dell'utente</returns>
+    /// <response code="200">Ritorna la lista degli agenti</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("my-agents")]
+    [ProducesResponseType(typeof(List<AgentConfiguration>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<List<AgentConfiguration>>> GetMyAgents()
     {
         try
@@ -91,9 +113,14 @@ public class AgentController : ControllerBase
     }
 
     /// <summary>
-    /// Get all public agents available to the tenant
+    /// Ottiene tutti gli agenti pubblici disponibili al tenant
     /// </summary>
+    /// <returns>Lista degli agenti pubblici</returns>
+    /// <response code="200">Ritorna la lista degli agenti pubblici</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("public")]
+    [ProducesResponseType(typeof(List<AgentConfiguration>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<List<AgentConfiguration>>> GetPublicAgents()
     {
         try
