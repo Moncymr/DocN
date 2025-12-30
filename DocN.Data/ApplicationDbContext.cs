@@ -73,11 +73,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // 768-dimensional vector for Gemini and similar providers
             entity.Property(e => e.EmbeddingVector768)
                 .HasColumnType("varbinary(max)")
+                .HasConversion(GetFloatArrayToByteArrayConverter())
                 .IsRequired(false);
             
             // 1536-dimensional vector for OpenAI and similar providers
             entity.Property(e => e.EmbeddingVector1536)
                 .HasColumnType("varbinary(max)")
+                .HasConversion(GetFloatArrayToByteArrayConverter())
                 .IsRequired(false);
             
             // Configure EmbeddingDimension to track which field is used
@@ -209,11 +211,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // 768-dimensional vector for Gemini and similar providers
             entity.Property(e => e.ChunkEmbedding768)
                 .HasColumnType("varbinary(max)")
+                .HasConversion(GetFloatArrayToByteArrayConverter())
                 .IsRequired(false);
             
             // 1536-dimensional vector for OpenAI and similar providers
             entity.Property(e => e.ChunkEmbedding1536)
                 .HasColumnType("varbinary(max)")
+                .HasConversion(GetFloatArrayToByteArrayConverter())
                 .IsRequired(false);
             
             // Configure EmbeddingDimension to track which field is used
@@ -351,6 +355,14 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     }
     
     // Helper methods for VECTOR type conversion
+    private static ValueConverter<float[]?, byte[]?> GetFloatArrayToByteArrayConverter()
+    {
+        return new ValueConverter<float[]?, byte[]?>(
+            v => v == null ? null : ConvertFloatArrayToBytes(v),
+            v => v == null ? null : ConvertBytesToFloatArray(v)
+        );
+    }
+    
     private static byte[] ConvertFloatArrayToBytes(float[] floats)
     {
         byte[] bytes = new byte[floats.Length * sizeof(float)];

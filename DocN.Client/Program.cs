@@ -192,8 +192,27 @@ var app = builder.Build();
 // Seed the database with default tenant and user
 using (var scope = app.Services.CreateScope())
 {
-    var seeder = scope.ServiceProvider.GetRequiredService<DocN.Data.Services.ApplicationSeeder>();
-    await seeder.SeedAsync();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DocN.Data.Services.ApplicationSeeder>();
+        await seeder.SeedAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while seeding the database. The application will continue but may not function correctly without initial data.");
+        logger.LogError("Please verify:");
+        logger.LogError("1. Database connection string is correct and database server is accessible");
+        logger.LogError("2. Database has been created using the SQL scripts in Database/ folder");
+        logger.LogError("3. Database user has appropriate permissions");
+        
+        // In development, we might want to continue even if seeding fails
+        // In production, you might want to throw and prevent startup
+        if (!app.Environment.IsDevelopment())
+        {
+            throw;
+        }
+    }
 }
 
 // Ensure upload directory exists

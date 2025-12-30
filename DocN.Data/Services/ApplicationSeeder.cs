@@ -21,16 +21,23 @@ public class ApplicationSeeder
         RoleManager<IdentityRole> roleManager,
         ILogger<ApplicationSeeder> logger)
     {
-        _context = context;
-        _userManager = userManager;
-        _roleManager = roleManager;
-        _logger = logger;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _roleManager = roleManager ?? throw new ArgumentNullException(nameof(roleManager));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task SeedAsync()
     {
         try
         {
+            // Verify database connection before seeding
+            if (!await CanConnectToDatabaseAsync())
+            {
+                _logger.LogError("Cannot connect to database. Please verify connection string and database availability.");
+                throw new InvalidOperationException("Database connection failed. Please check your connection string configuration.");
+            }
+            
             // Note: MigrateAsync is commented out because EF Core doesn't support VECTOR type yet
             // Use the SQL script Database/CreateDatabase_Complete_V2.sql to create the database
             // await _context.Database.MigrateAsync();
@@ -50,6 +57,19 @@ public class ApplicationSeeder
         {
             _logger.LogError(ex, "An error occurred while seeding the database");
             throw;
+        }
+    }
+
+    private async Task<bool> CanConnectToDatabaseAsync()
+    {
+        try
+        {
+            return await _context.Database.CanConnectAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check database connection");
+            return false;
         }
     }
 
