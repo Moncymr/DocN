@@ -56,6 +56,23 @@
 
         <!-- Wizard Content -->
         <div class="wizard-content">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-error">
+                    <span class="alert-icon">⚠️</span>
+                    <span>@errorMessage</span>
+                    <button class="alert-close" @onclick="() => errorMessage = null">×</button>
+                </div>
+            }
+            
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success">
+                    <span class="alert-icon">✅</span>
+                    <span>@successMessage</span>
+                </div>
+            }
+            
             @if (currentStep == 1)
             {
                 <Step1_ChooseTemplate 
@@ -105,6 +122,8 @@
     private List<AgentTemplate> templates = new();
     private AgentTemplate? selectedTemplate;
     private AgentConfiguration agentConfig = new();
+    private string? errorMessage;
+    private string? successMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -132,7 +151,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Errore caricamento template: {ex.Message}");
+            errorMessage = $"Errore caricamento template: {ex.Message}";
         }
     }
 
@@ -148,7 +167,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Errore creazione agente: {ex.Message}");
+            errorMessage = $"Errore creazione agente: {ex.Message}";
         }
     }
 
@@ -177,17 +196,19 @@
             
             if (response.IsSuccessStatusCode)
             {
-                await JS.InvokeVoidAsync("alert", "✅ Agente salvato con successo!");
+                successMessage = "✅ Agente salvato con successo!";
+                StateHasChanged();
+                await Task.Delay(1500); // Show success message briefly
                 Navigation.NavigateTo("/agents");
             }
             else
             {
-                await JS.InvokeVoidAsync("alert", "❌ Errore nel salvataggio dell'agente");
+                errorMessage = "❌ Errore nel salvataggio dell'agente";
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Errore: {ex.Message}");
+            errorMessage = $"Errore: {ex.Message}";
         }
     }
 }
@@ -302,5 +323,59 @@
     @@keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
+    }
+
+    .alert {
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.95rem;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    .alert-error {
+        background-color: #fee;
+        border: 1px solid #fcc;
+        color: #c33;
+    }
+
+    .alert-success {
+        background-color: #efe;
+        border: 1px solid #cfc;
+        color: #3c3;
+    }
+
+    .alert-icon {
+        font-size: 1.2rem;
+    }
+
+    .alert-close {
+        margin-left: auto;
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: inherit;
+        padding: 0;
+        line-height: 1;
+        opacity: 0.6;
+    }
+
+    .alert-close:hover {
+        opacity: 1;
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 </style>
