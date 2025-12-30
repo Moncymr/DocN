@@ -215,7 +215,6 @@ if (hasAIServicesConfigured)
 else
 {
     builder.Services.AddScoped<ISemanticRAGService, NoOpSemanticRAGService>();
-    builder.Services.AddScoped<ILogger<NoOpSemanticRAGService>>(sp => sp.GetRequiredService<ILoggerFactory>().CreateLogger<NoOpSemanticRAGService>());
 }
 
 // Register Agent Configuration services
