@@ -149,6 +149,9 @@ var azureOpenAIKey = builder.Configuration["AzureOpenAI:ApiKey"];
 var azureOpenAIChatDeployment = builder.Configuration["AzureOpenAI:ChatDeployment"] ?? "gpt-4";
 var azureOpenAIEmbeddingDeployment = builder.Configuration["AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-ada-002";
 
+// Track whether AI services are configured
+bool hasAIServicesConfigured = false;
+
 if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpenAIKey))
 {
     // Add Azure OpenAI Chat Completion
@@ -162,6 +165,8 @@ if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpe
         deploymentName: azureOpenAIEmbeddingDeployment,
         endpoint: azureOpenAIEndpoint,
         apiKey: azureOpenAIKey);
+    
+    hasAIServicesConfigured = true;
 }
 else
 {
@@ -176,6 +181,8 @@ else
         kernelBuilder.AddOpenAITextEmbeddingGeneration(
             modelId: "text-embedding-ada-002",
             apiKey: openAIKey);
+        
+        hasAIServicesConfigured = true;
     }
 }
 
@@ -194,13 +201,22 @@ builder.Services.AddScoped<ILogService, LogService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Register Semantic RAG Service (new advanced RAG with Semantic Kernel)
-builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
-
-// Register agents
-builder.Services.AddScoped<IRetrievalAgent, RetrievalAgent>();
-builder.Services.AddScoped<ISynthesisAgent, SynthesisAgent>();
-builder.Services.AddScoped<IClassificationAgent, ClassificationAgent>();
-builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+// Use NoOpSemanticRAGService if AI services are not configured in Kernel (e.g., when using Gemini from DB config)
+if (hasAIServicesConfigured)
+{
+    builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
+    
+    // Register agents only when AI services are available
+    builder.Services.AddScoped<IRetrievalAgent, RetrievalAgent>();
+    builder.Services.AddScoped<ISynthesisAgent, SynthesisAgent>();
+    builder.Services.AddScoped<IClassificationAgent, ClassificationAgent>();
+    builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+}
+else
+{
+    builder.Services.AddScoped<ISemanticRAGService, NoOpSemanticRAGService>();
+    builder.Services.AddScoped<ILogger<NoOpSemanticRAGService>>(sp => sp.GetRequiredService<ILoggerFactory>().CreateLogger<NoOpSemanticRAGService>());
+}
 
 // Register Agent Configuration services
 builder.Services.AddScoped<IAgentConfigurationService, AgentConfigurationService>();
