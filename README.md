@@ -1,5 +1,7 @@
 # DocN - Sistema RAG Documentale Aziendale
 
+> 🇮🇹 **Per utenti italiani**: Leggi la [**Guida Completa ChatAI in Italiano**](GUIDA_CHATAI.md) - Tutorial passo-passo per configurare e usare la ChatAI in 30 minuti!
+
 ## 📋 Panoramica
 
 DocN è un sistema avanzato di gestione documentale enterprise con Retrieval-Augmented Generation (RAG) basato su intelligenza artificiale. Il sistema consente di archiviare, indicizzare, ricercare e interagire con documenti aziendali utilizzando tecnologie di AI all'avanguardia.

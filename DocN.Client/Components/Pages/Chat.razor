@@ -799,7 +799,7 @@
         {
             // Connection to backend API failed
             errorMessage = "⚠️ Unable to connect to the backend service. Please ensure the DocN.Server is running on https://localhost:5211. " +
-                          "See README.md for setup instructions.";
+                          "See GUIDA_CHATAI.md (Italian) or README.md for setup instructions.";
             Console.WriteLine($"Backend API connection error: {ex.Message}");
         }
         catch (Exception ex)
@@ -832,7 +832,8 @@
         }
         catch (HttpRequestException ex)
         {
-            errorMessage = "⚠️ Unable to connect to the backend service. Please ensure the DocN.Server is running on https://localhost:5211.";
+            errorMessage = "⚠️ Unable to connect to the backend service. Please ensure the DocN.Server is running on https://localhost:5211. " +
+                          "See GUIDA_CHATAI.md for Italian guide.";
             Console.WriteLine($"Backend API connection error: {ex.Message}");
         }
         catch (Exception ex)
@@ -897,7 +898,8 @@
         }
         catch (HttpRequestException ex)
         {
-            errorMessage = "⚠️ Unable to connect to the backend service. Please ensure the DocN.Server is running on https://localhost:5211.";
+            errorMessage = "⚠️ Unable to connect to the backend service. Please ensure the DocN.Server is running on https://localhost:5211. " +
+                          "See GUIDA_CHATAI.md for Italian guide.";
             Console.WriteLine($"Backend API connection error: {ex.Message}");
             
             // Remove the user message since it wasn't sent successfully

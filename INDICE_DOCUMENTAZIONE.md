@@ -2,6 +2,18 @@
 
 ## 🎯 Inizio Rapido
 
+### 🇮🇹 Per Utenti Italiani - INIZIA QUI! 
+
+**[GUIDA_CHATAI.md](GUIDA_CHATAI.md)** 💬 ⭐ **TUTORIAL COMPLETO IN ITALIANO**
+- Guida passo-passo per configurare la ChatAI
+- Dalla installazione all'utilizzo in 30 minuti
+- Include risoluzione problemi comuni
+- Screenshots e esempi pratici
+- **Tempo lettura:** 30 minuti
+- **Perfetto per:** Primo utilizzo, setup iniziale, troubleshooting
+
+---
+
 **Domanda:** "Cosa manca al progetto per avere una RAG documentale aziendale ottimale?"
 
 **Risposta Rapida:** Leggi **[RISPOSTA_GAP_ANALYSIS.md](RISPOSTA_GAP_ANALYSIS.md)** (15 minuti)
@@ -61,7 +73,16 @@
 
 ### Per Developers e Integrators
 
-7. **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)**
+7. **[GUIDA_CHATAI.md](GUIDA_CHATAI.md)** 💬 🇮🇹 **TUTORIAL ITALIANO**
+   - Guida completa setup ChatAI in italiano
+   - Installazione software (SDK, SQL Server, Git)
+   - Configurazione passo-passo con esempi
+   - Primo documento e prima conversazione
+   - Troubleshooting con soluzioni pratiche
+   - **Tempo lettura:** 30 minuti
+   - **Perfetto per:** Primo utilizzo della ChatAI
+
+8. **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)**
    - Specifica API REST completa
    - Endpoint documenti, search, RAG
    - Autenticazione API
@@ -70,7 +91,7 @@
    - **Tempo lettura:** 40 minuti
    - **Riferimento:** Da consultare durante sviluppo
 
-8. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** ⚠️ **NUOVO**
+9. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** ⚠️
    - Risoluzione errori comuni
    - "Impossibile stabilire la connessione (localhost:5211)"
    - Architettura dual-server spiegata
@@ -80,23 +101,23 @@
 
 ### Documentazione Esistente (Pre-esistente)
 
-9. **[MULTI_PROVIDER_CONFIG.md](MULTI_PROVIDER_CONFIG.md)**
+10. **[MULTI_PROVIDER_CONFIG.md](MULTI_PROVIDER_CONFIG.md)**
    - Configurazione AI providers
    - Gemini, OpenAI, Azure OpenAI
    - Service assignment
    - Fallback configuration
 
-10. **[OCR_IMPLEMENTATION.md](OCR_IMPLEMENTATION.md)**
+11. **[OCR_IMPLEMENTATION.md](OCR_IMPLEMENTATION.md)**
    - Implementazione OCR Tesseract
    - Estrazione testo da immagini
    - Setup e configurazione
 
-11. **[VECTOR_TYPE_GUIDE.md](VECTOR_TYPE_GUIDE.md)**
+12. **[VECTOR_TYPE_GUIDE.md](VECTOR_TYPE_GUIDE.md)**
     - Guida tipi vettoriali SQL Server 2025
     - Configurazione embeddings
     - Performance optimization
 
-12. **Database/**
+13. **Database/**
     - [Database/README.md](Database/README.md) - Setup database
     - [Database/QUICK_START.md](Database/QUICK_START.md) - Quick start
     - [Database/SOLUTION_EXPLAINED.md](Database/SOLUTION_EXPLAINED.md) - Schema spiegato
