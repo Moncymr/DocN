@@ -20,6 +20,9 @@ builder.Services.AddRazorComponents()
 // Add HttpClient for Blazor components
 builder.Services.AddHttpClient();
 
+// Add HttpContextAccessor for audit logging
+builder.Services.AddHttpContextAccessor();
+
 // Add memory cache for caching service
 builder.Services.AddMemoryCache(options =>
 {
@@ -108,6 +111,7 @@ builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("Gem
 builder.Services.Configure<EmbeddingsSettings>(builder.Configuration.GetSection("Embeddings"));
 
 // Application Services
+builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<DocN.Data.Services.IEmbeddingService, EmbeddingService>();
 builder.Services.AddScoped<DocN.Data.Services.ICategoryService, CategoryService>();
@@ -221,16 +225,32 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Authentication endpoints
-app.MapPost("/logout", async (SignInManager<ApplicationUser> signInManager) =>
+app.MapPost("/logout", async (
+    SignInManager<ApplicationUser> signInManager,
+    IAuditService auditService,
+    HttpContext context) =>
 {
+    var user = context.User;
+    var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    var username = user.Identity?.Name;
+    
     await signInManager.SignOutAsync();
+    
+    // Log logout
+    await auditService.LogAuthenticationAsync(
+        "UserLogout",
+        userId,
+        username,
+        success: true);
+    
     return Results.Redirect("/");
 }).RequireAuthorization();
 
 app.MapPost("/account/login", async (
     HttpContext context,
     SignInManager<ApplicationUser> signInManager,
-    UserManager<ApplicationUser> userManager) =>
+    UserManager<ApplicationUser> userManager,
+    IAuditService auditService) =>
 {
     var form = await context.Request.ReadFormAsync();
     var email = form["email"].ToString();
@@ -239,12 +259,24 @@ app.MapPost("/account/login", async (
 
     if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
     {
+        await auditService.LogAuthenticationAsync(
+            "UserLoginFailed",
+            null,
+            email,
+            success: false,
+            "Invalid credentials - empty email or password");
         return Results.Redirect("/login?error=invalid");
     }
 
     var user = await userManager.FindByEmailAsync(email);
     if (user == null)
     {
+        await auditService.LogAuthenticationAsync(
+            "UserLoginFailed",
+            null,
+            email,
+            success: false,
+            "User not found");
         return Results.Redirect("/login?error=invalid");
     }
 
@@ -260,10 +292,24 @@ app.MapPost("/account/login", async (
         // Update last login time
         user.LastLoginAt = DateTime.UtcNow;
         await userManager.UpdateAsync(user);
+        
+        // Log successful login
+        await auditService.LogAuthenticationAsync(
+            "UserLogin",
+            user.Id,
+            user.UserName,
+            success: true);
+        
         return Results.Redirect("/");
     }
     else if (result.IsLockedOut)
     {
+        await auditService.LogAuthenticationAsync(
+            "UserLoginFailed",
+            user.Id,
+            user.UserName,
+            success: false,
+            "Account locked out");
         return Results.Redirect("/login?error=locked");
     }
     else if (result.RequiresTwoFactor)
@@ -272,6 +318,12 @@ app.MapPost("/account/login", async (
     }
     else
     {
+        await auditService.LogAuthenticationAsync(
+            "UserLoginFailed",
+            user.Id,
+            user.UserName,
+            success: false,
+            "Invalid password");
         return Results.Redirect("/login?error=invalid");
     }
 }).AllowAnonymous();

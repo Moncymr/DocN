@@ -22,10 +22,12 @@ public interface IDocumentService
 public class DocumentService : IDocumentService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IAuditService _auditService;
 
-    public DocumentService(ApplicationDbContext context)
+    public DocumentService(ApplicationDbContext context, IAuditService auditService)
     {
         _context = context;
+        _auditService = auditService;
     }
 
     public async Task<Document?> GetDocumentAsync(int documentId, string userId)
@@ -143,18 +145,58 @@ public class DocumentService : IDocumentService
     {
         // Check if user has access
         if (!await CanUserAccessDocument(documentId, userId))
+        {
+            await _auditService.LogAsync(
+                "DocumentDownloadDenied",
+                "Document",
+                documentId.ToString(),
+                new { UserId = userId, Reason = "Access denied" },
+                "Warning",
+                false,
+                "User does not have permission to download this document");
             return null;
+        }
 
         var document = await _context.Documents.FindAsync(documentId);
         if (document == null || !File.Exists(document.FilePath))
+        {
+            await _auditService.LogAsync(
+                "DocumentDownloadFailed",
+                "Document",
+                documentId.ToString(),
+                new { UserId = userId, Reason = document == null ? "Not found" : "File not found" },
+                "Warning",
+                false,
+                "Document or file not found");
             return null;
+        }
 
         try
         {
-            return await File.ReadAllBytesAsync(document.FilePath);
+            var fileBytes = await File.ReadAllBytesAsync(document.FilePath);
+            
+            // Log successful download
+            await _auditService.LogDocumentOperationAsync(
+                "DocumentDownloaded",
+                documentId,
+                document.FileName,
+                new { 
+                    FileSize = document.FileSize,
+                    UserId = userId
+                });
+            
+            return fileBytes;
         }
-        catch
+        catch (Exception ex)
         {
+            await _auditService.LogAsync(
+                "DocumentDownloadFailed",
+                "Document",
+                documentId.ToString(),
+                new { FileName = document.FileName, Error = ex.Message },
+                "Error",
+                false,
+                ex.Message);
             return null;
         }
     }
@@ -240,12 +282,35 @@ public class DocumentService : IDocumentService
             
             _context.Documents.Add(document);
             await _context.SaveChangesAsync();
+            
+            // Log successful document upload
+            await _auditService.LogDocumentOperationAsync(
+                "DocumentUploaded",
+                document.Id,
+                document.FileName,
+                new { 
+                    FileSize = document.FileSize, 
+                    ContentType = document.ContentType,
+                    Category = document.ActualCategory ?? document.SuggestedCategory,
+                    HasEmbedding = document.EmbeddingDimension.HasValue
+                });
+            
             return document;
         }
         catch (DbUpdateException ex)
         {
             // Extract the inner exception details for better error reporting
             var innerMessage = ex.InnerException?.Message ?? ex.Message;
+            
+            // Log failed document upload
+            await _auditService.LogAsync(
+                "DocumentUploadFailed",
+                "Document",
+                null,
+                new { FileName = document.FileName, Error = innerMessage },
+                "Error",
+                false,
+                innerMessage);
             
             // Check for vector dimension mismatch error
             if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(innerMessage))
@@ -257,6 +322,19 @@ public class DocumentService : IDocumentService
             }
             
             throw new InvalidOperationException($"Database save failed: {innerMessage}", ex);
+        }
+        catch (Exception ex)
+        {
+            // Log any other failures
+            await _auditService.LogAsync(
+                "DocumentUploadFailed",
+                "Document",
+                null,
+                new { FileName = document.FileName, Error = ex.Message },
+                "Error",
+                false,
+                ex.Message);
+            throw;
         }
     }
 
@@ -333,6 +411,17 @@ public class DocumentService : IDocumentService
         try
         {
             await _context.SaveChangesAsync();
+            
+            // Log successful document update
+            await _auditService.LogDocumentOperationAsync(
+                "DocumentUpdated",
+                existingDocument.Id,
+                existingDocument.FileName,
+                new { 
+                    UpdatedBy = userId,
+                    Category = existingDocument.ActualCategory ?? existingDocument.SuggestedCategory
+                });
+            
             return existingDocument;
         }
         catch (DbUpdateException ex)
