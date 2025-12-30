@@ -95,12 +95,17 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = async (context, token) =>
     {
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        
+        double? retryAfterSeconds = null;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            retryAfterSeconds = retryAfter.TotalSeconds;
+        }
+        
         await context.HttpContext.Response.WriteAsJsonAsync(new
         {
             error = "Too many requests. Please try again later.",
-            retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter) 
-                ? (double?)retryAfter.TotalSeconds 
-                : null
+            retryAfter = retryAfterSeconds
         }, cancellationToken: token);
     };
 });

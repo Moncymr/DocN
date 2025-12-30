@@ -30,6 +30,9 @@ public class SecurityHeadersMiddleware
             "max-age=31536000; includeSubDomains; preload");
         
         // Content Security Policy - restrict resource loading
+        // Note: 'unsafe-inline' and 'unsafe-eval' are required for Blazor Server functionality.
+        // For enhanced security in pure API scenarios, consider removing these directives.
+        // For production, implement nonce-based CSP or migrate to Blazor WebAssembly.
         var csp = "default-src 'self'; " +
                   "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
                   "style-src 'self' 'unsafe-inline'; " +

@@ -37,6 +37,9 @@ public class AuditService : IAuditService
         try
         {
             var httpContext = _httpContextAccessor.HttpContext;
+            // Note: Using Identity.Name for both userId and username as ASP.NET Identity 
+            // stores the username in the Name claim. For more detailed user info,
+            // consider querying the database or using additional claims.
             var userId = httpContext?.User?.Identity?.Name;
             var username = httpContext?.User?.Identity?.Name;
             var ipAddress = httpContext?.Connection?.RemoteIpAddress?.ToString();

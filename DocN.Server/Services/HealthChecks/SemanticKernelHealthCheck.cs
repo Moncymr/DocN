@@ -25,12 +25,6 @@ public class SemanticKernelHealthCheck : IHealthCheck
     {
         try
         {
-            if (_kernel == null)
-            {
-                return Task.FromResult(HealthCheckResult.Unhealthy(
-                    "Semantic Kernel not initialized"));
-            }
-
             // Check if kernel has services configured
             var hasServices = _kernel.Services != null;
             
