@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using DocN.Data.Models;
 
@@ -186,13 +187,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // Configura ReferencedDocumentIds come JSON
             // Use explicit ValueConverter to avoid EF Core collection mapping issues
             var referencedDocIdsConverter = new ValueConverter<List<int>, string>(
-                v => System.Text.Json.JsonSerializer.Serialize(v),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<int>>(v) ?? new List<int>()
+                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                v => string.IsNullOrEmpty(v) ? new List<int>() : (System.Text.Json.JsonSerializer.Deserialize<List<int>>(v) ?? new List<int>())
+            );
+            
+            var referencedDocIdsComparer = new ValueComparer<List<int>>(
+                (c1, c2) => (c1 == null && c2 == null) || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
+                c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                c => c.ToList()
             );
             
             entity.Property(e => e.ReferencedDocumentIds)
                 .HasConversion(referencedDocIdsConverter)
-                .HasColumnType("nvarchar(max)");
+                .HasColumnType("nvarchar(max)")
+                .Metadata.SetValueComparer(referencedDocIdsComparer);
             
             // Indici per performance
             entity.HasIndex(e => e.ConversationId);
