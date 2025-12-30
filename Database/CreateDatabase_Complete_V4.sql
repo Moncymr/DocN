@@ -47,7 +47,8 @@ GO
 
 PRINT '';
 PRINT '================================================';
-PRINT '🚀 Inizio setup database DocNDb V3';
+PRINT '🚀 Inizio setup database DocNDb V4';
+PRINT '   (Con Agent System e Dual Vector Support)';
 PRINT '================================================';
 PRINT '';
 
@@ -253,7 +254,7 @@ PRINT '📄 Creazione tabelle documenti...';
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Documents' and xtype='U')
 BEGIN
     CREATE TABLE Documents (
-        Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Id INT IDENTITY(1,1) NOT NULL,
         FileName NVARCHAR(255) NOT NULL,
         FilePath NVARCHAR(500) NOT NULL,
         ContentType NVARCHAR(100) NOT NULL,
@@ -297,6 +298,9 @@ BEGIN
         -- User notes
         Notes NVARCHAR(MAX) NULL,
         
+        -- Primary Key with explicit name
+        CONSTRAINT PK_Documents PRIMARY KEY (Id),
+        
         -- V3: Corretto vincolo FK con ON DELETE SET NULL (invece di SET DEFAULT)
         CONSTRAINT FK_Documents_Owner FOREIGN KEY (OwnerId) 
             REFERENCES AspNetUsers(Id) ON DELETE SET NULL,
@@ -318,8 +322,12 @@ BEGIN
         CREATE FULLTEXT CATALOG DocumentFullTextCatalog AS DEFAULT;
     END
     
-    CREATE FULLTEXT INDEX ON Documents(ExtractedText, FileName)
-        KEY INDEX PK__Documents__3214EC07 ON DocumentFullTextCatalog;
+    -- Create full-text index using the explicit PK name
+    IF NOT EXISTS (SELECT * FROM sys.fulltext_indexes WHERE object_id = OBJECT_ID('Documents'))
+    BEGIN
+        CREATE FULLTEXT INDEX ON Documents(ExtractedText, FileName)
+            KEY INDEX PK_Documents ON DocumentFullTextCatalog;
+    END
     
     PRINT '  ✓ Documents creata con full-text search e tipo VECTOR(1536)';
     PRINT '  ℹ️  NOTA: EF Core non supporta nativamente VECTOR, usa varbinary(max) nei migration';
@@ -1296,23 +1304,30 @@ PRINT '✅ Stored procedures create (6 totali)';
 PRINT '';
 
 -- ================================================
--- 10. RIEPILOGO FINALE V3
+-- 10. RIEPILOGO FINALE V4
 -- ================================================
 
 PRINT '';
 PRINT '================================================';
-PRINT '🎉 DATABASE DOCN V3 COMPLETATO CON SUCCESSO!';
+PRINT '🎉 DATABASE DOCN V4 COMPLETATO CON SUCCESSO!';
 PRINT '================================================';
 PRINT '';
 PRINT '📋 RIEPILOGO TABELLE CREATE:';
 PRINT '  • 1 tabella Tenants (multi-tenant support)';
 PRINT '  • 6 tabelle Identity (autenticazione)';
 PRINT '  • 5 tabelle documenti (Documents, Shares, Tags, Chunks, SimilarDocuments)';
-PRINT '  • 2 tabelle conversazioni (Conversations, Messages)';
+PRINT '  • 2 tabelle conversazioni (Conversations, Messages con EF Core 10 fix)';
+PRINT '  • 3 tabelle Agent System (Templates, Configurations, UsageLogs) ✨ NEW';
 PRINT '  • 1 tabella configurazione (AIConfigurations con multi-provider)';
 PRINT '  • 2 tabelle audit/logging (AuditLogs, LogEntries)';
 PRINT '';
-PRINT '🆕 NOVITÀ V3:';
+PRINT '🆕 NOVITÀ V4:';
+PRINT '  ✓ Agent Configuration System (3 tabelle)';
+PRINT '  ✓ Dual Vector Support (768 & 1536 dimensions)';
+PRINT '  ✓ EF Core 10 fix per ReferencedDocumentIds (NULLABLE)';
+PRINT '  ✓ Flexible AI provider support (Gemini + OpenAI)';
+PRINT '';
+PRINT '✅ FEATURES V3 (mantenute):';
 PRINT '  ✓ Multi-provider AI (Gemini, OpenAI, Azure OpenAI)';
 PRINT '  ✓ Tabella SimilarDocuments per similarità vettoriale';
 PRINT '  ✓ Tabella LogEntries per logging centralizzato';
@@ -1325,8 +1340,8 @@ PRINT '📊 FEATURES COMPLETE:';
 PRINT '  ✓ Multi-tenant con tenant predefinito';
 PRINT '  ✓ Utente amministratore predefinito (admin@docn.local)';
 PRINT '  ✓ Autenticazione completa con Identity';
-PRINT '  ✓ Gestione documenti con embedding vettoriali';
-PRINT '  ✓ Document chunking per RAG preciso';
+PRINT '  ✓ Gestione documenti con dual vector embeddings';
+PRINT '  ✓ Document chunking con dual embeddings per RAG';
 PRINT '  ✓ AI Tag Analysis per documenti';
 PRINT '  ✓ AI Metadata Extraction (numeri fattura, date, ecc.)';
 PRINT '  ✓ Sistema conversazionale con memoria';
