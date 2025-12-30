@@ -1,8 +1,8 @@
 using DocN.Client.Components;
+using DocN.Core.Interfaces;
 using DocN.Data;
 using DocN.Data.Models;
 using DocN.Data.Services;
-using DocN.Core.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
@@ -34,7 +34,7 @@ if (string.IsNullOrEmpty(connectionString))
 {
     if (builder.Environment.IsDevelopment())
     {
-        connectionString = "Server=NTSPJ-060-02\\SQL2025;Database=DocumentArchive;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=True";
+        connectionString = "Server=NTSPJ-060-02\\SQL2025;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=True";
     }
     else
     {
@@ -172,7 +172,7 @@ else
     // Register a no-op implementation when no AI service is configured
     builder.Services.AddScoped<DocN.Data.Services.IChunkingService, ChunkingService>();
     builder.Services.AddScoped<ICacheService, CacheService>();
-    
+
     // Register a no-op service that returns empty results when AI is not configured
     builder.Services.AddScoped<ISemanticRAGService, NoOpSemanticRAGService>();
 }
@@ -288,7 +288,7 @@ app.MapPost("/account/register", async (
     var password = form["password"].ToString();
     var confirmPassword = form["confirmPassword"].ToString();
 
-    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password) || 
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password) ||
         string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
     {
         return Results.Redirect("/register?error=required");
