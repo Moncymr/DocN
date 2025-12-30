@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json;
+using System.Collections.Concurrent;
 
 namespace DocN.Server.Services;
 
@@ -23,7 +24,7 @@ public class DistributedCacheService : IDistributedCacheService
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<DistributedCacheService> _logger;
     private readonly bool _isRedisConfigured;
-    private readonly HashSet<string> _cacheKeys = new(); // Track keys for prefix deletion
+    private readonly ConcurrentDictionary<string, byte> _cacheKeys = new(); // Thread-safe key tracking
 
     public DistributedCacheService(
         IServiceProvider serviceProvider,
@@ -99,11 +100,7 @@ public class DistributedCacheService : IDistributedCacheService
                 };
 
                 await _distributedCache.SetAsync(key, bytes, options, cancellationToken);
-                
-                lock (_cacheKeys)
-                {
-                    _cacheKeys.Add(key);
-                }
+                _cacheKeys.TryAdd(key, 0); // Thread-safe add
             }
             else
             {
@@ -113,11 +110,7 @@ public class DistributedCacheService : IDistributedCacheService
                 };
 
                 _memoryCache.Set(key, value, options);
-                
-                lock (_cacheKeys)
-                {
-                    _cacheKeys.Add(key);
-                }
+                _cacheKeys.TryAdd(key, 0); // Thread-safe add
             }
 
             _logger.LogDebug("Cached key {Key} with expiration {Expiration}", key, expirationTime);
@@ -141,10 +134,7 @@ public class DistributedCacheService : IDistributedCacheService
                 _memoryCache.Remove(key);
             }
 
-            lock (_cacheKeys)
-            {
-                _cacheKeys.Remove(key);
-            }
+            _cacheKeys.TryRemove(key, out _); // Thread-safe remove
 
             _logger.LogDebug("Removed cache key {Key}", key);
         }
@@ -158,17 +148,14 @@ public class DistributedCacheService : IDistributedCacheService
     {
         try
         {
-            List<string> keysToRemove;
-            
-            lock (_cacheKeys)
-            {
-                keysToRemove = _cacheKeys.Where(k => k.StartsWith(prefix)).ToList();
-            }
+            // Get all keys with prefix atomically
+            var keysToRemove = _cacheKeys.Keys
+                .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
+                .ToList();
 
-            foreach (var key in keysToRemove)
-            {
-                await RemoveAsync(key, cancellationToken);
-            }
+            // Remove each key
+            var removeTasks = keysToRemove.Select(key => RemoveAsync(key, cancellationToken));
+            await Task.WhenAll(removeTasks);
 
             _logger.LogInformation("Removed {Count} cache keys with prefix {Prefix}", keysToRemove.Count, prefix);
         }
