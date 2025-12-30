@@ -184,29 +184,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(e => e.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
             
-            // Configura ReferencedDocumentIds come JSON
-            // Use explicit ValueConverter to avoid EF Core collection mapping issues
-            // Must explicitly configure to prevent EF Core 10 from treating this as a primitive collection
-            var referencedDocIdsConverter = new ValueConverter<List<int>, string>(
-                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
-                v => string.IsNullOrEmpty(v) ? new List<int>() : System.Text.Json.JsonSerializer.Deserialize<List<int>>(v) ?? new List<int>()
-            );
-            
-            var referencedDocIdsComparer = new ValueComparer<List<int>>(
-                (c1, c2) => (c1 == null && c2 == null) || (c1 != null && c2 != null && c1.SequenceEqual(c2)),
-                c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-                c => c == null ? new List<int>() : c.ToList()
-            );
-            
-            var property = entity.Property(e => e.ReferencedDocumentIds)
-                .HasConversion(referencedDocIdsConverter)
+            // Configura ReferencedDocumentIdsJson come stringa JSON
+            // La proprietà ReferencedDocumentIds usa [NotMapped] e gestisce la serializzazione/deserializzazione
+            entity.Property(e => e.ReferencedDocumentIdsJson)
+                .HasColumnName("ReferencedDocumentIds")
                 .HasColumnType("nvarchar(max)");
-            
-            property.Metadata.SetValueComparer(referencedDocIdsComparer);
-            
-            // Explicitly set the provider type to string to prevent EF Core 10 
-            // from treating this as a primitive collection
-            property.Metadata.SetProviderClrType(typeof(string));
             
             // Indici per performance
             entity.HasIndex(e => e.ConversationId);

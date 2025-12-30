@@ -92,7 +92,19 @@ public class Message
     /// Lista di IDs dei documenti referenziati in questo messaggio
     /// Memorizzato come JSON array: [1, 5, 12]
     /// </summary>
-    public List<int> ReferencedDocumentIds { get; set; } = new();
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public List<int> ReferencedDocumentIds
+    {
+        get => string.IsNullOrEmpty(ReferencedDocumentIdsJson) 
+            ? new List<int>() 
+            : System.Text.Json.JsonSerializer.Deserialize<List<int>>(ReferencedDocumentIdsJson) ?? new List<int>();
+        set => ReferencedDocumentIdsJson = System.Text.Json.JsonSerializer.Serialize(value);
+    }
+
+    /// <summary>
+    /// Backing field per ReferencedDocumentIds - memorizza il JSON come stringa
+    /// </summary>
+    public string? ReferencedDocumentIdsJson { get; set; }
 
     /// <summary>
     /// Data e ora del messaggio
