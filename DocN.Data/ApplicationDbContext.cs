@@ -204,6 +204,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             
             property.Metadata.SetValueComparer(referencedDocIdsComparer);
             
+            // Explicitly set the provider type to string to prevent EF Core 10 
+            // from treating this as a primitive collection
+            property.Metadata.SetProviderClrType(typeof(string));
+            
             // Indici per performance
             entity.HasIndex(e => e.ConversationId);
             entity.HasIndex(e => e.Timestamp);
