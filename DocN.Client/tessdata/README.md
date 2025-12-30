@@ -21,15 +21,17 @@ To enable OCR text extraction from images, you need to download the Tesseract la
 
 ## Quick Installation Commands
 
-### Download Italian:
+### Windows PowerShell:
+```powershell
+cd DocN.Client/tessdata
+Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata/raw/main/ita.traineddata" -OutFile "ita.traineddata"
+Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata" -OutFile "eng.traineddata"
+```
+
+### Linux/macOS:
 ```bash
 cd DocN.Client/tessdata
 curl -L -o ita.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/ita.traineddata
-```
-
-### Download English:
-```bash
-cd DocN.Client/tessdata
 curl -L -o eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
 ```
 

@@ -15,6 +15,13 @@ To use OCR functionality in DocN, you need to install Tesseract native libraries
    - During installation, select the languages you want to support
    - Or manually download `.traineddata` files to `DocN.Client/tessdata`
 
+**Download language files manually (PowerShell)**:
+```powershell
+cd DocN.Client/tessdata
+Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata/raw/main/ita.traineddata" -OutFile "ita.traineddata"
+Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata" -OutFile "eng.traineddata"
+```
+
 ### Linux (Ubuntu/Debian)
 
 ```bash
