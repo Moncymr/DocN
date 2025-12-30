@@ -2199,7 +2199,6 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 CategoryReasoning = categoryReasoning,
                 ActualCategory = finalCategory,
                 Visibility = (DocumentVisibility)selectedVisibility,
-                EmbeddingVector = embedding,
                 OwnerId = string.IsNullOrEmpty(currentUserId) ? null : currentUserId,
                 UploadedAt = DateTime.UtcNow,
                 
@@ -2214,6 +2213,26 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 ExtractedMetadataJson = GetSerializedMetadata(extractedMetadata),
                 TenantId = null // Will be set from user's tenant if available
             };
+            
+            // Set embedding in the appropriate field based on dimension
+            if (embedding != null && embedding.Length > 0)
+            {
+                if (embedding.Length == 768)
+                {
+                    document.EmbeddingVector768 = embedding;
+                    document.EmbeddingDimension = 768;
+                }
+                else if (embedding.Length == 1536)
+                {
+                    document.EmbeddingVector1536 = embedding;
+                    document.EmbeddingDimension = 1536;
+                }
+                else
+                {
+                    // Unsupported dimension - set error message
+                    errorMessage = $"⚠️ Unsupported embedding dimension: {embedding.Length}. Expected 768 or 1536.";
+                }
+            }
 
             // Set TenantId from user's tenant if user is authenticated
             if (!string.IsNullOrEmpty(currentUserId))

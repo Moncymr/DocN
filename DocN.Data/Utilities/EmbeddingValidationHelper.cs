@@ -10,6 +10,11 @@ public static class EmbeddingValidationHelper
     // Constants for common embedding dimensions
     public const int GeminiEmbeddingDimension = 768;
     public const int OpenAIEmbeddingDimension = 1536;
+    
+    // Supported dimensions for dual VECTOR fields
+    public const int SupportedDimension768 = 768;
+    public const int SupportedDimension1536 = 1536;
+    
     public const int MinimumEmbeddingDimension = 256; // Minimum supported dimension for custom embeddings
     public const int MaximumEmbeddingDimension = 4096; // Maximum reasonable dimension
 
