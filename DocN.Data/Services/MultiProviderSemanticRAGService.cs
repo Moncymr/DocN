@@ -15,18 +15,15 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<MultiProviderSemanticRAGService> _logger;
     private readonly IMultiProviderAIService _aiService;
-    private readonly DocN.Data.Services.IEmbeddingService _embeddingService;
 
     public MultiProviderSemanticRAGService(
         ApplicationDbContext context,
         ILogger<MultiProviderSemanticRAGService> logger,
-        IMultiProviderAIService aiService,
-        DocN.Data.Services.IEmbeddingService embeddingService)
+        IMultiProviderAIService aiService)
     {
         _context = context;
         _logger = logger;
         _aiService = aiService;
-        _embeddingService = embeddingService;
     }
 
     public async Task<SemanticRAGResponse> GenerateResponseAsync(
