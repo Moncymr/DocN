@@ -197,11 +197,15 @@ builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
 builder.Services.AddScoped<IBatchProcessingService, BatchProcessingService>();
 builder.Services.AddScoped<ILogService, LogService>();
 
+// Register Multi-Provider AI Service (supports Gemini, OpenAI, Azure OpenAI from database config)
+builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
+
 // Register Audit Service for GDPR/SOC2 compliance
 builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Register Semantic RAG Service (new advanced RAG with Semantic Kernel)
-// Use NoOpSemanticRAGService if AI services are not configured in Kernel (e.g., when using Gemini from DB config)
+// Use MultiProviderSemanticRAGService when Kernel doesn't have AI services (e.g., Gemini from DB)
+// Use SemanticRAGService when Kernel has AI services (Azure OpenAI/OpenAI from appsettings)
 if (hasAIServicesConfigured)
 {
     builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
@@ -214,7 +218,8 @@ if (hasAIServicesConfigured)
 }
 else
 {
-    builder.Services.AddScoped<ISemanticRAGService, NoOpSemanticRAGService>();
+    // Use MultiProviderSemanticRAGService which supports Gemini/OpenAI/Azure from database config
+    builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
 }
 
 // Register Agent Configuration services
