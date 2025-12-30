@@ -189,7 +189,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // Must explicitly configure to prevent EF Core 10 from treating this as a primitive collection
             var referencedDocIdsConverter = new ValueConverter<List<int>, string>(
                 v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
-                v => string.IsNullOrEmpty(v) ? new List<int>() : (System.Text.Json.JsonSerializer.Deserialize<List<int>>(v) ?? new List<int>())
+                v => string.IsNullOrEmpty(v) ? new List<int>() : System.Text.Json.JsonSerializer.Deserialize<List<int>>(v) ?? new List<int>()
             );
             
             var referencedDocIdsComparer = new ValueComparer<List<int>>(
