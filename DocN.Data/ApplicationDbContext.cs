@@ -66,20 +66,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // AI Tags JSON field
             entity.Property(e => e.AITagsJson).HasColumnType("nvarchar(max)");
             
-            // Configure vector columns as varbinary (EF Core 10 compatible)
-            // Two separate fields for different dimensions
-            // Note: SQL Server 2025 VECTOR type not yet supported by EF Core
+            // Configure vector columns as nvarchar(max) with JSON serialization
+            // SQL Server 2025 VECTOR type expects JSON array format: [0.1, 0.2, 0.3, ...]
+            // Using nvarchar(max) with JSON serialization is compatible with VECTOR type
             
             // 768-dimensional vector for Gemini and similar providers
             entity.Property(e => e.EmbeddingVector768)
-                .HasColumnType("varbinary(max)")
-                .HasConversion(GetFloatArrayToByteArrayConverter())
+                .HasColumnType("nvarchar(max)")
+                .HasConversion(GetFloatArrayToJsonConverter())
                 .IsRequired(false);
             
             // 1536-dimensional vector for OpenAI and similar providers
             entity.Property(e => e.EmbeddingVector1536)
-                .HasColumnType("varbinary(max)")
-                .HasConversion(GetFloatArrayToByteArrayConverter())
+                .HasColumnType("nvarchar(max)")
+                .HasConversion(GetFloatArrayToJsonConverter())
                 .IsRequired(false);
             
             // Configure EmbeddingDimension to track which field is used
@@ -204,20 +204,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ChunkText).IsRequired();
             
-            // Configure vector columns for chunk embeddings as varbinary (EF Core 10 compatible)
-            // Two separate fields for different dimensions
-            // Note: SQL Server 2025 VECTOR type not yet supported by EF Core
+            // Configure vector columns for chunk embeddings as nvarchar(max) with JSON serialization
+            // SQL Server 2025 VECTOR type expects JSON array format: [0.1, 0.2, 0.3, ...]
+            // Using nvarchar(max) with JSON serialization is compatible with VECTOR type
             
             // 768-dimensional vector for Gemini and similar providers
             entity.Property(e => e.ChunkEmbedding768)
-                .HasColumnType("varbinary(max)")
-                .HasConversion(GetFloatArrayToByteArrayConverter())
+                .HasColumnType("nvarchar(max)")
+                .HasConversion(GetFloatArrayToJsonConverter())
                 .IsRequired(false);
             
             // 1536-dimensional vector for OpenAI and similar providers
             entity.Property(e => e.ChunkEmbedding1536)
-                .HasColumnType("varbinary(max)")
-                .HasConversion(GetFloatArrayToByteArrayConverter())
+                .HasColumnType("nvarchar(max)")
+                .HasConversion(GetFloatArrayToJsonConverter())
                 .IsRequired(false);
             
             // Configure EmbeddingDimension to track which field is used
@@ -354,26 +354,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         });
     }
     
-    // Helper methods for VECTOR type conversion
-    private static ValueConverter<float[]?, byte[]?> GetFloatArrayToByteArrayConverter()
+    // Helper methods for VECTOR type conversion using JSON serialization
+    // SQL Server VECTOR type expects JSON array format: [0.1, 0.2, 0.3, ...]
+    private static ValueConverter<float[]?, string?> GetFloatArrayToJsonConverter()
     {
-        return new ValueConverter<float[]?, byte[]?>(
-            v => v == null ? null : ConvertFloatArrayToBytes(v),
-            v => v == null ? null : ConvertBytesToFloatArray(v)
+        return new ValueConverter<float[]?, string?>(
+            v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v),
+            v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<float[]>(v) ?? Array.Empty<float>()
         );
-    }
-    
-    private static byte[] ConvertFloatArrayToBytes(float[] floats)
-    {
-        byte[] bytes = new byte[floats.Length * sizeof(float)];
-        Buffer.BlockCopy(floats, 0, bytes, 0, bytes.Length);
-        return bytes;
-    }
-    
-    private static float[] ConvertBytesToFloatArray(byte[] bytes)
-    {
-        float[] floats = new float[bytes.Length / sizeof(float)];
-        Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
-        return floats;
     }
 }
