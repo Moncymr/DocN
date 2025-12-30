@@ -1,9 +1,7 @@
 -- Migration: Update ReferencedDocumentIds column to allow NULL values
 -- This is needed after refactoring to use NotMapped pattern with backing field
 -- Date: 2025-12-30
-
-USE [GestDoc]
-GO
+-- NOTE: Make sure you're connected to the correct database before running this script
 
 -- Check if the column exists and if it's NOT NULL
 IF EXISTS (
