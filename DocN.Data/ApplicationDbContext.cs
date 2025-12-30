@@ -188,8 +188,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // La proprietà ReferencedDocumentIds usa [NotMapped] e gestisce la serializzazione/deserializzazione
             entity.Property(e => e.ReferencedDocumentIdsJson)
                 .HasColumnName("ReferencedDocumentIds")
-                .HasColumnType("nvarchar(max)");
-            
+                .HasColumnType("nvarchar(max)")
+                .IsRequired(false);            
             // Indici per performance
             entity.HasIndex(e => e.ConversationId);
             entity.HasIndex(e => e.Timestamp);

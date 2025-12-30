@@ -504,7 +504,6 @@ namespace DocN.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ReferencedDocumentIds")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Role")
