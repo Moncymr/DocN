@@ -340,22 +340,38 @@ public class MultiProviderAIService : IMultiProviderAIService
         var config = await GetActiveConfigurationAsync();
         if (config == null)
         {
-            throw new InvalidOperationException("Nessuna configurazione AI attiva trovata");
+            throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database o in appsettings.json. Configura un provider AI tramite l'interfaccia utente.");
         }
 
         // Determine which provider to use for chat (use ChatProvider if specified, otherwise ProviderType)
         var provider = config.ChatProvider ?? config.ProviderType;
+        
+        // Log the configuration being used
+        await _logService.LogInfoAsync("AI", $"Attempting chat with provider: {provider}");
+        
+        // Check if any API key is configured
+        bool hasGeminiKey = !string.IsNullOrEmpty(config.GeminiApiKey);
+        bool hasOpenAIKey = !string.IsNullOrEmpty(config.OpenAIApiKey);
+        bool hasAzureKey = !string.IsNullOrEmpty(config.AzureOpenAIKey) && !string.IsNullOrEmpty(config.AzureOpenAIEndpoint);
+        
+        if (!hasGeminiKey && !hasOpenAIKey && !hasAzureKey)
+        {
+            throw new InvalidOperationException("Nessun provider AI ha una chiave API valida configurata. Configura almeno un provider (Gemini, OpenAI, o Azure OpenAI) tramite l'interfaccia utente o appsettings.json.");
+        }
 
         // Try primary provider
         try
         {
-            return provider switch
+            string result = provider switch
             {
                 AIProviderType.Gemini => await GenerateChatWithGeminiAsync(systemPrompt, userPrompt, config),
                 AIProviderType.OpenAI => await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt, config),
                 AIProviderType.AzureOpenAI => await GenerateChatWithAzureOpenAIAsync(systemPrompt, userPrompt, config),
                 _ => throw new InvalidOperationException($"Provider non supportato: {provider}")
             };
+            
+            await _logService.LogInfoAsync("AI", $"Chat generation successful with {provider}");
+            return result;
         }
         catch (Exception ex)
         {
@@ -364,38 +380,70 @@ public class MultiProviderAIService : IMultiProviderAIService
             // If primary fails and fallback is enabled, try the alternative provider
             if (config.EnableFallback)
             {
-                try
+                var errors = new List<string> { $"{provider}: {ex.Message}" };
+                
+                // Try Gemini as fallback
+                if (provider != AIProviderType.Gemini && hasGeminiKey)
                 {
-                    // Try other providers as fallback
-                    if (provider != AIProviderType.Gemini && !string.IsNullOrEmpty(config.GeminiApiKey))
+                    try
                     {
                         await _logService.LogInfoAsync("AI", "Tentativo Gemini come fallback");
-                        return await GenerateChatWithGeminiAsync(systemPrompt, userPrompt, config);
+                        var result = await GenerateChatWithGeminiAsync(systemPrompt, userPrompt, config);
+                        await _logService.LogInfoAsync("AI", "Chat generation successful with Gemini (fallback)");
+                        return result;
                     }
-                    else if (provider != AIProviderType.OpenAI && !string.IsNullOrEmpty(config.OpenAIApiKey))
+                    catch (Exception ex2)
+                    {
+                        await _logService.LogWarningAsync("AI", "Fallback Gemini fallito", ex2.Message);
+                        errors.Add($"Gemini: {ex2.Message}");
+                    }
+                }
+                
+                // Try OpenAI as fallback
+                if (provider != AIProviderType.OpenAI && hasOpenAIKey)
+                {
+                    try
                     {
                         await _logService.LogInfoAsync("AI", "Tentativo OpenAI come fallback");
-                        return await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt, config);
+                        var result = await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt, config);
+                        await _logService.LogInfoAsync("AI", "Chat generation successful with OpenAI (fallback)");
+                        return result;
                     }
-                    else if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrEmpty(config.AzureOpenAIKey))
+                    catch (Exception ex3)
+                    {
+                        await _logService.LogWarningAsync("AI", "Fallback OpenAI fallito", ex3.Message);
+                        errors.Add($"OpenAI: {ex3.Message}");
+                    }
+                }
+                
+                // Try Azure OpenAI as fallback
+                if (provider != AIProviderType.AzureOpenAI && hasAzureKey)
+                {
+                    try
                     {
                         await _logService.LogInfoAsync("AI", "Tentativo AzureOpenAI come fallback");
-                        return await GenerateChatWithAzureOpenAIAsync(systemPrompt, userPrompt, config);
+                        var result = await GenerateChatWithAzureOpenAIAsync(systemPrompt, userPrompt, config);
+                        await _logService.LogInfoAsync("AI", "Chat generation successful with Azure OpenAI (fallback)");
+                        return result;
+                    }
+                    catch (Exception ex4)
+                    {
+                        await _logService.LogErrorAsync("AI", "Fallback AzureOpenAI fallito", ex4.Message, stackTrace: ex4.StackTrace);
+                        errors.Add($"AzureOpenAI: {ex4.Message}");
                     }
                 }
-                catch (Exception ex2)
-                {
-                    await _logService.LogErrorAsync("AI", "Provider di chat di fallback fallito", ex2.Message, stackTrace: ex2.StackTrace);
-                    return $"Errore: Tutti i provider AI sono falliti. Primario: {ex.Message}, Fallback: {ex2.Message}";
-                }
+                
+                // All attempts failed
+                var errorMessage = $"Tutti i provider AI sono falliti. Errori: {string.Join("; ", errors)}";
+                await _logService.LogErrorAsync("AI", "Tutti i fallback sono falliti", errorMessage);
+                throw new InvalidOperationException(errorMessage);
             }
             else
             {
-                return $"Errore: {ex.Message}";
+                // Fallback disabled, just throw the original error
+                throw new InvalidOperationException($"Provider {provider} fallito: {ex.Message}. Fallback disabilitato.");
             }
         }
-
-        throw new InvalidOperationException("Nessun provider di chat configurato.");
     }
 
     private async Task<string> GenerateChatWithGeminiAsync(string systemPrompt, string userPrompt, AIConfiguration config)
