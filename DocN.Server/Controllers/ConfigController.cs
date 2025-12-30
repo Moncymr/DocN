@@ -6,8 +6,12 @@ using Microsoft.Extensions.Logging;
 
 namespace DocN.Server.Controllers;
 
+/// <summary>
+/// Endpoints per la gestione delle configurazioni AI e test di connettività
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class ConfigController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -24,7 +28,17 @@ public class ConfigController : ControllerBase
         _httpClientFactory = httpClientFactory;
     }
 
+    /// <summary>
+    /// Testa la configurazione dei provider AI
+    /// </summary>
+    /// <returns>Risultati del test per ogni provider configurato</returns>
+    /// <response code="200">Test completato con successo</response>
+    /// <response code="404">Nessuna configurazione attiva trovata</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost("test")]
+    [ProducesResponseType(typeof(ConfigurationTestResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<ConfigurationTestResult>> TestConfiguration()
     {
         try

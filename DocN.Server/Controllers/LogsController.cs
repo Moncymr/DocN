@@ -4,8 +4,12 @@ using DocN.Data.Services;
 
 namespace DocN.Server.Controllers;
 
+/// <summary>
+/// Endpoints per la gestione dei log di sistema
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class LogsController : ControllerBase
 {
     private readonly ILogService _logService;
@@ -17,7 +21,19 @@ public class LogsController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Ottiene i log di sistema con filtri opzionali
+    /// </summary>
+    /// <param name="category">Categoria del log (opzionale)</param>
+    /// <param name="userId">ID utente (opzionale)</param>
+    /// <param name="fromDate">Data di inizio (opzionale)</param>
+    /// <param name="maxRecords">Numero massimo di record da restituire (default: 100)</param>
+    /// <returns>Lista dei log filtrati</returns>
+    /// <response code="200">Ritorna la lista dei log</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet]
+    [ProducesResponseType(typeof(List<LogEntry>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<List<LogEntry>>> GetLogs(
         [FromQuery] string? category = null,
         [FromQuery] string? userId = null,
@@ -36,7 +52,18 @@ public class LogsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Ottiene i log di upload dei file
+    /// </summary>
+    /// <param name="userId">ID utente (opzionale)</param>
+    /// <param name="fromDate">Data di inizio (opzionale)</param>
+    /// <param name="maxRecords">Numero massimo di record da restituire (default: 100)</param>
+    /// <returns>Lista dei log di upload</returns>
+    /// <response code="200">Ritorna la lista dei log di upload</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("upload")]
+    [ProducesResponseType(typeof(List<LogEntry>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<List<LogEntry>>> GetUploadLogs(
         [FromQuery] string? userId = null,
         [FromQuery] DateTime? fromDate = null,
@@ -54,7 +81,16 @@ public class LogsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Crea una nuova voce di log
+    /// </summary>
+    /// <param name="request">Dati del log da creare</param>
+    /// <returns>Conferma di creazione</returns>
+    /// <response code="200">Log creato con successo</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult> CreateLog([FromBody] CreateLogRequest request)
     {
         try
@@ -85,13 +121,43 @@ public class LogsController : ControllerBase
     }
 }
 
+/// <summary>
+/// Modello di richiesta per la creazione di un log
+/// </summary>
 public class CreateLogRequest
 {
+    /// <summary>
+    /// Livello del log (Info, Warning, Error, Debug)
+    /// </summary>
     public string Level { get; set; } = "Info";
+    
+    /// <summary>
+    /// Categoria del log
+    /// </summary>
     public string Category { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Messaggio del log
+    /// </summary>
     public string Message { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Dettagli aggiuntivi (opzionale)
+    /// </summary>
     public string? Details { get; set; }
+    
+    /// <summary>
+    /// ID dell'utente (opzionale)
+    /// </summary>
     public string? UserId { get; set; }
+    
+    /// <summary>
+    /// Nome del file (opzionale)
+    /// </summary>
     public string? FileName { get; set; }
+    
+    /// <summary>
+    /// Stack trace (opzionale, solo per errori)
+    /// </summary>
     public string? StackTrace { get; set; }
 }

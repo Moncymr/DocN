@@ -7,7 +7,7 @@ using DocN.Data.Services.Agents;
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// API endpoints for RAG chat functionality
+/// Endpoints per il sistema RAG (Retrieval-Augmented Generation) con chat multi-agent
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -29,12 +29,17 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Process a chat query using multi-agent RAG
+    /// Elabora una query di chat utilizzando RAG multi-agent
     /// </summary>
+    /// <param name="request">Richiesta di chat con messaggio e contesto</param>
+    /// <returns>Risposta dell'AI con documenti di riferimento</returns>
+    /// <response code="200">Risposta generata con successo</response>
+    /// <response code="400">Richiesta non valida</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost("query")]
-    [ProducesResponseType(typeof(ChatResponse), 200)]
-    [ProducesResponseType(400)]
-    [ProducesResponseType(500)]
+    [ProducesResponseType(typeof(ChatResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<ChatResponse>> Query([FromBody] ChatRequest request)
     {
         try
@@ -140,10 +145,17 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Get all conversations for a user
+    /// Ottiene tutte le conversazioni di un utente
     /// </summary>
+    /// <param name="userId">ID dell'utente</param>
+    /// <returns>Lista delle conversazioni dell'utente</returns>
+    /// <response code="200">Ritorna la lista delle conversazioni</response>
+    /// <response code="400">ID utente mancante</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("conversations")]
-    [ProducesResponseType(typeof(List<ConversationSummary>), 200)]
+    [ProducesResponseType(typeof(List<ConversationSummary>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<List<ConversationSummary>>> GetConversations([FromQuery] string userId)
     {
         try
@@ -177,11 +189,17 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Get messages for a specific conversation
+    /// Ottiene i messaggi di una conversazione specifica
     /// </summary>
+    /// <param name="id">ID della conversazione</param>
+    /// <returns>Lista dei messaggi nella conversazione</returns>
+    /// <response code="200">Ritorna i messaggi</response>
+    /// <response code="404">Conversazione non trovata</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpGet("conversations/{id}/messages")]
-    [ProducesResponseType(typeof(List<Message>), 200)]
-    [ProducesResponseType(404)]
+    [ProducesResponseType(typeof(List<Message>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<List<Message>>> GetMessages(int id)
     {
         try
@@ -209,11 +227,17 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Delete a conversation
+    /// Elimina una conversazione
     /// </summary>
+    /// <param name="id">ID della conversazione da eliminare</param>
+    /// <returns>Nessun contenuto se l'operazione ha successo</returns>
+    /// <response code="204">Conversazione eliminata con successo</response>
+    /// <response code="404">Conversazione non trovata</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpDelete("conversations/{id}")]
-    [ProducesResponseType(204)]
-    [ProducesResponseType(404)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteConversation(int id)
     {
         try
@@ -246,84 +270,141 @@ public class ChatController : ControllerBase
 }
 
 /// <summary>
-/// Request model for chat operations
+/// Modello di richiesta per operazioni di chat
 /// </summary>
 public class ChatRequest
 {
     /// <summary>
-    /// The user's message/query
+    /// Il messaggio/query dell'utente
     /// </summary>
     public string Message { get; set; } = string.Empty;
 
     /// <summary>
-    /// ID of the user sending the message
+    /// ID dell'utente che invia il messaggio
     /// </summary>
     public string? UserId { get; set; }
 
     /// <summary>
-    /// ID of the conversation (null for new conversation)
+    /// ID della conversazione (null per nuova conversazione)
     /// </summary>
     public int? ConversationId { get; set; }
 }
 
 /// <summary>
-/// Response model for chat operations
+/// Modello di risposta per operazioni di chat
 /// </summary>
 public class ChatResponse
 {
     /// <summary>
-    /// ID of the conversation
+    /// ID della conversazione
     /// </summary>
     public int? ConversationId { get; set; }
 
     /// <summary>
-    /// The AI-generated answer
+    /// La risposta generata dall'AI
     /// </summary>
     public string Answer { get; set; } = string.Empty;
 
     /// <summary>
-    /// Documents referenced in the answer
+    /// Documenti referenziati nella risposta
     /// </summary>
     public List<DocumentReference> ReferencedDocuments { get; set; } = new();
 
     /// <summary>
-    /// Metadata about the query processing
+    /// Metadati sull'elaborazione della query
     /// </summary>
     public ChatMetadata? Metadata { get; set; }
 }
 
 /// <summary>
-/// Reference to a document used in the answer
+/// Riferimento a un documento utilizzato nella risposta
 /// </summary>
 public class DocumentReference
 {
+    /// <summary>
+    /// ID del documento
+    /// </summary>
     public int Id { get; set; }
+    
+    /// <summary>
+    /// Nome del file
+    /// </summary>
     public string FileName { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Categoria del documento
+    /// </summary>
     public string? Category { get; set; }
 }
 
 /// <summary>
-/// Metadata about chat query processing
+/// Metadati sull'elaborazione della query di chat
 /// </summary>
 public class ChatMetadata
 {
+    /// <summary>
+    /// Tempo di retrieval in millisecondi
+    /// </summary>
     public double RetrievalTimeMs { get; set; }
+    
+    /// <summary>
+    /// Tempo di sintesi in millisecondi
+    /// </summary>
     public double SynthesisTimeMs { get; set; }
+    
+    /// <summary>
+    /// Tempo totale in millisecondi
+    /// </summary>
     public double TotalTimeMs { get; set; }
+    
+    /// <summary>
+    /// Strategia di retrieval utilizzata
+    /// </summary>
     public string RetrievalStrategy { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Numero di documenti recuperati
+    /// </summary>
     public int DocumentsRetrieved { get; set; }
+    
+    /// <summary>
+    /// Numero di chunk recuperati
+    /// </summary>
     public int ChunksRetrieved { get; set; }
 }
 
 /// <summary>
-/// Summary of a conversation
+/// Riepilogo di una conversazione
 /// </summary>
 public class ConversationSummary
 {
+    /// <summary>
+    /// ID della conversazione
+    /// </summary>
     public int Id { get; set; }
+    
+    /// <summary>
+    /// Titolo della conversazione
+    /// </summary>
     public string Title { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Data di creazione
+    /// </summary>
     public DateTime CreatedAt { get; set; }
+    
+    /// <summary>
+    /// Data ultimo messaggio
+    /// </summary>
     public DateTime LastMessageAt { get; set; }
+    
+    /// <summary>
+    /// Numero di messaggi
+    /// </summary>
     public int MessageCount { get; set; }
+    
+    /// <summary>
+    /// Indica se la conversazione è preferita
+    /// </summary>
     public bool IsStarred { get; set; }
 }
