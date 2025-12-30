@@ -13,6 +13,29 @@ Dopo aver completato questa guida, il tuo sistema DocN sarà in grado di:
 - ✅ Suggerire categorie intelligenti
 - ✅ Rispondere a domande sui documenti tramite chat RAG
 
+## 🔀 Due Metodi di Configurazione
+
+DocN supporta **due metodi** per configurare Gemini:
+
+### Metodo 1: Configurazione Database (Raccomandato) 🎯
+**Configura tramite interfaccia web** → Vai alla PARTE 1 per ottenere l'API Key, poi salta direttamente alla **PARTE 3** per l'avvio e configurazione tramite UI.
+
+✅ **Vantaggi**: 
+- Configurazione centralizzata nel database
+- Modificabile in tempo reale senza riavviare l'applicazione
+- Supporta configurazioni multiple e fallback automatico
+- Ideale per ambienti di produzione
+
+### Metodo 2: User Secrets / AppSettings
+**Configura tramite file di configurazione** → Segui tutte le parti in ordine (PARTE 1 → PARTE 2 → PARTE 3).
+
+✅ **Vantaggi**:
+- Setup più veloce per sviluppo locale
+- Non richiede database inizialmente configurato
+- Ottimo per testing e sviluppo
+
+**💡 Nota**: Se hai già configurato Gemini tramite l'interfaccia web (`/config`), hai completato il Metodo 1 e puoi saltare la PARTE 2!
+
 ---
 
 ## 📖 PARTE 1: Prerequisiti in Google AI Studio
@@ -229,24 +252,36 @@ Questi modelli sono disponibili gratuitamente (con limiti di rate) su Google AI 
 
 ### Passo 3.4: Configurare Gemini nell'Interfaccia Web
 
+**🎯 METODO 1 (Raccomandato): Configurazione Database**
+
+Se hai scelto il Metodo 1 (configurazione database), questa è la parte più importante!
+
 1. **Naviga alla pagina di configurazione AI**
-   - Nell'applicazione, vai su "Configurazione AI" o "AI Config"
-   - Oppure vai direttamente a: `https://localhost:7114/aiconfig`
+   - Nell'applicazione, vai su "Configurazione AI" o "AI Config" dal menu
+   - Oppure vai direttamente a: `https://localhost:7114/config`
 
-2. **Seleziona Gemini come provider**
-   - Nella sezione "Provider AI", seleziona "Gemini" dal menu a discesa
-   - Oppure configura quale provider usare per ogni servizio:
-     - **Chat**: Gemini
-     - **Embeddings**: Gemini
-     - **Tag Extraction**: Gemini
+2. **Inserisci l'API Key di Gemini nella sezione "Gemini Configuration"**
+   - Nel campo **Gemini API Key**, inserisci la tua API Key ottenuta da Google AI Studio
+   - Esempio: `AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX`
 
-3. **Configura i modelli (se necessario)**
-   - **Embedding Model**: `text-embedding-004` (default)
-   - **Generation Model**: `gemini-1.5-pro` (default)
-   - Questi sono già configurati correttamente per default
+3. **Seleziona Gemini come provider per tutti i servizi**
+   - Nella sezione "Assegnazione Provider per Servizio":
+     - **💬 Chat Provider**: Seleziona "Gemini"
+     - **🧠 Embeddings Provider**: Seleziona "Gemini"
+     - **🏷️ Tag Extraction Provider**: Seleziona "Gemini"
+     - **🔍 RAG Provider**: Seleziona "Gemini"
 
-4. **Salva la configurazione**
+4. **Verifica i modelli predefiniti (opzionale)**
+   - **Gemini Chat Model**: `gemini-1.5-flash` o `gemini-1.5-pro` (default)
+   - **Gemini Embedding Model**: `text-embedding-004` (default)
+   - Questi modelli sono già configurati correttamente
+
+5. **Salva la configurazione**
    - Clicca su "Salva" o "Save Configuration"
+   - La configurazione viene salvata nel database e sarà attiva immediatamente
+   - ✅ **Non è necessario riavviare l'applicazione!**
+
+**💡 Nota importante**: Se hai già completato questi passaggi, la tua configurazione è pronta! Procedi alla PARTE 4 per verificare che tutto funzioni.
 
 ---
 
@@ -420,14 +455,78 @@ dotnet user-secrets list
 # Verifica che SQL Server sia in esecuzione
 ```
 
-### Problema 5: "Cannot connect to Backend API"
+### Problema 5: "Cannot connect to Backend API" ⚠️
 
-**Causa**: Il backend (porta 5211) non è in esecuzione
+**Causa**: Il backend (DocN.Server sulla porta 5211) non è in esecuzione
+
+**Sintomi**:
+- Errore: "Unable to connect to the backend service"
+- Errore: "Please ensure the DocN.Server is running on https://localhost:5211"
+- Le funzionalità RAG, chat e ricerca semantica non funzionano
 
 **Soluzione**:
-1. Assicurati che il backend sia avviato PRIMA del frontend
-2. Verifica che il backend sia in ascolto su porta 5211
-3. Controlla i log del backend per errori
+
+1. **Verifica che il backend sia in esecuzione**
+   ```bash
+   # Controlla se c'è un processo in ascolto sulla porta 5211
+   # Windows PowerShell:
+   netstat -ano | findstr :5211
+   
+   # Linux/Mac:
+   lsof -i :5211
+   ```
+
+2. **Avvia il backend se non è in esecuzione**
+   ```bash
+   cd DocN.Server
+   dotnet run
+   ```
+   
+   Dovresti vedere:
+   ```
+   info: Microsoft.Hosting.Lifetime[14]
+         Now listening on: https://localhost:5211
+   ```
+
+3. **Assicurati di avviare PRIMA il backend, POI il frontend**
+   - Terminal 1: `cd DocN.Server && dotnet run` ✅
+   - Terminal 2: `cd DocN.Client && dotnet run` ✅
+
+4. **Verifica la connection string del database**
+   - Il backend richiede una connessione al database per avviarsi
+   - Controlla `appsettings.Development.json` o i user secrets
+
+5. **Controlla i log del backend per errori**
+   - Errori di migrazione database
+   - Errori di connessione SQL Server
+   - Errori di configurazione
+
+**💡 Suggerimento**: Usa gli script automatici per avviare entrambi i server:
+```bash
+# Linux/Mac
+./start-dev.sh
+
+# Windows PowerShell
+.\start-dev.ps1
+```
+
+### Problema 6: La configurazione database non viene applicata
+
+**Causa**: L'applicazione sta usando la configurazione da user secrets invece che dal database
+
+**Soluzione**:
+1. Verifica che la configurazione sia salvata nel database:
+   ```sql
+   SELECT * FROM AIConfigurations WHERE IsActive = 1;
+   ```
+
+2. Riavvia l'applicazione per invalidare la cache
+
+3. Verifica nei log che stia usando la configurazione database:
+   ```
+   info: DocN.Data.Services.MultiProviderAIService[0]
+         Using database configuration: [nome configurazione]
+   ```
 
 ---
 
