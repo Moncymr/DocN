@@ -53,13 +53,14 @@ public class DocArcContext : DbContext
             // Ignore the legacy calculated property - use dual vector fields instead
             entity.Ignore(e => e.EmbeddingVector);
             
-            // Configure dual VECTOR fields
+            // Configure dual vector fields - using varbinary(max) for EF Core 10 compatibility
+            // EF Core 10 doesn't support SQL Server 2025's native VECTOR type yet
             entity.Property(e => e.EmbeddingVector768)
-                .HasColumnType("VECTOR(768)")
+                .HasColumnType("varbinary(max)")
                 .IsRequired(false);
             
             entity.Property(e => e.EmbeddingVector1536)
-                .HasColumnType("VECTOR(1536)")
+                .HasColumnType("varbinary(max)")
                 .IsRequired(false);
             
             // Metadata
@@ -84,13 +85,14 @@ public class DocArcContext : DbContext
             // Ignore the legacy calculated property - use dual vector fields instead
             entity.Ignore(e => e.ChunkEmbedding);
             
-            // Configure dual VECTOR fields for chunk embeddings
+            // Configure dual vector fields for chunk embeddings - using varbinary(max) for EF Core 10 compatibility
+            // EF Core 10 doesn't support SQL Server 2025's native VECTOR type yet
             entity.Property(e => e.ChunkEmbedding768)
-                .HasColumnType("VECTOR(768)")
+                .HasColumnType("varbinary(max)")
                 .IsRequired(false);
             
             entity.Property(e => e.ChunkEmbedding1536)
-                .HasColumnType("VECTOR(1536)")
+                .HasColumnType("varbinary(max)")
                 .IsRequired(false);
             
             entity.Property(e => e.TokenCount).IsRequired(false);
