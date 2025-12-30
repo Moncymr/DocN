@@ -306,6 +306,9 @@ builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
 builder.Services.AddScoped<IBatchProcessingService, BatchProcessingService>();
 builder.Services.AddScoped<ILogService, LogService>();
 
+// Register Distributed Cache Service (works with both Redis and in-memory cache)
+builder.Services.AddSingleton<IDistributedCacheService, DistributedCacheService>();
+
 // Register Multi-Provider AI Service (supports Gemini, OpenAI, Azure OpenAI from database config)
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 
