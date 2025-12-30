@@ -149,9 +149,6 @@ var azureOpenAIKey = builder.Configuration["AzureOpenAI:ApiKey"];
 var azureOpenAIChatDeployment = builder.Configuration["AzureOpenAI:ChatDeployment"] ?? "gpt-4";
 var azureOpenAIEmbeddingDeployment = builder.Configuration["AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-ada-002";
 
-// Track whether AI services are configured
-bool hasAIServicesConfigured = false;
-
 if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpenAIKey))
 {
     // Add Azure OpenAI Chat Completion
@@ -165,8 +162,6 @@ if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpe
         deploymentName: azureOpenAIEmbeddingDeployment,
         endpoint: azureOpenAIEndpoint,
         apiKey: azureOpenAIKey);
-    
-    hasAIServicesConfigured = true;
 }
 else
 {
@@ -181,8 +176,6 @@ else
         kernelBuilder.AddOpenAITextEmbeddingGeneration(
             modelId: "text-embedding-ada-002",
             apiKey: openAIKey);
-        
-        hasAIServicesConfigured = true;
     }
 }
 
@@ -203,24 +196,16 @@ builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 // Register Audit Service for GDPR/SOC2 compliance
 builder.Services.AddScoped<IAuditService, AuditService>();
 
-// Register Semantic RAG Service (new advanced RAG with Semantic Kernel)
-// Use MultiProviderSemanticRAGService when Kernel doesn't have AI services (e.g., Gemini from DB)
-// Use SemanticRAGService when Kernel has AI services (Azure OpenAI/OpenAI from appsettings)
-if (hasAIServicesConfigured)
-{
-    builder.Services.AddScoped<ISemanticRAGService, SemanticRAGService>();
-    
-    // Register agents only when AI services are available
-    builder.Services.AddScoped<IRetrievalAgent, RetrievalAgent>();
-    builder.Services.AddScoped<ISynthesisAgent, SynthesisAgent>();
-    builder.Services.AddScoped<IClassificationAgent, ClassificationAgent>();
-    builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
-}
-else
-{
-    // Use MultiProviderSemanticRAGService which supports Gemini/OpenAI/Azure from database config
-    builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
-}
+// Register Semantic RAG Service
+// Always use MultiProviderSemanticRAGService which supports both appsettings and database config
+// It will try configured providers with fallback mechanism (similar to embedding service)
+builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
+
+// Register agents (used by both implementations if needed)
+builder.Services.AddScoped<IRetrievalAgent, RetrievalAgent>();
+builder.Services.AddScoped<ISynthesisAgent, SynthesisAgent>();
+builder.Services.AddScoped<IClassificationAgent, ClassificationAgent>();
+builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 
 // Register Agent Configuration services
 builder.Services.AddScoped<IAgentConfigurationService, AgentConfigurationService>();

@@ -44,27 +44,53 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
             // Step 1: Search for relevant documents
             var relevantDocs = await SearchDocumentsAsync(query, userId, topK, 0.7);
 
-            if (!relevantDocs.Any())
-            {
-                _logger.LogWarning("No relevant documents found for query: {Query}", query);
-                return new SemanticRAGResponse
-                {
-                    Answer = "I couldn't find any relevant documents to answer your question. Please try rephrasing or upload more documents.",
-                    SourceDocuments = new List<RelevantDocumentResult>(),
-                    ResponseTimeMs = stopwatch.ElapsedMilliseconds
-                };
-            }
-
             // Step 2: Load conversation history
             var conversationHistory = await LoadConversationHistoryAsync(conversationId);
 
-            // Step 3: Build context from relevant documents
-            var documentContext = BuildDocumentContext(relevantDocs);
+            // Step 3: Generate response
+            string answer;
+            string documentContext;
 
-            // Step 4: Generate response using MultiProviderAIService
-            var systemPrompt = CreateSystemPrompt();
-            var userPrompt = BuildUserPrompt(query, documentContext, conversationHistory);
-            var answer = await _aiService.GenerateChatCompletionAsync(systemPrompt, userPrompt);
+            if (!relevantDocs.Any())
+            {
+                _logger.LogWarning("No relevant documents found for query: {Query}. Generating response without document context.", query);
+                
+                // Generate response without document context
+                var systemPrompt = @"You are an intelligent assistant. 
+Answer the user's question to the best of your knowledge.
+If you don't have specific information, provide a helpful general response.
+Be concise, professional, and helpful.";
+                
+                var userPrompt = query;
+                
+                // Include conversation history if available
+                if (conversationHistory.Any())
+                {
+                    var historyBuilder = new StringBuilder();
+                    historyBuilder.AppendLine("=== CONVERSATION HISTORY ===");
+                    foreach (var msg in conversationHistory)
+                    {
+                        historyBuilder.AppendLine($"{msg.Role.ToUpper()}: {msg.Content}");
+                    }
+                    historyBuilder.AppendLine();
+                    historyBuilder.AppendLine("=== CURRENT QUESTION ===");
+                    historyBuilder.AppendLine(query);
+                    userPrompt = historyBuilder.ToString();
+                }
+                
+                answer = await _aiService.GenerateChatCompletionAsync(systemPrompt, userPrompt);
+                documentContext = "No relevant documents found";
+            }
+            else
+            {
+                // Build context from relevant documents
+                documentContext = BuildDocumentContext(relevantDocs);
+                
+                // Step 4: Generate response using MultiProviderAIService with document context
+                var systemPrompt = CreateSystemPrompt();
+                var userPrompt = BuildUserPrompt(query, documentContext, conversationHistory);
+                answer = await _aiService.GenerateChatCompletionAsync(systemPrompt, userPrompt);
+            }
 
             // Step 5: Save conversation
             var savedConversationId = await SaveConversationAsync(
@@ -130,17 +156,25 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
     {
         try
         {
-            _logger.LogDebug("Searching documents for: {Query}", query);
+            _logger.LogInformation("Searching documents for query: '{Query}', User: {UserId}, TopK: {TopK}, MinSimilarity: {MinSimilarity}", 
+                query, userId, topK, minSimilarity);
 
-            // Generate query embedding using MultiProviderAIService
+            // Generate query embedding using MultiProviderAIService (with automatic fallback)
             var queryEmbedding = await _aiService.GenerateEmbeddingAsync(query);
             if (queryEmbedding == null)
             {
-                _logger.LogWarning("Failed to generate query embedding");
+                _logger.LogError("Failed to generate query embedding - all providers failed or returned null");
                 return new List<RelevantDocumentResult>();
             }
 
-            return await SearchDocumentsWithEmbeddingAsync(queryEmbedding, userId, topK, minSimilarity);
+            _logger.LogInformation("Successfully generated query embedding with {Dimensions} dimensions using provider: {Provider}", 
+                queryEmbedding.Length, _aiService.GetCurrentEmbeddingProvider());
+
+            var results = await SearchDocumentsWithEmbeddingAsync(queryEmbedding, userId, topK, minSimilarity);
+            
+            _logger.LogInformation("Document search completed: Found {Count} relevant documents", results.Count);
+            
+            return results;
         }
         catch (Exception ex)
         {
@@ -157,7 +191,8 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
     {
         try
         {
-            _logger.LogDebug("Searching documents with embedding for user: {UserId}", userId);
+            _logger.LogInformation("Searching documents with embedding for user: {UserId}, Embedding dimensions: {Dimensions}", 
+                userId, queryEmbedding?.Length ?? 0);
 
             if (queryEmbedding == null || queryEmbedding.Length == 0)
             {
@@ -172,6 +207,12 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
 
             _logger.LogInformation("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
 
+            if (!documents.Any())
+            {
+                _logger.LogWarning("No documents with embeddings found for user {UserId}. User needs to upload documents or wait for embeddings to be generated.", userId);
+                return new List<RelevantDocumentResult>();
+            }
+
             // Calculate similarity scores for documents
             var scoredDocs = new List<(Document doc, double score)>();
             foreach (var doc in documents)
@@ -185,11 +226,15 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
                 }
             }
 
+            _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
+
             // Get chunks for better precision
             var chunks = await _context.DocumentChunks
                 .Include(c => c.Document)
                 .Where(c => c.Document!.OwnerId == userId && c.ChunkEmbedding != null)
                 .ToListAsync();
+
+            _logger.LogInformation("Found {Count} chunks with embeddings for user {UserId}", chunks.Count, userId);
 
             var scoredChunks = new List<(DocumentChunk chunk, double score)>();
             foreach (var chunk in chunks)
@@ -202,6 +247,8 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
                     scoredChunks.Add((chunk, similarity));
                 }
             }
+
+            _logger.LogInformation("Found {Count} chunks above similarity threshold {Threshold:P0}", scoredChunks.Count, minSimilarity);
 
             // Combine document-level and chunk-level results
             var results = new List<RelevantDocumentResult>();
@@ -249,7 +296,13 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
                 }
             }
 
-            _logger.LogDebug("Returning {Count} total results", results.Count);
+            _logger.LogInformation("Returning {Count} total results (threshold: {Threshold:P0})", results.Count, minSimilarity);
+            
+            if (!results.Any())
+            {
+                _logger.LogWarning("No documents matched the similarity threshold of {Threshold:P0}. Consider lowering the threshold or checking if document embeddings are compatible with query embeddings.", minSimilarity);
+            }
+            
             return results;
         }
         catch (Exception ex)
