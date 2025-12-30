@@ -204,9 +204,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             
             property.Metadata.SetValueComparer(referencedDocIdsComparer);
             
-            // Explicitly tell EF Core this is NOT a primitive collection
-            property.Metadata.SetElementType(null);
-            
             // Indici per performance
             entity.HasIndex(e => e.ConversationId);
             entity.HasIndex(e => e.Timestamp);
