@@ -111,6 +111,9 @@ DocN/
    ```
 
 3. **Configurazione AI Providers**
+   
+   **📘 Per una guida completa passo-passo in italiano, consulta: [GUIDA_CONFIGURAZIONE_GEMINI.md](GUIDA_CONFIGURAZIONE_GEMINI.md)**
+   
    ```bash
    cd DocN.Server
    dotnet user-secrets init
@@ -172,6 +175,10 @@ Vedi [TESSERACT_SETUP.md](TESSERACT_SETUP.md) per dettagli.
 
 ## 📚 Documentazione
 
+### Guide Rapide
+- [**GUIDA_CONFIGURAZIONE_GEMINI.md**](GUIDA_CONFIGURAZIONE_GEMINI.md) - 🇮🇹 Guida completa configurazione Gemini (italiano)
+
+### Documentazione Avanzata
 - [**ENTERPRISE_RAG_ROADMAP.md**](ENTERPRISE_RAG_ROADMAP.md) - Roadmap funzionalità enterprise
 - [**SECURITY_BEST_PRACTICES.md**](SECURITY_BEST_PRACTICES.md) - Best practices sicurezza
 - [**DEPLOYMENT_GUIDE.md**](DEPLOYMENT_GUIDE.md) - Guida deployment produzione
