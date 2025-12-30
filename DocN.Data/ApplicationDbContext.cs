@@ -66,17 +66,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // AI Tags JSON field
             entity.Property(e => e.AITagsJson).HasColumnType("nvarchar(max)");
             
-            // Configure vector columns for SQL Server 2025 native VECTOR type
+            // Configure vector columns as varbinary (EF Core 10 compatible)
             // Two separate fields for different dimensions
+            // Note: SQL Server 2025 VECTOR type not yet supported by EF Core
             
             // 768-dimensional vector for Gemini and similar providers
             entity.Property(e => e.EmbeddingVector768)
-                .HasColumnType("VECTOR(768)")
+                .HasColumnType("varbinary(max)")
                 .IsRequired(false);
             
             // 1536-dimensional vector for OpenAI and similar providers
             entity.Property(e => e.EmbeddingVector1536)
-                .HasColumnType("VECTOR(1536)")
+                .HasColumnType("varbinary(max)")
                 .IsRequired(false);
             
             // Configure EmbeddingDimension to track which field is used
@@ -201,17 +202,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ChunkText).IsRequired();
             
-            // Configure vector columns for chunk embeddings
+            // Configure vector columns for chunk embeddings as varbinary (EF Core 10 compatible)
             // Two separate fields for different dimensions
+            // Note: SQL Server 2025 VECTOR type not yet supported by EF Core
             
             // 768-dimensional vector for Gemini and similar providers
             entity.Property(e => e.ChunkEmbedding768)
-                .HasColumnType("VECTOR(768)")
+                .HasColumnType("varbinary(max)")
                 .IsRequired(false);
             
             // 1536-dimensional vector for OpenAI and similar providers
             entity.Property(e => e.ChunkEmbedding1536)
-                .HasColumnType("VECTOR(1536)")
+                .HasColumnType("varbinary(max)")
                 .IsRequired(false);
             
             // Configure EmbeddingDimension to track which field is used
