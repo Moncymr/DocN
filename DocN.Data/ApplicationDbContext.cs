@@ -29,6 +29,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AgentConfiguration> AgentConfigurations { get; set; }
     public DbSet<AgentTemplate> AgentTemplates { get; set; }
     public DbSet<AgentUsageLog> AgentUsageLogs { get; set; }
+    
+    // Audit logs for GDPR/SOC2 compliance
+    public DbSet<AuditLog> AuditLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -351,6 +354,42 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => e.TenantId);
             entity.HasIndex(e => e.CreatedAt);
             entity.HasIndex(e => new { e.AgentConfigurationId, e.CreatedAt });
+        });
+
+        // AuditLog configuration
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Action).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.ResourceType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ResourceId).HasMaxLength(100);
+            entity.Property(e => e.Username).HasMaxLength(256);
+            entity.Property(e => e.IpAddress).HasMaxLength(45);
+            entity.Property(e => e.UserAgent).HasMaxLength(500);
+            entity.Property(e => e.Severity).HasMaxLength(20);
+            entity.Property(e => e.ErrorMessage).HasMaxLength(1000);
+            entity.Property(e => e.Details).HasColumnType("nvarchar(max)");
+            
+            // Relationships
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasOne(e => e.Tenant)
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            // Indexes for querying and compliance reporting
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.Action);
+            entity.HasIndex(e => e.ResourceType);
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => new { e.UserId, e.Timestamp });
+            entity.HasIndex(e => new { e.Action, e.Timestamp });
+            entity.HasIndex(e => new { e.ResourceType, e.ResourceId });
         });
     }
     
