@@ -166,6 +166,7 @@ The OCR implementation includes robust error handling:
 2. **Cleanup**: Temporary files are automatically deleted after processing
 3. **Path Traversal Protection**: All file paths are validated and sanitized
 4. **Resource Limits**: OCR processing is bounded by request timeout
+5. **Image Processing Security**: Uses SixLabors.ImageSharp 3.1.12+ which includes fixes for known vulnerabilities (CVE-2025-54575)
 
 ## Future Enhancements
 
