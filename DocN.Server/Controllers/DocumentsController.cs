@@ -7,8 +7,32 @@ using DocN.Data.Services;
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// Endpoints per la gestione dei documenti
+/// Controller REST API per gestione completa documenti (CRUD, ricerca, elaborazione)
+/// Espone endpoint per client frontend e integrazioni esterne
 /// </summary>
+/// <remarks>
+/// Scopo: Fornire API RESTful per tutte le operazioni sui documenti
+/// 
+/// Operazioni supportate:
+/// - GET /documents: Lista tutti documenti
+/// - GET /documents/{id}: Dettagli documento specifico
+/// - POST /documents: Crea nuovo documento
+/// - PUT /documents/{id}: Aggiorna documento esistente
+/// - DELETE /documents/{id}: Elimina documento
+/// - GET /documents/search: Ricerca ibrida (vettoriale + full-text)
+/// - POST /documents/{id}/process: Elabora documento (chunking + embeddings)
+/// 
+/// Dipendenze:
+/// - DocArcContext: Accesso database documenti
+/// - IChunkingService: Suddivisione documenti in chunk
+/// - IBatchProcessingService: Elaborazione batch multipli documenti
+/// - IEmbeddingService: Generazione embeddings vettoriali
+/// 
+/// Note:
+/// - Tutti gli endpoint includono logging errori per diagnostica
+/// - Response codes standard REST (200, 404, 500)
+/// - Supporto paginazione per liste grandi (implementabile)
+/// </remarks>
 [ApiController]
 [Route("[controller]")]
 public class DocumentsController : ControllerBase
@@ -34,11 +58,37 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
-    /// Ottiene tutti i documenti
+    /// Ottiene lista completa di tutti i documenti ordinati per data upload (più recenti primi)
     /// </summary>
-    /// <returns>Lista di tutti i documenti nel sistema</returns>
-    /// <response code="200">Ritorna la lista dei documenti</response>
-    /// <response code="500">Errore interno del server</response>
+    /// <returns>Lista documenti con tutti i metadati</returns>
+    /// <response code="200">Ritorna la lista dei documenti (può essere vuota)</response>
+    /// <response code="500">Errore interno del server durante recupero</response>
+    /// <remarks>
+    /// Scopo: Fornire lista completa documenti per visualizzazione in UI o export
+    /// 
+    /// Comportamento:
+    /// - Recupera TUTTI i documenti (anche senza embeddings generati)
+    /// - Ordinamento decrescente per data upload
+    /// - Include metadati: nome file, categoria, tag, dimensione, owner, etc.
+    /// 
+    /// Output atteso:
+    /// - Array JSON di oggetti Document
+    /// - Ordinati da più recente a più vecchio
+    /// - Lista vuota [] se nessun documento presente
+    /// 
+    /// FIX IMPORTANTE:
+    /// - Versione corrente ritorna TUTTI i documenti indipendentemente da presenza embeddings
+    /// - Fix precedente: documenti senza vettori non venivano mostrati
+    /// 
+    /// Performance:
+    /// - Query ottimizzata con indice su UploadedAt
+    /// - Per grandi dataset (>10k documenti), considerare paginazione
+    /// 
+    /// TODO (futuro):
+    /// - Aggiungere paginazione (page, pageSize)
+    /// - Aggiungere filtri (categoria, owner, dateRange)
+    /// - Aggiungere sorting configurabile
+    /// </remarks>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<Document>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -63,13 +113,34 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
-    /// Ottiene un documento specifico per ID
+    /// Ottiene un singolo documento per ID con tutti i suoi metadati
     /// </summary>
-    /// <param name="id">ID del documento</param>
-    /// <returns>Il documento richiesto</returns>
-    /// <response code="200">Ritorna il documento</response>
-    /// <response code="404">Documento non trovato</response>
+    /// <param name="id">ID univoco del documento (chiave primaria)</param>
+    /// <returns>Oggetto Document completo o 404 se non trovato</returns>
+    /// <response code="200">Ritorna il documento richiesto</response>
+    /// <response code="404">Documento con ID specificato non esiste</response>
     /// <response code="500">Errore interno del server</response>
+    /// <remarks>
+    /// Scopo: Recuperare dettagli completi di un documento specifico
+    /// 
+    /// Utilizzo tipico:
+    /// - Visualizzazione dettagli documento in UI
+    /// - Download documento
+    /// - Modifica metadati (pre-popolamento form)
+    /// 
+    /// Output atteso:
+    /// - Oggetto Document JSON con tutti i campi
+    /// - Include: nome, path, categoria, tag, embeddings, owner, date, etc.
+    /// - 404 se ID non esiste nel database
+    /// 
+    /// Performance:
+    /// - Query ottimizzata con ricerca per chiave primaria (molto veloce)
+    /// - Tipicamente <10ms
+    /// 
+    /// Sicurezza:
+    /// - TODO: Aggiungere controllo autorizzazione (solo owner o admin possono accedere)
+    /// - TODO: Verificare visibilità documento (private/shared/public)
+    /// </remarks>
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(Document), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

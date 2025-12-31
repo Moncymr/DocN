@@ -1,3 +1,37 @@
+@*
+    Upload.razor - Componente Blazor per upload e elaborazione documenti
+    
+    Scopo:
+    Interfaccia utente completa per caricamento documenti con:
+    - Selezione file (click o drag-drop)
+    - Validazione formato e dimensione
+    - Analisi automatica contenuto (estrazione testo, OCR)
+    - Generazione embeddings per ricerca semantica
+    - Estrazione metadati AI (categoria, tag)
+    - Gestione errori e feedback utente
+    
+    Flusso operativo:
+    1. Utente seleziona file
+    2. Click "Analizza Documento" → Estrazione testo + OCR se immagine
+    3. AI suggerisce categoria e tag automaticamente
+    4. Utente può modificare metadati suggeriti
+    5. Click "Upload" → Salvataggio database + chunking + embeddings
+    6. Redirect a pagina Documents
+    
+    Formati supportati:
+    - Documenti: PDF, DOCX, XLSX, TXT
+    - Immagini: PNG, JPG, JPEG, TIFF, BMP (con OCR)
+    - Max size: 50 MB
+    
+    Dipendenze iniettate:
+    - IDocumentService: Salvataggio documenti
+    - IMultiProviderAIService: AI per metadati
+    - IFileProcessingService: Estrazione testo
+    - ISemanticRAGService: Embeddings
+    - ILogService: Logging operazioni
+    
+    Versione: 2.0 - Enhanced form with always-visible fields
+*@
 @page "/upload"
 @using Microsoft.AspNetCore.Components.Forms
 @using System.IO
