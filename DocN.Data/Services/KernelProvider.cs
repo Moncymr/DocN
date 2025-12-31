@@ -20,12 +20,13 @@ public interface IKernelProvider
 /// <summary>
 /// Implementation of IKernelProvider that lazily creates Kernel from database configuration.
 /// </summary>
-public class KernelProvider : IKernelProvider
+public class KernelProvider : IKernelProvider, IDisposable
 {
     private readonly ISemanticKernelFactory _factory;
     private readonly ILogger<KernelProvider> _logger;
     private Task<Kernel>? _kernelTask;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private bool _disposed;
 
     public KernelProvider(
         ISemanticKernelFactory factory,
@@ -37,6 +38,11 @@ public class KernelProvider : IKernelProvider
 
     public async Task<Kernel> GetKernelAsync()
     {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(KernelProvider));
+        }
+
         if (_kernelTask != null)
         {
             try
@@ -86,5 +92,16 @@ public class KernelProvider : IKernelProvider
         {
             _semaphore.Release();
         }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _semaphore.Dispose();
+        _disposed = true;
     }
 }

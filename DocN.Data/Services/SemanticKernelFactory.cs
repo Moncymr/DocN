@@ -25,7 +25,7 @@ public interface ISemanticKernelFactory
 /// <summary>
 /// Implementation of ISemanticKernelFactory that creates Kernel from database configuration.
 /// </summary>
-public class SemanticKernelFactory : ISemanticKernelFactory
+public class SemanticKernelFactory : ISemanticKernelFactory, IDisposable
 {
     // Default model names as constants for consistency
     private const string DefaultAzureOpenAIChatModel = "gpt-4";
@@ -39,6 +39,7 @@ public class SemanticKernelFactory : ISemanticKernelFactory
     private Kernel? _cachedKernel;
     private DateTime _lastKernelCreation = DateTime.MinValue;
     private readonly TimeSpan _kernelCacheDuration = TimeSpan.FromMinutes(5);
+    private bool _disposed;
 
     public SemanticKernelFactory(
         IMultiProviderAIService aiService,
@@ -50,6 +51,11 @@ public class SemanticKernelFactory : ISemanticKernelFactory
 
     public async Task<Kernel> CreateKernelAsync()
     {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(SemanticKernelFactory));
+        }
+
         await _semaphore.WaitAsync();
         try
         {
@@ -183,5 +189,16 @@ public class SemanticKernelFactory : ISemanticKernelFactory
         {
             _semaphore.Release();
         }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _semaphore.Dispose();
+        _disposed = true;
     }
 }
