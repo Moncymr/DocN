@@ -5,20 +5,103 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DocN.Data.Services;
 
+/// <summary>
+/// Interfaccia per il servizio di gestione documenti.
+/// Fornisce operazioni CRUD, condivisione, controllo accessi e gestione visibilità.
+/// </summary>
 public interface IDocumentService
 {
+    /// <summary>
+    /// Recupera un documento specifico se l'utente ha i permessi di accesso.
+    /// </summary>
+    /// <param name="documentId">ID del documento da recuperare</param>
+    /// <param name="userId">ID dell'utente richiedente</param>
+    /// <returns>Il documento se trovato e accessibile, altrimenti null</returns>
     Task<Document?> GetDocumentAsync(int documentId, string userId);
+    
+    /// <summary>
+    /// Verifica se un utente ha i permessi per accedere a un documento.
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <param name="userId">ID dell'utente</param>
+    /// <returns>True se l'utente può accedere al documento, altrimenti false</returns>
     Task<bool> CanUserAccessDocument(int documentId, string userId);
+    
+    /// <summary>
+    /// Ottiene lista paginata di documenti accessibili all'utente.
+    /// </summary>
+    /// <param name="userId">ID dell'utente</param>
+    /// <param name="page">Numero pagina (inizia da 1)</param>
+    /// <param name="pageSize">Numero di documenti per pagina</param>
+    /// <returns>Lista documenti accessibili all'utente</returns>
     Task<List<Document>> GetUserDocumentsAsync(string userId, int page = 1, int pageSize = 20);
+    
+    /// <summary>
+    /// Conta il numero totale di documenti accessibili all'utente.
+    /// </summary>
+    /// <param name="userId">ID dell'utente</param>
+    /// <returns>Numero totale di documenti accessibili</returns>
     Task<int> GetTotalDocumentCountAsync(string userId);
+    
+    /// <summary>
+    /// Scarica il file di un documento se l'utente ha i permessi.
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <param name="userId">ID dell'utente</param>
+    /// <returns>Array di byte del file se accessibile, altrimenti null</returns>
     Task<byte[]?> DownloadDocumentAsync(int documentId, string userId);
+    
+    /// <summary>
+    /// Condivide un documento con un altro utente.
+    /// </summary>
+    /// <param name="documentId">ID del documento da condividere</param>
+    /// <param name="shareWithUserId">ID dell'utente con cui condividere</param>
+    /// <param name="permission">Livello di permesso da assegnare</param>
+    /// <param name="currentUserId">ID dell'utente proprietario che condivide</param>
+    /// <returns>True se condivisione riuscita, altrimenti false</returns>
     Task<bool> ShareDocumentAsync(int documentId, string shareWithUserId, DocumentPermission permission, string currentUserId);
+    
+    /// <summary>
+    /// Aggiorna il livello di visibilità di un documento.
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <param name="visibility">Nuovo livello di visibilità</param>
+    /// <param name="userId">ID dell'utente proprietario</param>
+    /// <returns>True se aggiornamento riuscito, altrimenti false</returns>
     Task<bool> UpdateDocumentVisibilityAsync(int documentId, DocumentVisibility visibility, string userId);
+    
+    /// <summary>
+    /// Crea un nuovo documento nel database con validazione embedding.
+    /// </summary>
+    /// <param name="document">Documento da creare</param>
+    /// <returns>Documento creato con ID assegnato</returns>
     Task<Document> CreateDocumentAsync(Document document);
+    
+    /// <summary>
+    /// Aggiorna un documento esistente se l'utente è il proprietario.
+    /// </summary>
+    /// <param name="document">Documento con dati aggiornati</param>
+    /// <param name="userId">ID dell'utente richiedente</param>
+    /// <returns>Documento aggiornato</returns>
     Task<Document> UpdateDocumentAsync(Document document, string userId);
+    
+    /// <summary>
+    /// Salva relazioni di similarità tra documenti per raccomandazioni.
+    /// </summary>
+    /// <param name="sourceDocumentId">ID del documento sorgente</param>
+    /// <param name="similarDocuments">Lista documenti simili con score</param>
+    /// <returns>Task completato</returns>
     Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments);
 }
 
+/// <summary>
+/// Implementazione del servizio di gestione documenti.
+/// Gestisce operazioni CRUD, controllo accessi multi-tenant, condivisione e visibilità.
+/// </summary>
+/// <remarks>
+/// Scopo: Fornire layer business logic per operazioni su documenti con controlli di sicurezza.
+/// Output: Documenti filtrati per permessi utente, operazioni CRUD sicure.
+/// </remarks>
 public class DocumentService : IDocumentService
 {
     private readonly ApplicationDbContext _context;
@@ -28,6 +111,16 @@ public class DocumentService : IDocumentService
         _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
+    /// <summary>
+    /// Recupera un documento con tutte le relazioni (Owner, Shares, Tags) verificando i permessi di accesso.
+    /// </summary>
+    /// <param name="documentId">ID del documento da recuperare</param>
+    /// <param name="userId">ID dell'utente richiedente per controllo accessi</param>
+    /// <returns>Documento completo se accessibile, null se non trovato o non autorizzato</returns>
+    /// <remarks>
+    /// Scopo: Recuperare documento con controllo sicurezza integrato.
+    /// Output: Document con navigazioni caricate, o null se inaccessibile.
+    /// </remarks>
     public async Task<Document?> GetDocumentAsync(int documentId, string userId)
     {
         var document = await _context.Documents
@@ -46,6 +139,17 @@ public class DocumentService : IDocumentService
         return document;
     }
 
+    /// <summary>
+    /// Verifica permessi accesso documento considerando: proprietà, visibilità, condivisioni e multi-tenancy.
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <param name="userId">ID dell'utente da verificare</param>
+    /// <returns>True se l'utente ha accesso, false altrimenti</returns>
+    /// <remarks>
+    /// Scopo: Controllo centralizzato permessi con logica multi-tenant.
+    /// Logica: Owner → Public → Organization → Shared → Denied
+    /// Output: Boolean indicante permesso accesso.
+    /// </remarks>
     public async Task<bool> CanUserAccessDocument(int documentId, string userId)
     {
         var document = await _context.Documents
@@ -82,6 +186,18 @@ public class DocumentService : IDocumentService
         return false;
     }
 
+    /// <summary>
+    /// Recupera lista paginata documenti accessibili considerando ownership, condivisioni e tenant.
+    /// </summary>
+    /// <param name="userId">ID utente (può essere null per documenti pubblici)</param>
+    /// <param name="page">Numero pagina (default 1, base 1)</param>
+    /// <param name="pageSize">Elementi per pagina (default 20)</param>
+    /// <returns>Lista documenti ordinata per data upload (più recenti prima)</returns>
+    /// <remarks>
+    /// Scopo: Lista documenti con filtro permessi automatico e paginazione.
+    /// Filtri applicati: Owner OR Shared OR SameTenant OR Public
+    /// Output: Lista Document con Include Owner e Tags.
+    /// </remarks>
     public async Task<List<Document>> GetUserDocumentsAsync(string userId, int page = 1, int pageSize = 20)
     {
         // Get documents owned by user, shared with user, or in same tenant
@@ -118,6 +234,15 @@ public class DocumentService : IDocumentService
         return allDocs;
     }
 
+    /// <summary>
+    /// Conta documenti totali accessibili all'utente (per paginazione UI).
+    /// </summary>
+    /// <param name="userId">ID utente</param>
+    /// <returns>Numero totale documenti accessibili</returns>
+    /// <remarks>
+    /// Scopo: Calcolare total count per paginazione mantenendo stessi filtri di GetUserDocumentsAsync.
+    /// Output: Intero con count documenti.
+    /// </remarks>
     public async Task<int> GetTotalDocumentCountAsync(string userId)
     {
         if (string.IsNullOrEmpty(userId))
@@ -139,6 +264,17 @@ public class DocumentService : IDocumentService
         );
     }
 
+    /// <summary>
+    /// Scarica file documento dal filesystem dopo verifica permessi.
+    /// </summary>
+    /// <param name="documentId">ID documento</param>
+    /// <param name="userId">ID utente richiedente</param>
+    /// <returns>Byte array del file se accessibile, null se negato o file non esiste</returns>
+    /// <remarks>
+    /// Scopo: Download sicuro file con controllo accessi.
+    /// Verifica: Permessi utente + esistenza file su disco
+    /// Output: Byte[] del file o null.
+    /// </remarks>
     public async Task<byte[]?> DownloadDocumentAsync(int documentId, string userId)
     {
         // Check if user has access
@@ -159,6 +295,19 @@ public class DocumentService : IDocumentService
         }
     }
 
+    /// <summary>
+    /// Condivide documento con altro utente creando o aggiornando DocumentShare.
+    /// </summary>
+    /// <param name="documentId">ID documento da condividere</param>
+    /// <param name="shareWithUserId">ID utente destinatario</param>
+    /// <param name="permission">Permesso da assegnare (Read, Write, Admin)</param>
+    /// <param name="currentUserId">ID proprietario che condivide</param>
+    /// <returns>True se condivisione riuscita, false se negata (solo owner può condividere)</returns>
+    /// <remarks>
+    /// Scopo: Gestire condivisione granulare documenti.
+    /// Logica: Solo owner può condividere, aggiorna visibilità a Shared se era Private.
+    /// Output: Boolean successo operazione.
+    /// </remarks>
     public async Task<bool> ShareDocumentAsync(int documentId, string shareWithUserId, DocumentPermission permission, string currentUserId)
     {
         var document = await _context.Documents.FindAsync(documentId);
@@ -201,6 +350,18 @@ public class DocumentService : IDocumentService
         return true;
     }
 
+    /// <summary>
+    /// Modifica livello visibilità documento (Private, Shared, Organization, Public).
+    /// </summary>
+    /// <param name="documentId">ID documento</param>
+    /// <param name="visibility">Nuovo livello visibilità</param>
+    /// <param name="userId">ID utente (deve essere owner)</param>
+    /// <returns>True se aggiornamento riuscito, false se negato</returns>
+    /// <remarks>
+    /// Scopo: Permettere a owner di cambiare visibilità documento.
+    /// Restrizione: Solo owner può modificare.
+    /// Output: Boolean successo operazione.
+    /// </remarks>
     public async Task<bool> UpdateDocumentVisibilityAsync(int documentId, DocumentVisibility visibility, string userId)
     {
         var document = await _context.Documents.FindAsync(documentId);
@@ -217,6 +378,17 @@ public class DocumentService : IDocumentService
         return true;
     }
 
+    /// <summary>
+    /// Crea nuovo documento con validazione dimensioni embedding vettoriale.
+    /// </summary>
+    /// <param name="document">Documento da creare con metadata ed embedding</param>
+    /// <returns>Documento creato con ID assegnato</returns>
+    /// <exception cref="InvalidOperationException">Se embedding ha dimensioni errate o salvataggio DB fallisce</exception>
+    /// <remarks>
+    /// Scopo: Inserire documento validando embedding per evitare errori VECTOR SQL Server.
+    /// Validazione: Verifica 768 o 1536 dimensioni prima di save.
+    /// Output: Document con Id popolato, exception se errore validazione o DB.
+    /// </remarks>
     public async Task<Document> CreateDocumentAsync(Document document)
     {
         try
@@ -260,6 +432,19 @@ public class DocumentService : IDocumentService
         }
     }
 
+    /// <summary>
+    /// Aggiorna documento esistente con controllo ownership e validazione embedding.
+    /// </summary>
+    /// <param name="document">Documento con dati aggiornati</param>
+    /// <param name="userId">ID utente richiedente (deve essere owner)</param>
+    /// <returns>Documento aggiornato</returns>
+    /// <exception cref="InvalidOperationException">Se documento non trovato</exception>
+    /// <exception cref="UnauthorizedAccessException">Se utente non è owner</exception>
+    /// <remarks>
+    /// Scopo: Update sicuro con validazione owner e embedding dimensions.
+    /// Logica: Carica documento esistente, verifica owner, aggiorna proprietà, valida embedding.
+    /// Output: Document aggiornato con tutte proprietà sincronizzate.
+    /// </remarks>
     public async Task<Document> UpdateDocumentAsync(Document document, string userId)
     {
         var existingDocument = await _context.Documents
@@ -353,6 +538,17 @@ public class DocumentService : IDocumentService
         }
     }
 
+    /// <summary>
+    /// Salva relazioni di similarità per documento (max 5 documenti simili).
+    /// </summary>
+    /// <param name="sourceDocumentId">ID documento sorgente</param>
+    /// <param name="similarDocuments">Lista documenti simili ordinati per score</param>
+    /// <returns>Task completato</returns>
+    /// <remarks>
+    /// Scopo: Memorizzare documenti semanticamente simili per raccomandazioni.
+    /// Logica: Rimuove vecchie relazioni, salva top 5 nuove con ranking.
+    /// Output: Tabella SimilarDocuments popolata per suggerimenti "Documenti correlati".
+    /// </remarks>
     public async Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments)
     {
         if (similarDocuments == null || similarDocuments.Count == 0)
