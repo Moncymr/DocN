@@ -14,12 +14,10 @@ builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>
 ### 1️⃣ **Registrazione del Servizio (Program.cs)**
 
 **File**: `DocN.Server/Program.cs`  
-**Righe**: 321-324
+**Sezione**: Registrazione servizi RAG
 
 ```csharp
 // Register Semantic RAG Service
-// Always use MultiProviderSemanticRAGService which supports both appsettings and database config
-// It will try configured providers with fallback mechanism (similar to embedding service)
 builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
 ```
 
@@ -28,7 +26,7 @@ Questo registra il servizio RAG nel container di dependency injection di ASP.NET
 ### 2️⃣ **Dependency Injection nel Controller**
 
 **File**: `DocN.Server/Controllers/SemanticChatController.cs`  
-**Righe**: 22-32
+**Sezione**: Constructor del controller
 
 ```csharp
 public SemanticChatController(
@@ -49,7 +47,7 @@ Quando viene chiamato l'endpoint `/api/SemanticChat/query`, ASP.NET Core crea au
 ### 3️⃣ **Configurazione AI Provider (MultiProviderAIService)**
 
 **File**: `DocN.Data/Services/MultiProviderSemanticRAGService.cs`  
-**Righe**: 18-27
+**Sezione**: Constructor del servizio
 
 Il `MultiProviderSemanticRAGService` riceve `IMultiProviderAIService` tramite dependency injection:
 
@@ -68,7 +66,7 @@ public MultiProviderSemanticRAGService(
 ### 4️⃣ **Caricamento della Configurazione**
 
 **File**: `DocN.Data/Services/MultiProviderAIService.cs`  
-**Righe**: 43-68
+**Metodo**: `GetActiveConfigurationAsync()`
 
 Il `MultiProviderAIService` legge la configurazione da due possibili fonti:
 

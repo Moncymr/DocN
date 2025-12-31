@@ -5,7 +5,7 @@
 ### 📍 Risposta Breve
 
 **File**: `DocN.Server/Program.cs`  
-**Riga**: 324  
+**Sezione**: Registrazione servizi (RAG Service registration)  
 **Codice**:
 ```csharp
 builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
@@ -17,8 +17,9 @@ builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1️⃣  STARTUP - Program.cs (Riga 324)                       │
+│  1️⃣  STARTUP - Program.cs                                  │
 │     Registrazione servizio nel DI Container                │
+│     (Cerca "Register Semantic RAG Service")                │
 │                                                             │
 │     builder.Services.AddScoped<ISemanticRAGService,        │
 │                   MultiProviderSemanticRAGService>();      │
@@ -211,12 +212,12 @@ WHERE Id = <tuo-config-id>;
 
 ## 📚 File Chiave (Codice)
 
-| File | Responsabilità | Riga Chiave |
-|------|----------------|-------------|
-| `DocN.Server/Program.cs` | Registrazione DI | 324 |
-| `SemanticChatController.cs` | Endpoint API | 22-32 (constructor) |
-| `MultiProviderSemanticRAGService.cs` | Logica RAG | 19-27 (constructor) |
-| `MultiProviderAIService.cs` | Gestione provider | 45-68 (GetActiveConfiguration) |
+| File | Responsabilità | Dove Trovarlo |
+|------|----------------|---------------|
+| `DocN.Server/Program.cs` | Registrazione DI | Cerca "Register Semantic RAG Service" |
+| `SemanticChatController.cs` | Endpoint API | Constructor del controller |
+| `MultiProviderSemanticRAGService.cs` | Logica RAG | Constructor del servizio |
+| `MultiProviderAIService.cs` | Gestione provider | Metodo `GetActiveConfigurationAsync()` |
 
 ---
 

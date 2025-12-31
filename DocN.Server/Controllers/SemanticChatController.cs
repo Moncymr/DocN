@@ -6,28 +6,12 @@ using DocN.Core.Interfaces;
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// Endpoints per il sistema RAG basato su Semantic Kernel con ricerca vettoriale
-/// Fornisce ricerca semantica e risposte intelligenti basate sui documenti
+/// Endpoints per il sistema RAG basato su Semantic Kernel con ricerca vettoriale.
+/// Fornisce ricerca semantica e risposte intelligenti basate sui documenti.
 /// </summary>
 /// <remarks>
-/// ════════════════════════════════════════════════════════════════════════════════
-/// RAG PROVIDER - Come funziona l'inizializzazione?
-/// ════════════════════════════════════════════════════════════════════════════════
-/// Il provider RAG (_ragService) viene iniettato automaticamente dal sistema di 
-/// Dependency Injection di ASP.NET Core.
-/// 
-/// Flow quando arriva una richiesta POST /api/SemanticChat/query:
-/// 1. ASP.NET Core crea un'istanza di questo controller
-/// 2. Inietta ISemanticRAGService (implementato da MultiProviderSemanticRAGService)
-/// 3. MultiProviderSemanticRAGService ha già IMultiProviderAIService iniettato
-/// 4. MultiProviderAIService carica la configurazione AI dal database o appsettings
-/// 5. Il metodo Query() chiama _ragService.GenerateResponseAsync()
-/// 6. Il RAG service usa il provider AI configurato per generare la risposta
-/// 
-/// Per configurare: Vai in Settings UI o edita appsettings.json
-/// Per debug: Vedi logs per capire quale provider è attivo
-/// Per dettagli: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
-/// ════════════════════════════════════════════════════════════════════════════════
+/// Il provider RAG viene iniettato automaticamente via Dependency Injection.
+/// Per dettagli sull'inizializzazione: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
 /// </remarks>
 [ApiController]
 [Route("api/[controller]")]
@@ -40,15 +24,15 @@ public class SemanticChatController : ControllerBase
     private readonly IWebHostEnvironment _environment;
 
     /// <summary>
-    /// Constructor - Il provider RAG viene iniettato qui automaticamente
+    /// Constructor - Il provider RAG viene iniettato automaticamente dal DI container.
     /// </summary>
     public SemanticChatController(
-        ISemanticRAGService ragService,      // ← Provider RAG iniettato dal DI container
+        ISemanticRAGService ragService,      // ← Provider RAG iniettato qui
         ApplicationDbContext context,
         ILogger<SemanticChatController> logger,
         IWebHostEnvironment environment)
     {
-        _ragService = ragService;            // ← Questo è il provider per i tuoi documenti!
+        _ragService = ragService;
         _context = context;
         _logger = logger;
         _environment = environment;

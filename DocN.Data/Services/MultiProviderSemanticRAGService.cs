@@ -7,48 +7,27 @@ using System.Text;
 namespace DocN.Data.Services;
 
 /// <summary>
-/// Implementation of ISemanticRAGService using MultiProviderAIService
-/// Supports Gemini, OpenAI, and Azure OpenAI configured in the database
+/// Implementation of ISemanticRAGService using MultiProviderAIService.
+/// Supports Gemini, OpenAI, and Azure OpenAI configured in the database.
 /// </summary>
 /// <remarks>
-/// ════════════════════════════════════════════════════════════════════════════════
-/// RAG PROVIDER INITIALIZATION - Questo è il cuore del sistema RAG!
-/// ════════════════════════════════════════════════════════════════════════════════
-/// Questo servizio viene creato automaticamente dal Dependency Injection quando
-/// viene chiamato l'endpoint /api/SemanticChat/query.
-/// 
-/// Componenti chiave iniettati:
-/// - _aiService: Gestisce le chiamate AI (Gemini/OpenAI/Azure)
-/// - _context: Accesso al database per documenti e conversazioni
-/// - _logger: Logging per debug
-/// 
-/// Il provider AI (_aiService) carica automaticamente la configurazione da:
-/// 1. Database (tabella AIConfigurations) - se esiste una configurazione attiva
-/// 2. appsettings.json - come fallback se non c'è configurazione nel database
-/// 
-/// La configurazione viene caricata "lazy" alla prima richiesta e poi messa in cache
-/// per 5 minuti per ottimizzare le performance.
-/// 
-/// Per configurare il provider: Vai in Settings UI o edita appsettings.json
-/// ════════════════════════════════════════════════════════════════════════════════
+/// Provider AI viene iniettato via DI e carica configurazione automaticamente.
+/// Per dettagli: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
 /// </remarks>
 public class MultiProviderSemanticRAGService : ISemanticRAGService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<MultiProviderSemanticRAGService> _logger;
-    private readonly IMultiProviderAIService _aiService;  // ← Questo gestisce il provider AI!
+    private readonly IMultiProviderAIService _aiService;
 
-    /// <summary>
-    /// Constructor - Tutti i servizi vengono iniettati automaticamente
-    /// </summary>
     public MultiProviderSemanticRAGService(
         ApplicationDbContext context,
         ILogger<MultiProviderSemanticRAGService> logger,
-        IMultiProviderAIService aiService)              // ← Provider AI iniettato qui
+        IMultiProviderAIService aiService)
     {
         _context = context;
         _logger = logger;
-        _aiService = aiService;                         // ← Configurazione caricata qui quando serve
+        _aiService = aiService;
     }
 
     public async Task<SemanticRAGResponse> GenerateResponseAsync(
