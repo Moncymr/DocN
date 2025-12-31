@@ -200,47 +200,21 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     }
 });
 
-// Configure Semantic Kernel
-var kernelBuilder = Kernel.CreateBuilder();
-
-// Configure AI services based on configuration
-var azureOpenAIEndpoint = builder.Configuration["AzureOpenAI:Endpoint"];
-var azureOpenAIKey = builder.Configuration["AzureOpenAI:ApiKey"];
-var azureOpenAIChatDeployment = builder.Configuration["AzureOpenAI:ChatDeployment"] ?? "gpt-4";
-var azureOpenAIEmbeddingDeployment = builder.Configuration["AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-ada-002";
-
-if (!string.IsNullOrEmpty(azureOpenAIEndpoint) && !string.IsNullOrEmpty(azureOpenAIKey))
-{
-    // Add Azure OpenAI Chat Completion
-    kernelBuilder.AddAzureOpenAIChatCompletion(
-        deploymentName: azureOpenAIChatDeployment,
-        endpoint: azureOpenAIEndpoint,
-        apiKey: azureOpenAIKey);
-
-    // Add Azure OpenAI Text Embedding
-    kernelBuilder.AddAzureOpenAITextEmbeddingGeneration(
-        deploymentName: azureOpenAIEmbeddingDeployment,
-        endpoint: azureOpenAIEndpoint,
-        apiKey: azureOpenAIKey);
-}
-else
-{
-    // Fallback to OpenAI if Azure is not configured
-    var openAIKey = builder.Configuration["OpenAI:ApiKey"];
-    if (!string.IsNullOrEmpty(openAIKey))
-    {
-        kernelBuilder.AddOpenAIChatCompletion(
-            modelId: "gpt-4",
-            apiKey: openAIKey);
-
-        kernelBuilder.AddOpenAITextEmbeddingGeneration(
-            modelId: "text-embedding-ada-002",
-            apiKey: openAIKey);
-    }
-}
-
-var kernel = kernelBuilder.Build();
-builder.Services.AddSingleton(kernel);
+// ════════════════════════════════════════════════════════════════════════════════
+// Semantic Kernel Configuration - CARICATA DAL DATABASE
+// ════════════════════════════════════════════════════════════════════════════════
+// Il Semantic Kernel ora viene configurato usando SOLO la configurazione dal database,
+// non più da appsettings.json. Questo garantisce che tutti i provider AI siano gestiti
+// centralmente attraverso l'interfaccia di configurazione dell'applicazione.
+//
+// La factory SemanticKernelFactory carica la configurazione attiva dal database
+// (tabella AIConfigurations) e crea il Kernel dinamicamente.
+//
+// I servizi che necessitano del Kernel dovrebbero usare IKernelProvider.GetKernelAsync()
+// per ottenere un'istanza configurata dal database.
+// ════════════════════════════════════════════════════════════════════════════════
+builder.Services.AddScoped<ISemanticKernelFactory, SemanticKernelFactory>();
+builder.Services.AddSingleton<IKernelProvider, KernelProvider>();
 
 // Configure OpenTelemetry for distributed tracing
 builder.Services.AddOpenTelemetry()

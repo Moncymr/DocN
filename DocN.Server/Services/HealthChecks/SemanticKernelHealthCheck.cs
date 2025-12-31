@@ -1,48 +1,53 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.SemanticKernel;
+using DocN.Data.Services;
 
 namespace DocN.Server.Services.HealthChecks;
 
 /// <summary>
 /// Health check for Semantic Kernel orchestration
+/// Now uses database configuration through IKernelProvider
 /// </summary>
 public class SemanticKernelHealthCheck : IHealthCheck
 {
-    private readonly Kernel _kernel;
+    private readonly IKernelProvider _kernelProvider;
     private readonly ILogger<SemanticKernelHealthCheck> _logger;
 
     public SemanticKernelHealthCheck(
-        Kernel kernel,
+        IKernelProvider kernelProvider,
         ILogger<SemanticKernelHealthCheck> logger)
     {
-        _kernel = kernel;
+        _kernelProvider = kernelProvider;
         _logger = logger;
     }
 
-    public Task<HealthCheckResult> CheckHealthAsync(
+    public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
         try
         {
+            // Get kernel from database configuration
+            var kernel = await _kernelProvider.GetKernelAsync();
+            
             // Check if kernel has services configured
-            var hasServices = _kernel.Services != null;
+            var hasServices = kernel.Services != null;
             
             if (!hasServices)
             {
-                return Task.FromResult(HealthCheckResult.Degraded(
-                    "Semantic Kernel has no services configured"));
+                return HealthCheckResult.Degraded(
+                    "Semantic Kernel has no services configured. Check AI provider configuration in database.");
             }
 
-            return Task.FromResult(HealthCheckResult.Healthy(
-                "Semantic Kernel orchestration is operational"));
+            return HealthCheckResult.Healthy(
+                "Semantic Kernel orchestration is operational with database configuration");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Semantic Kernel health check failed");
-            return Task.FromResult(HealthCheckResult.Unhealthy(
-                "Semantic Kernel health check failed",
-                ex));
+            return HealthCheckResult.Unhealthy(
+                "Semantic Kernel health check failed. Check AI provider configuration in database.",
+                ex);
         }
     }
 }
