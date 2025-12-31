@@ -94,21 +94,24 @@ public class SemanticChatController : ControllerBase
         {
             _logger.LogWarning(ex, "AI provider configuration error");
             
+            const string errorMessage = "AI provider not configured. Please configure at least one AI provider (Gemini, OpenAI, or Azure OpenAI) in the Settings page.";
+            const string errorCode = "AI_PROVIDER_NOT_CONFIGURED";
+            
             // Only include details in development environment
             if (_environment.IsDevelopment())
             {
                 return StatusCode(503, new 
                 { 
-                    error = "AI provider not configured. Please configure at least one AI provider (Gemini, OpenAI, or Azure OpenAI) in the Settings page.",
-                    errorCode = "AI_PROVIDER_NOT_CONFIGURED",
+                    error = errorMessage,
+                    errorCode = errorCode,
                     details = ex.Message
                 });
             }
             
             return StatusCode(503, new 
             { 
-                error = "AI provider not configured. Please configure at least one AI provider (Gemini, OpenAI, or Azure OpenAI) in the Settings page.",
-                errorCode = "AI_PROVIDER_NOT_CONFIGURED"
+                error = errorMessage,
+                errorCode = errorCode
             });
         }
         catch (Exception ex)
