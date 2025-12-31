@@ -116,6 +116,9 @@ public class LogService : ILogService
 
             var uploadCategories = new[] { "Upload", "Embedding", "AI", "Tag", "Metadata", "Category", "SimilaritySearch", "OCR" };
             
+            Console.WriteLine($"[LOG SERVICE] Building query - Categories: [{string.Join(", ", uploadCategories)}]");
+            Console.WriteLine($"[LOG SERVICE] Filters - UserId: '{userId ?? "(ALL)"}', FromDate: {fromDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "(ALL TIME)"}");
+            
             var query = _context.LogEntries
                 .Where(l => uploadCategories.Contains(l.Category));
 
@@ -123,7 +126,12 @@ public class LogService : ILogService
             // This ensures we don't filter for empty string which would match nothing
             if (!string.IsNullOrWhiteSpace(userId))
             {
+                Console.WriteLine($"[LOG SERVICE] Applying userId filter: '{userId}'");
                 query = query.Where(l => l.UserId == userId);
+            }
+            else
+            {
+                Console.WriteLine($"[LOG SERVICE] No userId filter - showing logs for all users");
             }
 
             if (fromDate.HasValue)
@@ -136,7 +144,34 @@ public class LogService : ILogService
                 .Take(maxRecords)
                 .ToListAsync();
                 
-            Console.WriteLine($"[LOG SERVICE] GetUploadLogsAsync returned {result.Count} entries for user '{userId ?? "(all)"}' from {fromDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "(all time)"}");
+            Console.WriteLine($"[LOG SERVICE] Query executed - Found {result.Count} log entries");
+            
+            if (result.Count == 0)
+            {
+                // Debug: Check if there are ANY logs in the database
+                var totalLogsCount = await _context.LogEntries.CountAsync();
+                Console.WriteLine($"[LOG SERVICE] Total logs in database: {totalLogsCount}");
+                
+                if (totalLogsCount > 0)
+                {
+                    // Check logs by category
+                    foreach (var cat in uploadCategories)
+                    {
+                        var catCount = await _context.LogEntries.Where(l => l.Category == cat).CountAsync();
+                        if (catCount > 0)
+                        {
+                            Console.WriteLine($"[LOG SERVICE] Category '{cat}': {catCount} logs");
+                        }
+                    }
+                    
+                    // Check if there are logs for this user
+                    if (!string.IsNullOrWhiteSpace(userId))
+                    {
+                        var userLogsCount = await _context.LogEntries.Where(l => l.UserId == userId).CountAsync();
+                        Console.WriteLine($"[LOG SERVICE] Logs for userId '{userId}': {userLogsCount}");
+                    }
+                }
+            }
             
             return result;
         }
