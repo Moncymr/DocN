@@ -10,8 +10,17 @@ namespace DocN.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Drop the existing foreign key constraint
+            // Drop the existing foreign key constraint (check for both possible names)
             migrationBuilder.Sql(@"
+                IF EXISTS (
+                    SELECT 1 FROM sys.foreign_keys 
+                    WHERE name = 'FK_Documents_Owner' 
+                    AND parent_object_id = OBJECT_ID('Documents')
+                )
+                BEGIN
+                    ALTER TABLE Documents DROP CONSTRAINT FK_Documents_Owner;
+                END
+
                 IF EXISTS (
                     SELECT 1 FROM sys.foreign_keys 
                     WHERE name = 'FK_Documents_AspNetUsers_OwnerId' 
@@ -55,8 +64,17 @@ namespace DocN.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Drop the SET NULL foreign key constraint
+            // Drop the SET NULL foreign key constraint (check for both possible names)
             migrationBuilder.Sql(@"
+                IF EXISTS (
+                    SELECT 1 FROM sys.foreign_keys 
+                    WHERE name = 'FK_Documents_Owner' 
+                    AND parent_object_id = OBJECT_ID('Documents')
+                )
+                BEGIN
+                    ALTER TABLE Documents DROP CONSTRAINT FK_Documents_Owner;
+                END
+
                 IF EXISTS (
                     SELECT 1 FROM sys.foreign_keys 
                     WHERE name = 'FK_Documents_AspNetUsers_OwnerId' 
