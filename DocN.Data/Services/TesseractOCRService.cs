@@ -8,9 +8,28 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace DocN.Data.Services;
 
 /// <summary>
-/// OCR Service implementation using Tesseract
-/// Extracts text from images using optical character recognition
+/// Servizio OCR (Optical Character Recognition) che utilizza Tesseract per estrarre testo da immagini
+/// Supporta preprocessing immagini e riconoscimento multi-lingua
 /// </summary>
+/// <remarks>
+/// Scopo: Convertire immagini e documenti scansionati in testo ricercabile e indicizzabile
+/// 
+/// Funzionalità:
+/// - Estrazione testo da immagini (PNG, JPG, TIFF, BMP, etc.)
+/// - Supporto multi-lingua (ITA, ENG, FRA, DEU, etc.)
+/// - Preprocessing automatico immagini per migliorare accuratezza
+/// - Gestione robusta errori e fallback graceful
+/// 
+/// Requisiti:
+/// - Tesseract OCR installato sul sistema
+/// - Cartella tessdata con file linguaggio (.traineddata)
+/// - Path configurato in appsettings.json (Tesseract:DataPath)
+/// 
+/// Limitazioni:
+/// - Qualità OCR dipende da risoluzione e qualità immagine
+/// - Migliori risultati con: immagini ad alta risoluzione (300+ DPI), testo chiaro, buona illuminazione
+/// - Performance: ~1-3 secondi per immagine (dipende da dimensione e complessità)
+/// </remarks>
 public class TesseractOCRService : IOCRService
 {
     private readonly ILogger<TesseractOCRService> _logger;
@@ -49,13 +68,66 @@ public class TesseractOCRService : IOCRService
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Verifica se il servizio OCR è disponibile e configurato correttamente
+    /// </summary>
+    /// <returns>true se Tesseract è disponibile, false altrimenti</returns>
+    /// <remarks>
+    /// Scopo: Permettere all'applicazione di fallback gracefully se OCR non disponibile
+    /// 
+    /// Verifica:
+    /// - Esistenza cartella tessdata
+    /// - Presenza file linguaggio necessari
+    /// 
+    /// Output atteso:
+    /// - true: OCR pronto all'uso
+    /// - false: OCR non disponibile (upload immagini continua ma senza estrazione testo)
+    /// </remarks>
     public bool IsAvailable()
     {
         return _isAvailable;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Estrae testo da uno stream immagine utilizzando OCR Tesseract
+    /// </summary>
+    /// <param name="imageStream">Stream contenente i dati dell'immagine</param>
+    /// <param name="language">Codice lingua per OCR (default: "eng", italiano: "ita")</param>
+    /// <returns>Testo estratto dall'immagine o stringa vuota se OCR non disponibile/fallisce</returns>
+    /// <remarks>
+    /// Scopo: Rendere documenti scansionati e immagini ricercabili estraendo il testo
+    /// 
+    /// Processo:
+    /// 1. Verifica disponibilità OCR
+    /// 2. Conversione stream in byte array
+    /// 3. Caricamento immagine con ImageSharp
+    /// 4. Salvataggio temporaneo file PNG (Tesseract lavora meglio con file)
+    /// 5. Inizializzazione engine Tesseract con lingua specificata
+    /// 6. Esecuzione OCR e estrazione testo
+    /// 7. Cleanup file temporaneo
+    /// 
+    /// Lingue supportate (esempi):
+    /// - "eng": Inglese
+    /// - "ita": Italiano
+    /// - "fra": Francese
+    /// - "deu": Tedesco
+    /// - "spa": Spagnolo
+    /// - "eng+ita": Multi-lingua (inglese + italiano)
+    /// 
+    /// Output atteso:
+    /// - Testo estratto dall'immagine (può contenere errori se immagine bassa qualità)
+    /// - Stringa vuota se: OCR non disponibile, immagine non valida, errore elaborazione
+    /// 
+    /// Best practices:
+    /// - Utilizzare immagini ad alta risoluzione (300 DPI o superiore)
+    /// - Immagini con buon contrasto e illuminazione
+    /// - Testo chiaro e leggibile
+    /// - Evitare immagini sfocate o inclinate
+    /// 
+    /// Performance:
+    /// - Tipicamente 1-3 secondi per immagine
+    /// - Dipende da: dimensione immagine, quantità testo, complessità layout
+    /// </remarks>
     public async Task<string> ExtractTextFromImageAsync(Stream imageStream, string language = "eng")
     {
         if (!_isAvailable)

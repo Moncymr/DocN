@@ -12,6 +12,14 @@ public interface IEmbeddingService
     Task<List<Document>> SearchSimilarDocumentsAsync(float[] queryEmbedding, int topK = 5);
 }
 
+/// <summary>
+/// Servizio per generazione di embeddings vettoriali da testo utilizzando modelli AI
+/// Supporta caching per ottimizzare performance e ridurre chiamate API
+/// </summary>
+/// <remarks>
+/// Scopo: Convertire testo in rappresentazioni vettoriali numeriche (embeddings) per ricerca semantica
+/// Gli embeddings permettono di calcolare similarità semantica tra testi tramite operazioni vettoriali
+/// </remarks>
 public class EmbeddingService : IEmbeddingService
 {
     private readonly ApplicationDbContext _context;
@@ -49,6 +57,29 @@ public class EmbeddingService : IEmbeddingService
         }
     }
 
+    /// <summary>
+    /// Genera un embedding vettoriale per il testo fornito
+    /// </summary>
+    /// <param name="text">Testo da convertire in embedding</param>
+    /// <returns>Array di float rappresentante l'embedding (768 o 1536 dimensioni) o null se fallisce</returns>
+    /// <remarks>
+    /// Scopo: Convertire testo in vettore numerico per calcoli di similarità semantica
+    /// 
+    /// Processo:
+    /// 1. Verifica inizializzazione client AI (Azure OpenAI)
+    /// 2. Controlla cache per evitare rigenerazioni costose
+    /// 3. Chiama API AI per generare embedding se non in cache
+    /// 4. Salva in cache per riutilizzo futuro
+    /// 
+    /// Output atteso:
+    /// - Array float[] di 768 dimensioni (text-embedding-004 Gemini) 
+    ///   o 1536 dimensioni (text-embedding-ada-002 OpenAI)
+    /// - null se: client non inizializzato, errore API, testo vuoto
+    /// 
+    /// Note:
+    /// - Usa caching aggressivo: stesso testo = stesso embedding (deterministico)
+    /// - Cache riduce costi API e latenza (embedding generation è costoso)
+    /// </remarks>
     public async Task<float[]?> GenerateEmbeddingAsync(string text)
     {
         EnsureInitialized();
@@ -83,6 +114,31 @@ public class EmbeddingService : IEmbeddingService
         }
     }
 
+    /// <summary>
+    /// Cerca documenti simili al vettore embedding fornito utilizzando similarità coseno
+    /// </summary>
+    /// <param name="queryEmbedding">Vettore embedding della query di ricerca</param>
+    /// <param name="topK">Numero massimo di documenti da restituire (default: 5)</param>
+    /// <returns>Lista di documenti ordinati per similarità decrescente (più simile primo)</returns>
+    /// <remarks>
+    /// Scopo: Implementare ricerca semantica calcolando similarità tra embeddings
+    /// 
+    /// ⚠️ ATTENZIONE: Implementazione semplificata per dimostrazione
+    /// 
+    /// Limitazioni attuali:
+    /// - Carica TUTTI i documenti in memoria (non scalabile per grandi dataset)
+    /// - Calcolo similarità in-memory (lento con molti documenti)
+    /// 
+    /// Per produzione, usare:
+    /// 1. SQL Server 2025 con tipo VECTOR nativo e VECTOR_DISTANCE
+    /// 2. Azure Cognitive Search con vector search
+    /// 3. Vector database dedicati (Pinecone, Weaviate, Qdrant)
+    /// 
+    /// Output atteso:
+    /// - Lista documenti con score similarità più alto
+    /// - Ordinamento decrescente per rilevanza
+    /// - Massimo topK risultati
+    /// </remarks>
     public async Task<List<Document>> SearchSimilarDocumentsAsync(float[] queryEmbedding, int topK = 5)
     {
         // WARNING: This is a simplified version for demonstration purposes only
@@ -112,6 +168,31 @@ public class EmbeddingService : IEmbeddingService
         return scoredDocuments;
     }
 
+    /// <summary>
+    /// Calcola la similarità coseno tra due vettori
+    /// </summary>
+    /// <param name="a">Primo vettore</param>
+    /// <param name="b">Secondo vettore</param>
+    /// <returns>Score di similarità tra 0 e 1 (1 = identici, 0 = ortogonali, <0 = opposti)</returns>
+    /// <remarks>
+    /// Scopo: Misurare quanto due vettori sono semanticamente simili
+    /// 
+    /// Formula: cosine_similarity = (a · b) / (||a|| * ||b||)
+    /// - a · b = prodotto scalare (dot product)
+    /// - ||a|| = magnitudine (norma euclidea) del vettore a
+    /// - ||b|| = magnitudine del vettore b
+    /// 
+    /// Interpretazione risultato:
+    /// - 1.0 = vettori identici (stessa direzione, massima similarità)
+    /// - 0.7-0.9 = molto simili (tipicamente rilevanti per RAG)
+    /// - 0.5-0.7 = moderatamente simili
+    /// - 0.0 = ortogonali (nessuna relazione)
+    /// - <0.0 = opposti (raramente accade con embeddings normalizzati)
+    /// 
+    /// Output atteso:
+    /// - Double tra -1 e 1 (tipicamente 0-1 per embeddings normalizzati)
+    /// - 0 se i vettori hanno dimensioni diverse (non confrontabili)
+    /// </remarks>
     private double CosineSimilarity(float[] a, float[] b)
     {
         if (a.Length != b.Length) return 0;
