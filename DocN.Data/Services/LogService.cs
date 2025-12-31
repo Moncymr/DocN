@@ -63,12 +63,14 @@ public class LogService : ILogService
     {
         var query = _context.LogEntries.AsQueryable();
 
-        if (!string.IsNullOrEmpty(category))
+        if (!string.IsNullOrWhiteSpace(category))
         {
             query = query.Where(l => l.Category == category);
         }
 
-        if (!string.IsNullOrEmpty(userId))
+        // Only filter by userId if it's not null or empty
+        // This ensures we don't filter for empty string which would match nothing
+        if (!string.IsNullOrWhiteSpace(userId))
         {
             query = query.Where(l => l.UserId == userId);
         }
@@ -86,12 +88,14 @@ public class LogService : ILogService
 
     public async Task<List<LogEntry>> GetUploadLogsAsync(string? userId = null, DateTime? fromDate = null, int maxRecords = 100)
     {
-        var uploadCategories = new[] { "Upload", "Embedding", "AI", "Tag", "Metadata", "Category", "SimilaritySearch" };
+        var uploadCategories = new[] { "Upload", "Embedding", "AI", "Tag", "Metadata", "Category", "SimilaritySearch", "OCR" };
         
         var query = _context.LogEntries
             .Where(l => uploadCategories.Contains(l.Category));
 
-        if (!string.IsNullOrEmpty(userId))
+        // Only filter by userId if it's not null or empty
+        // This ensures we don't filter for empty string which would match nothing
+        if (!string.IsNullOrWhiteSpace(userId))
         {
             query = query.Where(l => l.UserId == userId);
         }
