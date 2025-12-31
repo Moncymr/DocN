@@ -62,8 +62,22 @@ builder.Host.UseMetrics(options =>
 // Add services to the container.
 builder.Services.AddControllers();
 
-// Add HttpClient for IHttpClientFactory
+// Add HttpClient for IHttpClientFactory with extended timeout for AI operations
 builder.Services.AddHttpClient();
+
+// Configure named HttpClient for AI/Gemini operations with extended timeout
+builder.Services.AddHttpClient("AI", client =>
+{
+    // Extended timeout for AI operations (5 minutes)
+    // Gemini and other AI providers can take longer to respond during high load
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
+
+// Configure named HttpClient for general API calls with standard timeout
+builder.Services.AddHttpClient("API", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+});
 
 // Configure Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();

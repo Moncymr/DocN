@@ -180,12 +180,13 @@ else
 // Register ApplicationSeeder
 builder.Services.AddScoped<DocN.Data.Services.ApplicationSeeder>();
 
-// Configure HttpClient to call the backend API with timeout
-// Increased timeout to 180 seconds (3 minutes) for AI/RAG operations which can take longer
+// Configure HttpClient to call the backend API with extended timeout for AI operations
+// Increased timeout to 300 seconds (5 minutes) for AI/RAG operations which can take longer
+// This matches the server-side timeout configuration for AI providers
 builder.Services.AddHttpClient("BackendAPI", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["BackendApiUrl"] ?? "https://localhost:5211/");
-    client.Timeout = TimeSpan.FromSeconds(180);
+    client.Timeout = TimeSpan.FromMinutes(5);
 });
 
 var app = builder.Build();

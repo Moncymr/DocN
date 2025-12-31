@@ -25,6 +25,7 @@ public interface IMultiProviderAIService
     string GetCurrentChatProvider();
     string GetCurrentEmbeddingProvider();
     Task<AIConfiguration?> GetActiveConfigurationAsync();
+    void ClearConfigurationCache();
 }
 
 /// <summary>
@@ -60,24 +61,82 @@ public class MultiProviderAIService : IMultiProviderAIService
         // Check if cached configuration is still valid
         if (_cachedConfig != null && DateTime.UtcNow - _lastConfigCheck < _configCacheDuration)
         {
+            await _logService.LogDebugAsync("Configuration", "Using cached configuration", $"Config: {_cachedConfig.ConfigurationName}, IsActive: {_cachedConfig.IsActive}");
             return _cachedConfig;
         }
 
-        // Priority: Fetch active configuration from database
-        _cachedConfig = await _context.AIConfigurations
-            .Where(c => c.IsActive)
-            .OrderByDescending(c => c.UpdatedAt ?? c.CreatedAt)
-            .FirstOrDefaultAsync();
-
-        _lastConfigCheck = DateTime.UtcNow;
-
-        // Fallback: If no database configuration exists, use appsettings.json
-        if (_cachedConfig == null)
+        try
         {
-            _cachedConfig = CreateDefaultConfigurationFromAppSettings();
-        }
+            // Priority: Fetch active configuration from database
+            await _logService.LogDebugAsync("Configuration", "Fetching active configuration from database...");
+            
+            _cachedConfig = await _context.AIConfigurations
+                .Where(c => c.IsActive)
+                .OrderByDescending(c => c.UpdatedAt ?? c.CreatedAt)
+                .FirstOrDefaultAsync();
 
-        return _cachedConfig;
+            _lastConfigCheck = DateTime.UtcNow;
+
+            if (_cachedConfig != null)
+            {
+                await _logService.LogInfoAsync("Configuration", $"✅ Loaded active configuration from database: {_cachedConfig.ConfigurationName}");
+                
+                // Log which providers are configured
+                var configuredProviders = new List<string>();
+                if (!string.IsNullOrEmpty(_cachedConfig.GeminiApiKey))
+                    configuredProviders.Add("Gemini");
+                if (!string.IsNullOrEmpty(_cachedConfig.OpenAIApiKey))
+                    configuredProviders.Add("OpenAI");
+                if (!string.IsNullOrEmpty(_cachedConfig.AzureOpenAIKey) && !string.IsNullOrEmpty(_cachedConfig.AzureOpenAIEndpoint))
+                    configuredProviders.Add("Azure OpenAI");
+                
+                if (configuredProviders.Any())
+                {
+                    await _logService.LogInfoAsync("Configuration", $"Configured providers: {string.Join(", ", configuredProviders)}");
+                }
+                else
+                {
+                    await _logService.LogWarningAsync("Configuration", "⚠️ Configuration found in database but no API keys are set!");
+                }
+            }
+            else
+            {
+                // Fallback: If no database configuration exists, use appsettings.json
+                await _logService.LogWarningAsync("Configuration", "⚠️ No active configuration found in database. Falling back to appsettings.json");
+                _cachedConfig = CreateDefaultConfigurationFromAppSettings();
+                
+                // Log which providers are configured from appsettings
+                var configuredProviders = new List<string>();
+                if (!string.IsNullOrEmpty(_cachedConfig.GeminiApiKey))
+                    configuredProviders.Add("Gemini");
+                if (!string.IsNullOrEmpty(_cachedConfig.OpenAIApiKey))
+                    configuredProviders.Add("OpenAI");
+                if (!string.IsNullOrEmpty(_cachedConfig.AzureOpenAIKey) && !string.IsNullOrEmpty(_cachedConfig.AzureOpenAIEndpoint))
+                    configuredProviders.Add("Azure OpenAI");
+                
+                if (configuredProviders.Any())
+                {
+                    await _logService.LogInfoAsync("Configuration", $"Providers from appsettings: {string.Join(", ", configuredProviders)}");
+                }
+                else
+                {
+                    await _logService.LogErrorAsync("Configuration", "❌ No AI provider has valid API keys configured in database or appsettings.json!");
+                }
+            }
+
+            return _cachedConfig;
+        }
+        catch (Exception ex)
+        {
+            await _logService.LogErrorAsync("Configuration", "Error loading configuration from database", ex.Message, stackTrace: ex.StackTrace);
+            
+            // On error, fall back to appsettings
+            await _logService.LogWarningAsync("Configuration", "Falling back to appsettings.json due to database error");
+            _cachedConfig = CreateDefaultConfigurationFromAppSettings();
+            _lastConfigCheck = DateTime.UtcNow;
+            
+            return _cachedConfig;
+        }
     }
 
     /// <summary>
@@ -1005,5 +1064,15 @@ Respond ONLY with valid JSON, no other comments.";
     public string GetCurrentEmbeddingProvider()
     {
         return GetCurrentEmbeddingProviderAsync().GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Clears the cached configuration to force reload from database on next access.
+    /// Useful after updating configuration.
+    /// </summary>
+    public void ClearConfigurationCache()
+    {
+        _cachedConfig = null;
+        _lastConfigCheck = DateTime.MinValue;
     }
 }

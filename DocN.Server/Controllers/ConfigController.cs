@@ -134,7 +134,8 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key validity by making a simple request
-            var httpClient = _httpClientFactory.CreateClient();
+            // Use named HttpClient with extended timeout for AI operations
+            var httpClient = _httpClientFactory.CreateClient("AI");
             httpClient.DefaultRequestHeaders.Add("x-goog-api-key", config.GeminiApiKey);
 
             // Use models endpoint without API key in URL for security
@@ -225,7 +226,8 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key validity by listing models
-            var httpClient = _httpClientFactory.CreateClient();
+            // Use named HttpClient with extended timeout for AI operations
+            var httpClient = _httpClientFactory.CreateClient("AI");
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {config.OpenAIApiKey}");
 
             var response = await httpClient.GetAsync("https://api.openai.com/v1/models");
@@ -314,7 +316,8 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key and endpoint validity
-            var httpClient = _httpClientFactory.CreateClient();
+            // Use named HttpClient with extended timeout for AI operations
+            var httpClient = _httpClientFactory.CreateClient("AI");
             httpClient.DefaultRequestHeaders.Add("api-key", config.AzureOpenAIKey);
 
             // Try to list deployments to verify connection
@@ -391,5 +394,117 @@ public class ConfigController : ControllerBase
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Get the current active AI configuration
+    /// </summary>
+    /// <returns>Active AI configuration</returns>
+    /// <response code="200">Configuration retrieved successfully</response>
+    /// <response code="404">No active configuration found</response>
+    [HttpGet("active")]
+    [ProducesResponseType(typeof(AIConfiguration), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AIConfiguration>> GetActiveConfiguration()
+    {
+        try
+        {
+            var config = await _context.AIConfigurations
+                .FirstOrDefaultAsync(c => c.IsActive);
+
+            if (config == null)
+            {
+                return NotFound(new { message = "No active configuration found" });
+            }
+
+            return Ok(config);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving active configuration");
+            return StatusCode(500, new { error = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Get all AI configurations
+    /// </summary>
+    /// <returns>List of all AI configurations</returns>
+    /// <response code="200">Configurations retrieved successfully</response>
+    [HttpGet]
+    [ProducesResponseType(typeof(List<AIConfiguration>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<AIConfiguration>>> GetAllConfigurations()
+    {
+        try
+        {
+            var configs = await _context.AIConfigurations
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.UpdatedAt ?? c.CreatedAt)
+                .ToListAsync();
+
+            return Ok(configs);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving configurations");
+            return StatusCode(500, new { error = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Create or update an AI configuration
+    /// </summary>
+    /// <param name="config">Configuration to save</param>
+    /// <returns>Saved configuration</returns>
+    /// <response code="200">Configuration saved successfully</response>
+    /// <response code="400">Invalid configuration data</response>
+    [HttpPost]
+    [ProducesResponseType(typeof(AIConfiguration), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<AIConfiguration>> SaveConfiguration([FromBody] AIConfiguration config)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(config.ConfigurationName))
+            {
+                return BadRequest(new { error = "Configuration name is required" });
+            }
+
+            // If setting this as active, deactivate all others
+            if (config.IsActive)
+            {
+                var otherConfigs = await _context.AIConfigurations
+                    .Where(c => c.Id != config.Id)
+                    .ToListAsync();
+                
+                foreach (var other in otherConfigs)
+                {
+                    other.IsActive = false;
+                }
+            }
+
+            if (config.Id == 0)
+            {
+                config.CreatedAt = DateTime.UtcNow;
+                _context.AIConfigurations.Add(config);
+            }
+            else
+            {
+                config.UpdatedAt = DateTime.UtcNow;
+                _context.AIConfigurations.Update(config);
+            }
+
+            await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Configuration '{ConfigName}' saved successfully (ID: {ConfigId}, Active: {IsActive})", 
+                config.ConfigurationName, config.Id, config.IsActive);
+
+            return Ok(config);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving configuration");
+            return StatusCode(500, new { error = $"Error saving configuration: {ex.Message}" });
+        }
     }
 }
