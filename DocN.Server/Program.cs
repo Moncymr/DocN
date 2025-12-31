@@ -318,9 +318,14 @@ builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 // Register Audit Service for GDPR/SOC2 compliance
 builder.Services.AddScoped<IAuditService, AuditService>();
 
-// Register Semantic RAG Service
-// Always use MultiProviderSemanticRAGService which supports both appsettings and database config
-// It will try configured providers with fallback mechanism (similar to embedding service)
+// ════════════════════════════════════════════════════════════════════════════════
+// RAG Provider Registration - Inizializzazione automatica via Dependency Injection
+// ════════════════════════════════════════════════════════════════════════════════
+// Il provider RAG viene inizializzato automaticamente dal framework.
+// Configurazione: Database AIConfigurations (priorità) o appsettings.json (fallback)
+// 
+// Per dettagli completi: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
+// ════════════════════════════════════════════════════════════════════════════════
 builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
 
 // Register agents (used by both implementations if needed)

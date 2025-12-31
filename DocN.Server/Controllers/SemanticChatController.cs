@@ -6,9 +6,13 @@ using DocN.Core.Interfaces;
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// Endpoints per il sistema RAG basato su Semantic Kernel con ricerca vettoriale
-/// Fornisce ricerca semantica e risposte intelligenti basate sui documenti
+/// Endpoints per il sistema RAG basato su Semantic Kernel con ricerca vettoriale.
+/// Fornisce ricerca semantica e risposte intelligenti basate sui documenti.
 /// </summary>
+/// <remarks>
+/// Il provider RAG viene iniettato automaticamente via Dependency Injection.
+/// Per dettagli sull'inizializzazione: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
+/// </remarks>
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -19,8 +23,11 @@ public class SemanticChatController : ControllerBase
     private readonly ILogger<SemanticChatController> _logger;
     private readonly IWebHostEnvironment _environment;
 
+    /// <summary>
+    /// Constructor - Il provider RAG viene iniettato automaticamente dal DI container.
+    /// </summary>
     public SemanticChatController(
-        ISemanticRAGService ragService,
+        ISemanticRAGService ragService,      // ← Provider RAG iniettato qui
         ApplicationDbContext context,
         ILogger<SemanticChatController> logger,
         IWebHostEnvironment environment)

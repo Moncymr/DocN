@@ -11,6 +11,10 @@ using System.Text.Json;
 
 namespace DocN.Data.Services;
 
+/// <summary>
+/// Multi-provider AI service interface for RAG operations
+/// Supports Gemini, OpenAI, and Azure OpenAI providers
+/// </summary>
 public interface IMultiProviderAIService
 {
     Task<float[]?> GenerateEmbeddingAsync(string text);
@@ -23,10 +27,18 @@ public interface IMultiProviderAIService
     Task<AIConfiguration?> GetActiveConfigurationAsync();
 }
 
+/// <summary>
+/// Multi-provider AI service implementation.
+/// Loads configuration from database (priority) or appsettings.json (fallback).
+/// Configuration is cached for 5 minutes for performance.
+/// </summary>
+/// <remarks>
+/// Per dettagli sul caricamento configurazione: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
+/// </remarks>
 public class MultiProviderAIService : IMultiProviderAIService
 {
-    private readonly IConfiguration _configuration;
-    private readonly ApplicationDbContext _context;
+    private readonly IConfiguration _configuration;        // ← appsettings.json (fallback)
+    private readonly ApplicationDbContext _context;        // ← Database AIConfigurations (priorità)
     private readonly ILogService _logService;
     private AIConfiguration? _cachedConfig;
     private DateTime _lastConfigCheck = DateTime.MinValue;
@@ -40,7 +52,8 @@ public class MultiProviderAIService : IMultiProviderAIService
     }
 
     /// <summary>
-    /// Ottiene la configurazione attiva dal database, con caching per evitare troppe query
+    /// Gets active configuration from database (priority) or appsettings (fallback).
+    /// Configuration is cached for 5 minutes for performance.
     /// </summary>
     public async Task<AIConfiguration?> GetActiveConfigurationAsync()
     {
@@ -50,7 +63,7 @@ public class MultiProviderAIService : IMultiProviderAIService
             return _cachedConfig;
         }
 
-        // Fetch active configuration from database
+        // Priority: Fetch active configuration from database
         _cachedConfig = await _context.AIConfigurations
             .Where(c => c.IsActive)
             .OrderByDescending(c => c.UpdatedAt ?? c.CreatedAt)
@@ -58,7 +71,7 @@ public class MultiProviderAIService : IMultiProviderAIService
 
         _lastConfigCheck = DateTime.UtcNow;
 
-        // If no database configuration exists, create a default one from appsettings
+        // Fallback: If no database configuration exists, use appsettings.json
         if (_cachedConfig == null)
         {
             _cachedConfig = CreateDefaultConfigurationFromAppSettings();
@@ -67,6 +80,9 @@ public class MultiProviderAIService : IMultiProviderAIService
         return _cachedConfig;
     }
 
+    /// <summary>
+    /// Creates fallback configuration from appsettings.json when database config is not available.
+    /// </summary>
     private AIConfiguration CreateDefaultConfigurationFromAppSettings()
     {
         // Fallback to appsettings.json configuration for backward compatibility

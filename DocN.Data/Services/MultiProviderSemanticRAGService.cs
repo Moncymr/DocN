@@ -7,9 +7,13 @@ using System.Text;
 namespace DocN.Data.Services;
 
 /// <summary>
-/// Implementation of ISemanticRAGService using MultiProviderAIService
-/// Supports Gemini, OpenAI, and Azure OpenAI configured in the database
+/// Implementation of ISemanticRAGService using MultiProviderAIService.
+/// Supports Gemini, OpenAI, and Azure OpenAI configured in the database.
 /// </summary>
+/// <remarks>
+/// Provider AI viene iniettato via DI e carica configurazione automaticamente.
+/// Per dettagli: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
+/// </remarks>
 public class MultiProviderSemanticRAGService : ISemanticRAGService
 {
     private readonly ApplicationDbContext _context;
