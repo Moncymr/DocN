@@ -1,6 +1,7 @@
 @page "/upload"
 @using Microsoft.AspNetCore.Components.Forms
 @using System.IO
+@using System.Net.Http
 @using DocN.Core.Interfaces
 @using DocN.Data.Services
 @using DocN.Data.Utilities
@@ -2026,33 +2027,86 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
 
                 try
                 {
-                    aiExtractedTags = await AIService.ExtractTagsAsync(extractedText);
-                    
-                    if (aiExtractedTags != null && aiExtractedTags.Any())
-                    {
-                        // Merge AI-extracted tags with any manually entered tags
-                        documentTags = string.Join(", ", aiExtractedTags);
-                        tagExtractionSucceeded = true;
-                        tagExtractionError = null;
-                        await LogService.LogInfoAsync("Tag", "Tags extracted successfully", 
-                            $"Extracted {aiExtractedTags.Count} tags: {documentTags}",
-                            userId: currentUserId, 
-                            fileName: selectedFile.Name);
-                    }
-                    else
+                    // Check if AI configuration is available
+                    var aiConfig = await AIService.GetActiveConfigurationAsync();
+                    if (aiConfig == null)
                     {
                         tagExtractionSucceeded = false;
-                        tagExtractionError = "L'AI non è riuscita a estrarre tag dal documento. Puoi inserirli manualmente.";
-                        await LogService.LogWarningAsync("Tag", "No tags were extracted by AI", 
+                        tagExtractionError = "❌ Configurazione AI mancante. Configura almeno un provider AI (Gemini/OpenAI/Azure OpenAI) dalla pagina Configurazione.";
+                        await LogService.LogWarningAsync("Tag", "AI configuration not found", 
+                            "No active AI configuration available for tag extraction",
                             fileName: selectedFile.Name, 
                             userId: currentUserId);
                     }
+                    else
+                    {
+                        aiExtractedTags = await AIService.ExtractTagsAsync(extractedText);
+                        
+                        if (aiExtractedTags != null && aiExtractedTags.Any())
+                        {
+                            // Merge AI-extracted tags with any manually entered tags
+                            documentTags = string.Join(", ", aiExtractedTags);
+                            tagExtractionSucceeded = true;
+                            tagExtractionError = null;
+                            await LogService.LogInfoAsync("Tag", "Tags extracted successfully", 
+                                $"Extracted {aiExtractedTags.Count} tags: {documentTags}",
+                                userId: currentUserId, 
+                                fileName: selectedFile.Name);
+                        }
+                        else
+                        {
+                            tagExtractionSucceeded = false;
+                            tagExtractionError = "⚠️ L'AI non ha estratto tag dal documento. Possibili cause: documento troppo breve, contenuto non rilevante, o errore del provider AI. Puoi inserire i tag manualmente.";
+                            await LogService.LogWarningAsync("Tag", "No tags were extracted by AI", 
+                                $"AI Provider: {aiConfig.ChatProvider}, Text length: {extractedText?.Length ?? 0} chars",
+                                fileName: selectedFile.Name, 
+                                userId: currentUserId);
+                        }
+                    }
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("API key") || ex.Message.Contains("configurata"))
+                {
+                    // AI configuration issue
+                    tagExtractionSucceeded = false;
+                    tagExtractionError = $"❌ Errore configurazione AI: {ex.Message}. Verifica le chiavi API nella pagina Configurazione.";
+                    await LogService.LogErrorAsync("Tag", "AI configuration error during tag extraction", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
+                }
+                catch (HttpRequestException ex)
+                {
+                    // Network or API communication error
+                    tagExtractionSucceeded = false;
+                    tagExtractionError = $"❌ Errore di rete o API: impossibile contattare il provider AI. Verifica la connessione internet e le chiavi API. Dettagli: {ex.Message}";
+                    await LogService.LogErrorAsync("Tag", "Network error during tag extraction", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
                 }
                 catch (Exception ex)
                 {
-                    // Tag extraction failed - user can still enter manually
+                    // Generic error - provide actionable message
                     tagExtractionSucceeded = false;
-                    tagExtractionError = "Errore nell'estrazione dei tag. Verifica la configurazione AI o inserisci i tag manualmente.";
+                    var errorMessage = ex.Message;
+                    if (errorMessage.Contains("NotFound") || errorMessage.Contains("404") || errorMessage.Contains("NOT_FOUND"))
+                    {
+                        tagExtractionError = "❌ Modello AI non trovato. Verifica che il modello configurato sia disponibile e aggiornato.";
+                    }
+                    else if (errorMessage.Contains("Forbidden") || errorMessage.Contains("403") || errorMessage.Contains("Unauthorized") || errorMessage.Contains("401"))
+                    {
+                        tagExtractionError = "❌ Chiave API non valida o scaduta. Aggiorna la chiave API nella pagina Configurazione.";
+                    }
+                    else if (errorMessage.Contains("TooManyRequests") || errorMessage.Contains("429"))
+                    {
+                        tagExtractionError = "⚠️ Troppi richieste al provider AI. Riprova tra qualche minuto.";
+                    }
+                    else
+                    {
+                        tagExtractionError = $"❌ Errore durante l'estrazione tag: {errorMessage}. Verifica la configurazione AI o inserisci i tag manualmente.";
+                    }
                     await LogService.LogErrorAsync("Tag", "Tag extraction exception", 
                         ex.Message, 
                         userId: currentUserId, 
@@ -2071,31 +2125,85 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
 
                 try
                 {
-                    extractedMetadata = await AIService.ExtractMetadataAsync(extractedText, selectedFile?.Name ?? "");
-                    
-                    if (extractedMetadata != null && extractedMetadata.Any())
+                    // Check if AI configuration is available
+                    var aiConfig = await AIService.GetActiveConfigurationAsync();
+                    if (aiConfig == null)
                     {
-                        metadataExtractionSucceeded = true;
-                        metadataExtractionError = null;
-                        var metadataList = string.Join(", ", extractedMetadata.Select(kvp => $"{kvp.Key}={kvp.Value}"));
-                        await LogService.LogInfoAsync("Metadata", "AI metadata extraction completed", 
-                            $"Extracted {extractedMetadata.Count} metadata fields: {metadataList}",
+                        metadataExtractionSucceeded = false;
+                        metadataExtractionError = "❌ Configurazione AI mancante. Configura almeno un provider AI (Gemini/OpenAI/Azure OpenAI) dalla pagina Configurazione.";
+                        await LogService.LogWarningAsync("Metadata", "AI configuration not found", 
+                            "No active AI configuration available for metadata extraction",
                             userId: currentUserId, 
                             fileName: selectedFile.Name);
                     }
                     else
                     {
-                        metadataExtractionSucceeded = false;
-                        metadataExtractionError = "L'AI non è riuscita a estrarre metadati dal documento.";
-                        await LogService.LogWarningAsync("Metadata", "No metadata extracted by AI", 
-                            userId: currentUserId, 
-                            fileName: selectedFile.Name);
+                        extractedMetadata = await AIService.ExtractMetadataAsync(extractedText, selectedFile?.Name ?? "");
+                        
+                        if (extractedMetadata != null && extractedMetadata.Any())
+                        {
+                            metadataExtractionSucceeded = true;
+                            metadataExtractionError = null;
+                            var metadataList = string.Join(", ", extractedMetadata.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+                            await LogService.LogInfoAsync("Metadata", "AI metadata extraction completed", 
+                                $"Extracted {extractedMetadata.Count} metadata fields: {metadataList}",
+                                userId: currentUserId, 
+                                fileName: selectedFile.Name);
+                        }
+                        else
+                        {
+                            metadataExtractionSucceeded = false;
+                            metadataExtractionError = "⚠️ L'AI non ha estratto metadati dal documento. Possibili cause: il documento non contiene metadati strutturati (es. fattura, contratto), il contenuto è troppo breve, o errore del provider AI.";
+                            await LogService.LogWarningAsync("Metadata", "No metadata extracted by AI", 
+                                $"AI Provider: {aiConfig.ChatProvider}, File: {selectedFile?.Name}, Text length: {extractedText?.Length ?? 0} chars",
+                                userId: currentUserId, 
+                                fileName: selectedFile.Name);
+                        }
                     }
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("API key") || ex.Message.Contains("configurata"))
+                {
+                    // AI configuration issue
+                    metadataExtractionSucceeded = false;
+                    metadataExtractionError = $"❌ Errore configurazione AI: {ex.Message}. Verifica le chiavi API nella pagina Configurazione.";
+                    await LogService.LogErrorAsync("Metadata", "AI configuration error during metadata extraction", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
+                }
+                catch (HttpRequestException ex)
+                {
+                    // Network or API communication error
+                    metadataExtractionSucceeded = false;
+                    metadataExtractionError = $"❌ Errore di rete o API: impossibile contattare il provider AI. Verifica la connessione internet e le chiavi API. Dettagli: {ex.Message}";
+                    await LogService.LogErrorAsync("Metadata", "Network error during metadata extraction", 
+                        ex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name, 
+                        stackTrace: ex.StackTrace);
                 }
                 catch (Exception ex)
                 {
+                    // Generic error - provide actionable message
                     metadataExtractionSucceeded = false;
-                    metadataExtractionError = "Errore nell'estrazione dei metadati. Verifica la configurazione AI.";
+                    var errorMessage = ex.Message;
+                    if (errorMessage.Contains("NotFound") || errorMessage.Contains("404") || errorMessage.Contains("NOT_FOUND"))
+                    {
+                        metadataExtractionError = "❌ Modello AI non trovato. Verifica che il modello configurato sia disponibile e aggiornato.";
+                    }
+                    else if (errorMessage.Contains("Forbidden") || errorMessage.Contains("403") || errorMessage.Contains("Unauthorized") || errorMessage.Contains("401"))
+                    {
+                        metadataExtractionError = "❌ Chiave API non valida o scaduta. Aggiorna la chiave API nella pagina Configurazione.";
+                    }
+                    else if (errorMessage.Contains("TooManyRequests") || errorMessage.Contains("429"))
+                    {
+                        metadataExtractionError = "⚠️ Troppi richieste al provider AI. Riprova tra qualche minuto.";
+                    }
+                    else
+                    {
+                        metadataExtractionError = $"❌ Errore durante l'estrazione metadati: {errorMessage}. Verifica la configurazione AI.";
+                    }
                     await LogService.LogErrorAsync("Metadata", "Metadata extraction exception", 
                         ex.Message, 
                         userId: currentUserId, 
