@@ -628,7 +628,22 @@
                 else if (uploadLogs == null || !uploadLogs.Any())
                 {
                     <div class="no-logs-message">
-                        ℹ️ Nessun log disponibile nelle ultime 24 ore.
+                        <div style="font-size: 1.1rem; margin-bottom: 1rem;">
+                            ℹ️ Nessun log disponibile nelle ultime 24 ore.
+                        </div>
+                        <div style="font-size: 0.9rem; color: #666; text-align: left; max-width: 600px; margin: 0 auto;">
+                            <p style="margin: 0.5rem 0;"><strong>Possibili cause:</strong></p>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                                <li>Nessun documento è stato analizzato nelle ultime 24 ore</li>
+                                <li>I log potrebbero essere associati a un altro utente</li>
+                                <li>Verifica la console del browser (F12) per dettagli di debug</li>
+                            </ul>
+                            <p style="margin: 1rem 0 0.5rem 0;"><strong>💡 Suggerimento:</strong></p>
+                            <p style="margin: 0.5rem 0;">
+                                Dopo aver analizzato un documento, clicca il pulsante "🔄 Aggiorna" per ricaricare i log.
+                                I log vengono salvati durante l'analisi del documento e mostrano tutti i passaggi eseguiti.
+                            </p>
+                        </div>
                     </div>
                 }
                 else
@@ -651,7 +666,7 @@
                                 {
                                     <div class="log-details">
                                         <details>
-                                            <summary>Details</summary>
+                                            <summary>Dettagli</summary>
                                             <pre>@log.Details</pre>
                                         </details>
                                     </div>
@@ -2599,9 +2614,14 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             // Load logs for the current user from the last 24 hours
             var fromDate = DateTime.UtcNow.AddHours(-24);
             
-            Console.WriteLine($"[UPLOAD] Loading logs for user: {currentUserId ?? "(none)"}, from: {fromDate:yyyy-MM-dd HH:mm:ss}");
+            // If user is not authenticated (empty currentUserId), pass null to show all logs
+            // This helps with debugging and ensures users can see their upload logs
+            var userIdForQuery = string.IsNullOrEmpty(currentUserId) ? null : currentUserId;
             
-            uploadLogs = await LogService.GetUploadLogsAsync(currentUserId, fromDate, 100);
+            Console.WriteLine($"[UPLOAD] Loading logs for user: '{userIdForQuery ?? "(ALL USERS)"}', from: {fromDate:yyyy-MM-dd HH:mm:ss} UTC");
+            Console.WriteLine($"[UPLOAD] Current time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+            
+            uploadLogs = await LogService.GetUploadLogsAsync(userIdForQuery, fromDate, 100);
             
             if (uploadLogs == null)
             {
@@ -2610,6 +2630,30 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             }
             
             Console.WriteLine($"[UPLOAD] Loaded {uploadLogs.Count} log entries");
+            
+            // Debug: Show summary of what was loaded
+            if (uploadLogs.Any())
+            {
+                var categorySummary = uploadLogs.GroupBy(l => l.Category)
+                    .Select(g => $"{g.Key}({g.Count()})")
+                    .ToList();
+                Console.WriteLine($"[UPLOAD] Log categories: {string.Join(", ", categorySummary)}");
+                
+                var oldestLog = uploadLogs.OrderBy(l => l.Timestamp).FirstOrDefault();
+                var newestLog = uploadLogs.OrderByDescending(l => l.Timestamp).FirstOrDefault();
+                if (oldestLog != null && newestLog != null)
+                {
+                    Console.WriteLine($"[UPLOAD] Log time range: {oldestLog.Timestamp:yyyy-MM-dd HH:mm:ss} to {newestLog.Timestamp:yyyy-MM-dd HH:mm:ss} UTC");
+                }
+            }
+            else
+            {
+                Console.WriteLine("[UPLOAD] ⚠️ No logs found. Possible reasons:");
+                Console.WriteLine($"  - No documents were analyzed in the last 24 hours");
+                Console.WriteLine($"  - Logs are associated with a different userId: '{currentUserId}'");
+                Console.WriteLine($"  - Database connection issue");
+                Console.WriteLine($"  - Logs were not written during document processing");
+            }
         }
         catch (NullReferenceException nrEx)
         {
