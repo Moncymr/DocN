@@ -67,16 +67,17 @@ public class ConfigControllerTests
         // Arrange
         using var context = CreateInMemoryContext();
         
-        // Add an active configuration with no providers configured
+        // Add an active configuration with no API keys configured (like the default seeded config)
         context.AIConfigurations.Add(new AIConfiguration
         {
             Id = 1,
+            ConfigurationName = "Default Configuration",
             IsActive = true,
             ChatProvider = AIProviderType.Gemini,
             EmbeddingsProvider = AIProviderType.Gemini,
             TagExtractionProvider = AIProviderType.Gemini,
             RAGProvider = AIProviderType.Gemini,
-            // No API keys configured
+            // No API keys configured - this simulates the default seeded configuration
             GeminiApiKey = null,
             OpenAIApiKey = null,
             AzureOpenAIKey = null
