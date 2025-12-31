@@ -103,9 +103,9 @@ public class EmbeddingService : IEmbeddingService
         // 2. Azure Cognitive Search with vector search
         // 3. A dedicated vector database like Pinecone, Weaviate, or Qdrant
         // Loading all documents into memory is NOT scalable for large datasets
-        var documents = await Task.Run(() => _context.Documents
+        var documents = await _context.Documents
             .Where(d => d.EmbeddingVector != null && d.EmbeddingVector.Length > 0)
-            .ToList());
+            .ToListAsync();
         
         var scoredDocuments = documents
             .Select(d => new
