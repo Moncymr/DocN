@@ -84,10 +84,23 @@ public class SemanticChatController : ControllerBase
                 Metadata = result.Metadata
             });
         }
+        catch (InvalidOperationException ex) when (
+            ex.Message.Contains("nessun provider AI ha una chiave", StringComparison.OrdinalIgnoreCase) ||
+            ex.Message.Contains("no AI provider has a valid", StringComparison.OrdinalIgnoreCase) ||
+            ex.Message.Contains("Nessuna configurazione AI attiva", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(ex, "AI provider configuration error");
+            return StatusCode(503, new 
+            { 
+                error = "AI provider not configured. Please configure at least one AI provider (Gemini, OpenAI, or Azure OpenAI) in the Settings page.",
+                errorCode = "AI_PROVIDER_NOT_CONFIGURED",
+                details = ex.Message
+            });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing semantic chat query");
-            return StatusCode(500, new { error = "An error occurred while processing your request" });
+            return StatusCode(500, new { error = "An error occurred while processing your request", details = ex.Message });
         }
     }
 
