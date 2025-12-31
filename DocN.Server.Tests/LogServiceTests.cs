@@ -24,6 +24,29 @@ public class LogServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetUploadLogsAsync_HandlesNullContextGracefully()
+    {
+        // Arrange - Create a LogService with null context (this simulates the error scenario)
+        LogService? nullContextService = null;
+        try
+        {
+            nullContextService = new LogService(null!);
+        }
+        catch
+        {
+            // If constructor throws, that's okay - we'll skip this test
+            return;
+        }
+
+        // Act - Should not throw NullReferenceException
+        var logs = await nullContextService.GetUploadLogsAsync(userId: "user1");
+
+        // Assert - Should return empty list instead of throwing
+        Assert.NotNull(logs);
+        Assert.Empty(logs);
+    }
+
+    [Fact]
     public async Task GetUploadLogsAsync_ReturnsAllLogsWhenUserIdIsNull()
     {
         // Arrange

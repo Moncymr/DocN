@@ -36,6 +36,12 @@ public class LogService : ILogService
     {
         try
         {
+            if (_context?.LogEntries == null)
+            {
+                Console.WriteLine($"[LOG SERVICE ERROR] Database context or LogEntries is null - Cannot log: [{level}] {category}: {message}");
+                return;
+            }
+
             var logEntry = new LogEntry
             {
                 Timestamp = DateTime.UtcNow,
@@ -61,6 +67,12 @@ public class LogService : ILogService
 
     public async Task<List<LogEntry>> GetLogsAsync(string? category = null, string? userId = null, DateTime? fromDate = null, int maxRecords = 100)
     {
+        if (_context?.LogEntries == null)
+        {
+            Console.WriteLine("[LOG SERVICE ERROR] Database context or LogEntries is null");
+            return new List<LogEntry>();
+        }
+
         var query = _context.LogEntries.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(category))
@@ -88,6 +100,12 @@ public class LogService : ILogService
 
     public async Task<List<LogEntry>> GetUploadLogsAsync(string? userId = null, DateTime? fromDate = null, int maxRecords = 100)
     {
+        if (_context?.LogEntries == null)
+        {
+            Console.WriteLine("[LOG SERVICE ERROR] Database context or LogEntries is null");
+            return new List<LogEntry>();
+        }
+
         var uploadCategories = new[] { "Upload", "Embedding", "AI", "Tag", "Metadata", "Category", "SimilaritySearch", "OCR" };
         
         var query = _context.LogEntries
