@@ -141,11 +141,11 @@ If you see: "The request was canceled due to the configured HttpClient.Timeout o
 
 ### Gemini Provider
 
-**Error**: "API key non configurata" or "403 Forbidden"
+**Error**: "API key non configurata" / "API key not configured" or "403 Forbidden"
 - **Solution**: Ensure API key is valid and not flagged as compromised
 - Get a new key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
-**Error**: "404 Not Found" or "modello non trovato"
+**Error**: "404 Not Found" or "modello non trovato" / "model not found"
 - **Solution**: Model name incorrect or deprecated
 - Use current models: `gemini-2.0-flash-exp`, `text-embedding-004`
 
@@ -161,7 +161,7 @@ If you see: "The request was canceled due to the configured HttpClient.Timeout o
 
 ### Azure OpenAI Provider
 
-**Error**: "Endpoint non configurati"
+**Error**: "Endpoint non configurati" / "Endpoint not configured"
 - **Solution**: Verify both endpoint URL and API key are set
 - Format: `https://{your-resource-name}.openai.azure.com/`
 
