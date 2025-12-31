@@ -62,6 +62,9 @@ builder.Host.UseMetrics(options =>
 // Add services to the container.
 builder.Services.AddControllers();
 
+// Add HttpClient for IHttpClientFactory
+builder.Services.AddHttpClient();
+
 // Configure Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
