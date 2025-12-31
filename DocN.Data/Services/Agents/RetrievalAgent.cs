@@ -48,9 +48,10 @@ public class RetrievalAgent : IRetrievalAgent
         }
 
         // Get all chunks with embeddings
+        // Query the actual mapped fields: ChunkEmbedding768 or ChunkEmbedding1536
         var chunksQuery = _context.DocumentChunks
             .Include(c => c.Document)
-            .Where(c => c.ChunkEmbedding != null);
+            .Where(c => c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null);
 
         // Filter by user ownership if specified
         if (!string.IsNullOrEmpty(userId))

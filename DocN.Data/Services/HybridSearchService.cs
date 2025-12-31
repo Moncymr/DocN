@@ -98,8 +98,9 @@ public class HybridSearchService : IHybridSearchService
         var isSqlServer = _context.Database.IsSqlServer();
         
         // Build query with filters
+        // Query the actual mapped fields: EmbeddingVector768 or EmbeddingVector1536
         var documentsQuery = _context.Documents
-            .Where(d => d.EmbeddingVector != null);
+            .Where(d => d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null);
 
         // Apply filters
         if (!string.IsNullOrEmpty(options.CategoryFilter))

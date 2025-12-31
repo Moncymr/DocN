@@ -76,8 +76,9 @@ public class NoOpSemanticRAGService : ISemanticRAGService
             }
 
             // Get all documents with embeddings for the user
+            // Query the actual mapped fields: EmbeddingVector768 or EmbeddingVector1536
             var documents = await _context.Documents
-                .Where(d => d.OwnerId == userId && d.EmbeddingVector != null)
+                .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
                 .ToListAsync();
 
             _logger.LogInformation("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
@@ -86,9 +87,11 @@ public class NoOpSemanticRAGService : ISemanticRAGService
             var scoredDocs = new List<(Document doc, double score)>();
             foreach (var doc in documents)
             {
-                if (doc.EmbeddingVector == null) continue;
+                // Use the EmbeddingVector property getter which returns the populated field
+                var docEmbedding = doc.EmbeddingVector;
+                if (docEmbedding == null) continue;
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
+                var similarity = CalculateCosineSimilarity(queryEmbedding, docEmbedding);
                 if (similarity >= minSimilarity)
                 {
                     scoredDocs.Add((doc, similarity));
@@ -98,17 +101,20 @@ public class NoOpSemanticRAGService : ISemanticRAGService
             _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
 
             // Get chunks for better precision
+            // Query the actual mapped fields: ChunkEmbedding768 or ChunkEmbedding1536
             var chunks = await _context.DocumentChunks
                 .Include(c => c.Document)
-                .Where(c => c.Document!.OwnerId == userId && c.ChunkEmbedding != null)
+                .Where(c => c.Document!.OwnerId == userId && (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
                 .ToListAsync();
 
             var scoredChunks = new List<(DocumentChunk chunk, double score)>();
             foreach (var chunk in chunks)
             {
-                if (chunk.ChunkEmbedding == null) continue;
+                // Use the ChunkEmbedding property getter which returns the populated field
+                var chunkEmbedding = chunk.ChunkEmbedding;
+                if (chunkEmbedding == null) continue;
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
+                var similarity = CalculateCosineSimilarity(queryEmbedding, chunkEmbedding);
                 if (similarity >= minSimilarity)
                 {
                     scoredChunks.Add((chunk, similarity));
