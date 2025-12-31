@@ -1,9 +1,12 @@
 using Xunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using DocN.Data;
+using DocN.Data.Services;
 using DocN.Server.Controllers;
+using System.Collections.Generic;
 
 namespace DocN.Server.Tests;
 
@@ -19,18 +22,28 @@ public class ConfigControllerIntegrationTests
         // Arrange - Simulate Program.cs DI configuration
         var services = new ServiceCollection();
         
+        // Add configuration (needed by MultiProviderAIService)
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>())
+            .Build();
+        services.AddSingleton<IConfiguration>(configuration);
+        
         // Add the services like in Program.cs (minimal set needed for ConfigController)
-        services.AddHttpClient();  // This is our fix!
+        services.AddHttpClient();  // Required for IHttpClientFactory
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseInMemoryDatabase("IntegrationTestDb"));
         services.AddLogging();
+        
+        // Add required services for ConfigController
+        services.AddScoped<ILogService, LogService>();
+        services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
         
         // Register the controller explicitly for testing
         services.AddScoped<ConfigController>();
 
         var serviceProvider = services.BuildServiceProvider();
 
-        // Act & Assert - This would throw InvalidOperationException before our fix
+        // Act & Assert - This would throw InvalidOperationException if dependencies are missing
         var exception = Record.Exception(() => 
         {
             using var scope = serviceProvider.CreateScope();

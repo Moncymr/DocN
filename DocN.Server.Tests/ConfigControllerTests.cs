@@ -2,6 +2,7 @@ using Xunit;
 using Microsoft.EntityFrameworkCore;
 using DocN.Data;
 using DocN.Data.Models;
+using DocN.Data.Services;
 using DocN.Server.Controllers;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -28,12 +29,14 @@ public class ConfigControllerTests
         using var context = CreateInMemoryContext();
         var loggerMock = new Mock<ILogger<ConfigController>>();
         var httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        var aiServiceMock = new Mock<IMultiProviderAIService>();
 
         // Act & Assert - Should not throw exception
         var controller = new ConfigController(
             context,
             loggerMock.Object,
-            httpClientFactoryMock.Object);
+            httpClientFactoryMock.Object,
+            aiServiceMock.Object);
 
         Assert.NotNull(controller);
     }
@@ -45,11 +48,13 @@ public class ConfigControllerTests
         using var context = CreateInMemoryContext();
         var loggerMock = new Mock<ILogger<ConfigController>>();
         var httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        var aiServiceMock = new Mock<IMultiProviderAIService>();
 
         var controller = new ConfigController(
             context,
             loggerMock.Object,
-            httpClientFactoryMock.Object);
+            httpClientFactoryMock.Object,
+            aiServiceMock.Object);
 
         // Act
         var result = await controller.TestConfiguration();
@@ -86,11 +91,13 @@ public class ConfigControllerTests
 
         var loggerMock = new Mock<ILogger<ConfigController>>();
         var httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        var aiServiceMock = new Mock<IMultiProviderAIService>();
 
         var controller = new ConfigController(
             context,
             loggerMock.Object,
-            httpClientFactoryMock.Object);
+            httpClientFactoryMock.Object,
+            aiServiceMock.Object);
 
         // Act
         var result = await controller.TestConfiguration();

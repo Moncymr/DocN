@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DocN.Data;
 using DocN.Data.Models;
+using DocN.Data.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DocN.Server.Controllers;
@@ -17,15 +18,18 @@ public class ConfigController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ConfigController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IMultiProviderAIService _aiService;
 
     public ConfigController(
         ApplicationDbContext context,
         ILogger<ConfigController> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IMultiProviderAIService aiService)
     {
         _context = context;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _aiService = aiService;
     }
 
     /// <summary>
@@ -496,7 +500,10 @@ public class ConfigController : ControllerBase
 
             await _context.SaveChangesAsync();
             
-            _logger.LogInformation("Configuration '{ConfigName}' saved successfully (ID: {ConfigId}, Active: {IsActive})", 
+            // Clear the AI service configuration cache to force reload from database
+            _aiService.ClearConfigurationCache();
+            
+            _logger.LogInformation("Configuration '{ConfigName}' saved successfully (ID: {ConfigId}, Active: {IsActive}). Cache cleared.", 
                 config.ConfigurationName, config.Id, config.IsActive);
 
             return Ok(config);
