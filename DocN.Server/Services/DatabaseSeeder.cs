@@ -123,6 +123,9 @@ public class DatabaseSeeder
                 return;
             }
 
+            // Default provider type for all services
+            const AIProviderType defaultProvider = AIProviderType.Gemini;
+
             // Create a default AI configuration that needs to be configured by the user
             var defaultConfig = new AIConfiguration
             {
@@ -130,10 +133,10 @@ public class DatabaseSeeder
                 IsActive = true,
                 
                 // Set default providers (will need API keys to be configured)
-                ChatProvider = AIProviderType.Gemini,
-                EmbeddingsProvider = AIProviderType.Gemini,
-                TagExtractionProvider = AIProviderType.Gemini,
-                RAGProvider = AIProviderType.Gemini,
+                ChatProvider = defaultProvider,
+                EmbeddingsProvider = defaultProvider,
+                TagExtractionProvider = defaultProvider,
+                RAGProvider = defaultProvider,
                 
                 // Default models
                 GeminiChatModel = "gemini-1.5-flash",
@@ -160,8 +163,8 @@ public class DatabaseSeeder
             _appContext.AIConfigurations.Add(defaultConfig);
             await _appContext.SaveChangesAsync();
 
-            _logger.LogInformation("✅ Created default AI configuration. Please configure API keys via the application.");
-            _logger.LogWarning("⚠️  IMPORTANT: The AI configuration has been created but API keys need to be configured!");
+            _logger.LogInformation("Created default AI configuration. Please configure API keys via the application.");
+            _logger.LogWarning("IMPORTANT: The AI configuration has been created but API keys need to be configured!");
         }
         catch (Exception ex)
         {
