@@ -325,11 +325,12 @@ Always cite your sources using [Document N] format where N is the document numbe
             var candidateLimit = Math.Max(topK * CandidateLimitMultiplier, MinCandidateLimit); // Get reasonable number of candidates
             
             // Get recent documents with embeddings (most recent are often most relevant)
+            // Query the actual mapped fields: EmbeddingVector768 or EmbeddingVector1536
             var documents = await _context.Documents
-                .Where(d => d.OwnerId == userId && d.EmbeddingVector != null)
+                .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
                 .OrderByDescending(d => d.UploadedAt)
                 .Take(candidateLimit)
-                .Select(d => new { d.Id, d.FileName, d.ActualCategory, d.ExtractedText, d.EmbeddingVector })
+                .Select(d => new { d.Id, d.FileName, d.ActualCategory, d.ExtractedText, d.EmbeddingVector768, d.EmbeddingVector1536 })
                 .ToListAsync();
 
             _logger.LogDebug("Retrieved {Count} candidate documents for similarity calculation", documents.Count);
@@ -338,9 +339,11 @@ Always cite your sources using [Document N] format where N is the document numbe
             var scoredDocs = new List<(int id, string fileName, string? category, string? text, double score)>();
             foreach (var doc in documents)
             {
-                if (doc.EmbeddingVector == null) continue;
+                // Use the populated vector field
+                var docEmbedding = doc.EmbeddingVector768 ?? doc.EmbeddingVector1536;
+                if (docEmbedding == null) continue;
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
+                var similarity = CalculateCosineSimilarity(queryEmbedding, docEmbedding);
                 if (similarity >= minSimilarity)
                 {
                     scoredDocs.Add((doc.Id, doc.FileName, doc.ActualCategory, doc.ExtractedText, similarity));
@@ -348,9 +351,10 @@ Always cite your sources using [Document N] format where N is the document numbe
             }
 
             // Get recent chunks with embeddings
+            // Query the actual mapped fields: ChunkEmbedding768 or ChunkEmbedding1536
             var chunks = await _context.DocumentChunks
                 .Include(c => c.Document)
-                .Where(c => c.Document!.OwnerId == userId && c.ChunkEmbedding != null)
+                .Where(c => c.Document!.OwnerId == userId && (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
                 .OrderByDescending(c => c.CreatedAt)
                 .Take(candidateLimit)
                 .Select(c => new { 
@@ -359,7 +363,8 @@ Always cite your sources using [Document N] format where N is the document numbe
                     c.Document.ActualCategory, 
                     c.ChunkText, 
                     c.ChunkIndex, 
-                    c.ChunkEmbedding 
+                    c.ChunkEmbedding768,
+                    c.ChunkEmbedding1536
                 })
                 .ToListAsync();
 
@@ -369,9 +374,11 @@ Always cite your sources using [Document N] format where N is the document numbe
             var scoredChunks = new List<(int docId, string fileName, string? category, string chunkText, int chunkIndex, double score)>();
             foreach (var chunk in chunks)
             {
-                if (chunk.ChunkEmbedding == null) continue;
+                // Use the populated vector field
+                var chunkEmbedding = chunk.ChunkEmbedding768 ?? chunk.ChunkEmbedding1536;
+                if (chunkEmbedding == null) continue;
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
+                var similarity = CalculateCosineSimilarity(queryEmbedding, chunkEmbedding);
                 if (similarity >= minSimilarity)
                 {
                     scoredChunks.Add((chunk.DocumentId, chunk.FileName, chunk.ActualCategory, chunk.ChunkText, chunk.ChunkIndex, similarity));
@@ -583,8 +590,9 @@ Always cite your sources using [Document N] format where N is the document numbe
             }
 
             // Get all documents with embeddings for the user
+            // Query the actual mapped fields: EmbeddingVector768 or EmbeddingVector1536
             var documents = await _context.Documents
-                .Where(d => d.OwnerId == userId && d.EmbeddingVector != null)
+                .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
                 .ToListAsync();
 
             _logger.LogInformation("=== SIMILARITY SEARCH DEBUG ===");
@@ -603,7 +611,9 @@ Always cite your sources using [Document N] format where N is the document numbe
             int comparisonCount = 0;
             foreach (var doc in documents)
             {
-                if (doc.EmbeddingVector == null)
+                // Use the EmbeddingVector property getter which returns the populated field
+                var docEmbedding = doc.EmbeddingVector;
+                if (docEmbedding == null)
                 {
                     _logger.LogWarning("Document {FileName} (ID: {Id}) has NULL embedding vector - skipping", doc.FileName, doc.Id);
                     continue;
@@ -611,13 +621,13 @@ Always cite your sources using [Document N] format where N is the document numbe
 
                 comparisonCount++;
                 _logger.LogInformation("--- Comparison #{Count}: Document {FileName} (ID: {Id}) ---", comparisonCount, doc.FileName, doc.Id);
-                _logger.LogInformation("  Document embedding - Length: {Length}", doc.EmbeddingVector.Length);
+                _logger.LogInformation("  Document embedding - Length: {Length}", docEmbedding.Length);
                 _logger.LogInformation("  Document embedding - First 10 values: [{Values}]",
-                    string.Join(", ", doc.EmbeddingVector.Take(10).Select(v => v.ToString("F8"))));
+                    string.Join(", ", docEmbedding.Take(10).Select(v => v.ToString("F8"))));
                 _logger.LogInformation("  Document embedding - Last 10 values: [{Values}]",
-                    string.Join(", ", doc.EmbeddingVector.Skip(Math.Max(0, doc.EmbeddingVector.Length - 10)).Select(v => v.ToString("F8"))));
+                    string.Join(", ", docEmbedding.Skip(Math.Max(0, docEmbedding.Length - 10)).Select(v => v.ToString("F8"))));
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
+                var similarity = CalculateCosineSimilarity(queryEmbedding, docEmbedding);
                 _logger.LogInformation("  Calculated similarity: {Similarity} ({SimilarityPercent:P2})", similarity, similarity);
                 
                 if (similarity >= minSimilarity)
@@ -635,17 +645,20 @@ Always cite your sources using [Document N] format where N is the document numbe
             _logger.LogInformation("=== END SIMILARITY SEARCH DEBUG ===");
 
             // Get chunks for better precision
+            // Query the actual mapped fields: ChunkEmbedding768 or ChunkEmbedding1536
             var chunks = await _context.DocumentChunks
                 .Include(c => c.Document)
-                .Where(c => c.Document!.OwnerId == userId && c.ChunkEmbedding != null)
+                .Where(c => c.Document!.OwnerId == userId && (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
                 .ToListAsync();
 
             var scoredChunks = new List<(DocumentChunk chunk, double score)>();
             foreach (var chunk in chunks)
             {
-                if (chunk.ChunkEmbedding == null) continue;
+                // Use the ChunkEmbedding property getter which returns the populated field
+                var chunkEmbedding = chunk.ChunkEmbedding;
+                if (chunkEmbedding == null) continue;
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
+                var similarity = CalculateCosineSimilarity(queryEmbedding, chunkEmbedding);
                 if (similarity >= minSimilarity)
                 {
                     scoredChunks.Add((chunk, similarity));
