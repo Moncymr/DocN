@@ -44,13 +44,15 @@ public class SemanticRAGService : ISemanticRAGService
         IEmbeddingService embeddingService,
         ICacheService cacheService)
     {
-        _kernel = kernel ?? throw new ArgumentNullException(nameof(kernel));
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
-        _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+        _kernel = kernel;
+        _context = context;
+        _logger = logger;
+        _embeddingService = embeddingService;
+        _cacheService = cacheService;
         
-        // Defer service resolution and agent initialization to first use to avoid DI construction issues
+        // Attempt to initialize chat service and agents during construction
+        // If initialization fails (e.g., due to missing AI configuration),
+        // the service will return appropriate error messages when called
         try
         {
             _chatService = kernel.GetRequiredService<IChatCompletionService>();
@@ -58,7 +60,7 @@ public class SemanticRAGService : ISemanticRAGService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Could not initialize SemanticRAGService during construction. Services will be initialized on first use.");
+            _logger.LogWarning(ex, "Could not initialize SemanticRAGService during construction. AI features will be unavailable.");
         }
     }
 
