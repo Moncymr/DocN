@@ -7,6 +7,8 @@ using Moq;
 using Microsoft.AspNetCore.Mvc;
 using DocN.Core.Interfaces;
 using DocN.Data.Models;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 
 namespace DocN.Server.Tests;
 
@@ -23,17 +25,23 @@ public class SemanticChatControllerTests
 
     private SemanticChatController CreateController(
         ApplicationDbContext context,
-        ISemanticRAGService? ragService = null)
+        ISemanticRAGService? ragService = null,
+        bool isDevelopment = true)
     {
         var loggerMock = new Mock<ILogger<SemanticChatController>>();
         var ragServiceMock = ragService != null 
             ? Mock.Get(ragService) 
             : new Mock<ISemanticRAGService>();
+        
+        var environmentMock = new Mock<IWebHostEnvironment>();
+        environmentMock.Setup(e => e.EnvironmentName)
+            .Returns(isDevelopment ? Environments.Development : Environments.Production);
 
         return new SemanticChatController(
             ragServiceMock.Object,
             context,
-            loggerMock.Object);
+            loggerMock.Object,
+            environmentMock.Object);
     }
 
     [Fact]
@@ -201,5 +209,100 @@ public class SemanticChatControllerTests
         // Assert
         var objectResult = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task Query_WithNoAIProviderConfigured_InProduction_DoesNotExposeDetails()
+    {
+        // Arrange
+        using var context = CreateInMemoryContext();
+        
+        var ragServiceMock = new Mock<ISemanticRAGService>();
+        ragServiceMock
+            .Setup(s => s.GenerateResponseAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<int?>(),
+                It.IsAny<List<int>?>(),
+                It.IsAny<int>()))
+            .ThrowsAsync(new InvalidOperationException(
+                "Nessun provider AI ha una chiave API valida configurata. " +
+                "Configura almeno un provider (Gemini, OpenAI, o Azure OpenAI) " +
+                "tramite l'interfaccia utente o appsettings.json."));
+
+        var controller = CreateController(context, ragServiceMock.Object, isDevelopment: false);
+
+        var request = new SemanticChatRequest
+        {
+            Message = "Test query",
+            UserId = "test-user"
+        };
+
+        // Act
+        var result = await controller.Query(request);
+
+        // Assert
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(503, objectResult.StatusCode);
+        
+        // Verify error response structure
+        dynamic? value = objectResult.Value;
+        Assert.NotNull(value);
+        
+        // In production, details should NOT be present
+        var detailsProp = value.GetType().GetProperty("details");
+        Assert.Null(detailsProp);
+        
+        // But error and errorCode should still be present
+        var errorProp = value.GetType().GetProperty("error");
+        var errorCodeProp = value.GetType().GetProperty("errorCode");
+        
+        Assert.NotNull(errorProp);
+        Assert.NotNull(errorCodeProp);
+        
+        var errorValue = errorProp.GetValue(value)?.ToString();
+        var errorCodeValue = errorCodeProp.GetValue(value)?.ToString();
+        
+        Assert.Contains("AI provider not configured", errorValue);
+        Assert.Equal("AI_PROVIDER_NOT_CONFIGURED", errorCodeValue);
+    }
+
+    [Fact]
+    public async Task Query_WithGenericException_InProduction_DoesNotExposeDetails()
+    {
+        // Arrange
+        using var context = CreateInMemoryContext();
+        
+        var ragServiceMock = new Mock<ISemanticRAGService>();
+        ragServiceMock
+            .Setup(s => s.GenerateResponseAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<int?>(),
+                It.IsAny<List<int>?>(),
+                It.IsAny<int>()))
+            .ThrowsAsync(new Exception("Sensitive internal error details"));
+
+        var controller = CreateController(context, ragServiceMock.Object, isDevelopment: false);
+
+        var request = new SemanticChatRequest
+        {
+            Message = "Test query",
+            UserId = "test-user"
+        };
+
+        // Act
+        var result = await controller.Query(request);
+
+        // Assert
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(500, objectResult.StatusCode);
+        
+        // Verify that details are NOT exposed in production
+        dynamic? value = objectResult.Value;
+        Assert.NotNull(value);
+        
+        var detailsProp = value.GetType().GetProperty("details");
+        Assert.Null(detailsProp);
     }
 }

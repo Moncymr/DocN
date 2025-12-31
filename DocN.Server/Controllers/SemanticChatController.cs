@@ -17,15 +17,18 @@ public class SemanticChatController : ControllerBase
     private readonly ISemanticRAGService _ragService;
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SemanticChatController> _logger;
+    private readonly IWebHostEnvironment _environment;
 
     public SemanticChatController(
         ISemanticRAGService ragService,
         ApplicationDbContext context,
-        ILogger<SemanticChatController> logger)
+        ILogger<SemanticChatController> logger,
+        IWebHostEnvironment environment)
     {
         _ragService = ragService;
         _context = context;
         _logger = logger;
+        _environment = environment;
     }
 
     /// <summary>
@@ -90,17 +93,37 @@ public class SemanticChatController : ControllerBase
             ex.Message.Contains("Nessuna configurazione AI attiva", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning(ex, "AI provider configuration error");
-            return StatusCode(503, new 
+            
+            var errorResponse = new 
             { 
                 error = "AI provider not configured. Please configure at least one AI provider (Gemini, OpenAI, or Azure OpenAI) in the Settings page.",
-                errorCode = "AI_PROVIDER_NOT_CONFIGURED",
-                details = ex.Message
-            });
+                errorCode = "AI_PROVIDER_NOT_CONFIGURED"
+            };
+            
+            // Only include details in development environment
+            if (_environment.IsDevelopment())
+            {
+                return StatusCode(503, new 
+                { 
+                    errorResponse.error,
+                    errorResponse.errorCode,
+                    details = ex.Message
+                });
+            }
+            
+            return StatusCode(503, errorResponse);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing semantic chat query");
-            return StatusCode(500, new { error = "An error occurred while processing your request", details = ex.Message });
+            
+            // Only include detailed error messages in development
+            if (_environment.IsDevelopment())
+            {
+                return StatusCode(500, new { error = "An error occurred while processing your request", details = ex.Message });
+            }
+            
+            return StatusCode(500, new { error = "An error occurred while processing your request" });
         }
     }
 
