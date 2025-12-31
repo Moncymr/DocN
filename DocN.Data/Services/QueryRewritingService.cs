@@ -97,7 +97,12 @@ Termini aggiuntivi:";
             if (string.IsNullOrWhiteSpace(expansions))
                 return query;
 
-            var expandedQuery = $"{query} OR {expansions.Replace(",", " OR")}";
+            // Split and clean expansion terms
+            var expansionTerms = expansions.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim())
+                .Where(t => !string.IsNullOrWhiteSpace(t));
+
+            var expandedQuery = $"{query} OR {string.Join(" OR ", expansionTerms)}";
             _logger.LogDebug("Query expanded: '{Original}' → '{Expanded}'", query, expandedQuery);
             
             return expandedQuery;

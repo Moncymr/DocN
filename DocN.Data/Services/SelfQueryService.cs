@@ -592,7 +592,7 @@ Restituisci sempre JSON valido.");
                             _ => query
                         };
                     }
-                    break;
+                    return query;
 
                 case "filename":
                     var filenameValue = filter.Value?.ToString() ?? "";

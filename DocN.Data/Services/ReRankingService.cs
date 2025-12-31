@@ -134,8 +134,9 @@ Restituisci SOLO un numero decimale tra 0.0 e 1.0 (es: 0.85), senza altro testo.
             var result = await _chatService.GetChatMessageContentAsync(chatHistory, settings, _kernel);
             var scoreText = result.Content?.Trim() ?? "0.5";
 
-            // Parse il risultato
-            if (double.TryParse(scoreText.Replace(",", "."), out double score))
+            // Parse il risultato usando InvariantCulture
+            if (double.TryParse(scoreText, System.Globalization.NumberStyles.Float, 
+                System.Globalization.CultureInfo.InvariantCulture, out double score))
             {
                 // Assicurati che sia nel range 0-1
                 score = Math.Max(0, Math.Min(1, score));

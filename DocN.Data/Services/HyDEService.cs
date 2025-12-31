@@ -228,15 +228,19 @@ Domanda: {query}
             // Aggrega risultati (rimuovi duplicati e ordina per score)
             var aggregatedResults = allResults
                 .GroupBy(r => r.DocumentId)
-                .Select(g => new RelevantDocumentResult
+                .Select(g =>
                 {
-                    DocumentId = g.Key,
-                    FileName = g.First().FileName,
-                    Category = g.First().Category,
-                    SimilarityScore = g.Max(r => r.SimilarityScore), // Prendi lo score massimo
-                    RelevantChunk = g.First().RelevantChunk,
-                    ChunkIndex = g.First().ChunkIndex,
-                    ExtractedText = g.First().ExtractedText
+                    var firstResult = g.First();
+                    return new RelevantDocumentResult
+                    {
+                        DocumentId = g.Key,
+                        FileName = firstResult.FileName,
+                        Category = firstResult.Category,
+                        SimilarityScore = g.Max(r => r.SimilarityScore), // Prendi lo score massimo
+                        RelevantChunk = firstResult.RelevantChunk,
+                        ChunkIndex = firstResult.ChunkIndex,
+                        ExtractedText = firstResult.ExtractedText
+                    };
                 })
                 .OrderByDescending(r => r.SimilarityScore)
                 .Take(topK)
