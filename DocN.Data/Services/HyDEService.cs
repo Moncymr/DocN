@@ -6,6 +6,8 @@ using DocN.Core.Interfaces;
 using System.Text;
 using System.Text.Json;
 
+#pragma warning disable SKEXP0010 // ResponseFormat is experimental
+
 namespace DocN.Data.Services;
 
 /// <summary>
@@ -88,19 +90,17 @@ Il documento deve essere scritto in stile formale e professionale, simile ai doc
             _logger.LogDebug("Generating {NumVariants} hypothetical document variants for query: {Query}",
                 numVariants, query);
 
+            var contextPart = domainContext != null ? $"Contesto: {domainContext}\n\n" : "";
             var prompt = $@"Genera {numVariants} documenti ipotetici DIVERSI che potrebbero rispondere alla seguente domanda.
 Ogni documento deve avere una prospettiva o focus leggermente diverso.
 
 Domanda: {query}
 
-{(domainContext != null ? $"Contesto: {domainContext}\n" : "")}
-
-Restituisci i documenti in formato JSON:
+{contextPart}Restituisci i documenti in formato JSON:
 {{
     ""documents"": [
-        ""documento 1...\",
-        ""documento 2...\",
-        ...
+        ""documento 1..."",
+        ""documento 2...""
     ]
 }}";
 
@@ -345,7 +345,7 @@ Restituisci l'analisi in formato JSON:
 {{
     ""isRecommended"": true/false,
     ""confidence"": 0.0-1.0,
-    ""reason"": ""spiegazione\",
+    ""reason"": ""spiegazione"",
     ""queryType"": ""Simple"" | ""Conceptual"" | ""Reasoning"" | ""Exact"" | ""Complex"",
     ""suggestedHyDEWeight"": 0.0-1.0
 }}";

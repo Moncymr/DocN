@@ -6,6 +6,8 @@ using DocN.Core.Interfaces;
 using System.Text;
 using System.Text.Json;
 
+#pragma warning disable SKEXP0010 // ResponseFormat is experimental
+
 namespace DocN.Data.Services;
 
 /// <summary>
