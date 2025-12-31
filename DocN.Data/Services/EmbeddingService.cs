@@ -3,6 +3,7 @@ using Azure;
 using DocN.Data.Models;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
+using Microsoft.EntityFrameworkCore;
 
 namespace DocN.Data.Services;
 
@@ -18,6 +19,7 @@ public class EmbeddingService : IEmbeddingService
     private readonly ICacheService? _cacheService;
     private EmbeddingClient? _client;
     private bool _initialized = false;
+    private readonly SemaphoreSlim _initializationLock = new SemaphoreSlim(1, 1);
 
     public EmbeddingService(ApplicationDbContext context, ICacheService? cacheService = null)
     {
@@ -25,33 +27,43 @@ public class EmbeddingService : IEmbeddingService
         _cacheService = cacheService;
     }
 
-    private void EnsureInitialized()
+    private async Task EnsureInitializedAsync()
     {
         if (_initialized) return;
         
+        await _initializationLock.WaitAsync();
         try
         {
-            var config = _context.AIConfigurations.FirstOrDefault(c => c.IsActive);
+            // Double-check after acquiring lock
+            if (_initialized) return;
+            
+            var config = await _context.AIConfigurations
+                .Where(c => c.IsActive)
+                .FirstOrDefaultAsync();
+                
             if (config != null && !string.IsNullOrEmpty(config.AzureOpenAIEndpoint) && !string.IsNullOrEmpty(config.AzureOpenAIKey))
             {
                 var azureClient = new AzureOpenAIClient(new Uri(config.AzureOpenAIEndpoint), new AzureKeyCredential(config.AzureOpenAIKey));
                 _client = azureClient.GetEmbeddingClient(config.EmbeddingDeploymentName ?? "text-embedding-ada-002");
             }
+            
+            _initialized = true;
         }
         catch
         {
             // Initialization can fail if database doesn't exist yet or AIConfigurations table is empty
             // This is OK - the service will work without AI features
+            _initialized = true; // Mark as initialized to avoid repeated failed attempts
         }
         finally
         {
-            _initialized = true;
+            _initializationLock.Release();
         }
     }
 
     public async Task<float[]?> GenerateEmbeddingAsync(string text)
     {
-        EnsureInitialized();
+        await EnsureInitializedAsync();
         
         if (_client == null)
             return null;
