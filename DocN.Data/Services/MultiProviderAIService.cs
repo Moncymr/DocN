@@ -11,6 +11,10 @@ using System.Text.Json;
 
 namespace DocN.Data.Services;
 
+/// <summary>
+/// Multi-provider AI service interface for RAG operations
+/// Supports Gemini, OpenAI, and Azure OpenAI providers
+/// </summary>
 public interface IMultiProviderAIService
 {
     Task<float[]?> GenerateEmbeddingAsync(string text);
@@ -23,14 +27,42 @@ public interface IMultiProviderAIService
     Task<AIConfiguration?> GetActiveConfigurationAsync();
 }
 
+/// <summary>
+/// Multi-provider AI service implementation
+/// </summary>
+/// <remarks>
+/// ════════════════════════════════════════════════════════════════════════════════
+/// CONFIGURATION LOADING - Dove viene caricata la configurazione AI?
+/// ════════════════════════════════════════════════════════════════════════════════
+/// Questo servizio carica la configurazione AI necessaria per il RAG in modo "lazy":
+/// 
+/// 1. PRIORITÀ: Configurazione Database
+///    - Legge dalla tabella AIConfigurations
+///    - Cerca una configurazione con IsActive = true
+///    - Configurabile tramite UI Settings (consigliato)
+/// 
+/// 2. FALLBACK: appsettings.json
+///    - Se non c'è configurazione nel database
+///    - Legge da sezioni Gemini/OpenAI/AzureOpenAI
+///    - Utile per setup iniziale o testing
+/// 
+/// 3. CACHING: 5 minuti
+///    - La configurazione viene messa in cache per performance
+///    - Si ricarica automaticamente dopo 5 minuti
+///    - Riduce query al database
+/// 
+/// Il caricamento avviene automaticamente alla prima chiamata a GenerateEmbeddingAsync()
+/// o GenerateChatCompletionAsync().
+/// ════════════════════════════════════════════════════════════════════════════════
+/// </remarks>
 public class MultiProviderAIService : IMultiProviderAIService
 {
-    private readonly IConfiguration _configuration;
-    private readonly ApplicationDbContext _context;
+    private readonly IConfiguration _configuration;        // ← appsettings.json (fallback)
+    private readonly ApplicationDbContext _context;        // ← Database AIConfigurations (priorità)
     private readonly ILogService _logService;
-    private AIConfiguration? _cachedConfig;
+    private AIConfiguration? _cachedConfig;               // ← Cache della configurazione
     private DateTime _lastConfigCheck = DateTime.MinValue;
-    private readonly TimeSpan _configCacheDuration = TimeSpan.FromMinutes(5);
+    private readonly TimeSpan _configCacheDuration = TimeSpan.FromMinutes(5);  // ← Durata cache
 
     public MultiProviderAIService(IConfiguration configuration, ApplicationDbContext context, ILogService logService)
     {
@@ -42,15 +74,19 @@ public class MultiProviderAIService : IMultiProviderAIService
     /// <summary>
     /// Ottiene la configurazione attiva dal database, con caching per evitare troppe query
     /// </summary>
+    /// <remarks>
+    /// QUESTO È IL PUNTO CHIAVE dove viene caricata la configurazione del provider RAG!
+    /// Viene chiamato automaticamente quando serve generare embeddings o risposte.
+    /// </remarks>
     public async Task<AIConfiguration?> GetActiveConfigurationAsync()
     {
         // Check if cached configuration is still valid
         if (_cachedConfig != null && DateTime.UtcNow - _lastConfigCheck < _configCacheDuration)
         {
-            return _cachedConfig;
+            return _cachedConfig;  // ← Usa cache se ancora valida
         }
 
-        // Fetch active configuration from database
+        // Fetch active configuration from database (PRIORITÀ)
         _cachedConfig = await _context.AIConfigurations
             .Where(c => c.IsActive)
             .OrderByDescending(c => c.UpdatedAt ?? c.CreatedAt)
@@ -58,7 +94,7 @@ public class MultiProviderAIService : IMultiProviderAIService
 
         _lastConfigCheck = DateTime.UtcNow;
 
-        // If no database configuration exists, create a default one from appsettings
+        // If no database configuration exists, create a default one from appsettings (FALLBACK)
         if (_cachedConfig == null)
         {
             _cachedConfig = CreateDefaultConfigurationFromAppSettings();
@@ -67,6 +103,9 @@ public class MultiProviderAIService : IMultiProviderAIService
         return _cachedConfig;
     }
 
+    /// <summary>
+    /// Crea una configurazione di default da appsettings.json quando non c'è nel database
+    /// </summary>
     private AIConfiguration CreateDefaultConfigurationFromAppSettings()
     {
         // Fallback to appsettings.json configuration for backward compatibility

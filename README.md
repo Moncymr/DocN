@@ -221,6 +221,9 @@ Accedi a `/config` nell'applicazione per configurare:
 - Chunking configuration
 - Fallback automatico
 
+**📚 Per capire come funziona l'inizializzazione del provider RAG, consulta:**
+[**RAG_PROVIDER_INITIALIZATION_GUIDE.md**](RAG_PROVIDER_INITIALIZATION_GUIDE.md) - Guida completa che spiega dove e come viene inizializzato il provider RAG per i tuoi documenti.
+
 ### Configurazione Database
 
 Modifica `appsettings.json`:
@@ -302,6 +305,24 @@ Per domande, problemi o feature request:
 - Email: support@docn.example.com
 
 ### Problemi Comuni
+
+**Domanda: "Dove inizializza il provider per RAG dei miei documenti?"**
+
+Consulta la guida completa: [RAG_PROVIDER_INITIALIZATION_GUIDE.md](RAG_PROVIDER_INITIALIZATION_GUIDE.md)
+
+In breve:
+- Il provider viene inizializzato automaticamente in `DocN.Server/Program.cs` alla riga 324
+- La configurazione viene caricata dal database (tabella `AIConfigurations`) o da `appsettings.json`
+- Non è necessaria inizializzazione manuale - tutto è gestito da Dependency Injection
+
+**Errore: "AI_PROVIDER_NOT_CONFIGURED"**
+
+Il sistema non ha trovato nessun provider AI configurato:
+1. Vai in Settings (`/config`) nell'applicazione
+2. Configura almeno un provider (Gemini, OpenAI, o Azure OpenAI)
+3. Inserisci una API key valida
+4. Attiva la configurazione (toggle "Active")
+5. Riprova la chat
 
 **Errore: "ERRORE CRITICO: Il salvataggio nel database è fallito"**
 

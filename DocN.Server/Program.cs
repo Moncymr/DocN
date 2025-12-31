@@ -318,9 +318,24 @@ builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 // Register Audit Service for GDPR/SOC2 compliance
 builder.Services.AddScoped<IAuditService, AuditService>();
 
-// Register Semantic RAG Service
-// Always use MultiProviderSemanticRAGService which supports both appsettings and database config
-// It will try configured providers with fallback mechanism (similar to embedding service)
+// ════════════════════════════════════════════════════════════════════════════════
+// RAG PROVIDER INITIALIZATION - Dove inizializza il provider per RAG?
+// ════════════════════════════════════════════════════════════════════════════════
+// Qui viene registrato il servizio RAG nel container di Dependency Injection.
+// Il provider viene inizializzato automaticamente quando viene richiesto (lazy initialization).
+//
+// Flow di inizializzazione:
+// 1. ASP.NET Core crea un'istanza di MultiProviderSemanticRAGService quando serve
+// 2. MultiProviderSemanticRAGService riceve IMultiProviderAIService via DI
+// 3. MultiProviderAIService carica la configurazione dal database o appsettings.json
+// 4. Il provider AI (Gemini/OpenAI/Azure) viene inizializzato con le credenziali
+//
+// Configurazione:
+// - Database: Tabella AIConfigurations (priorità, configurabile via UI Settings)
+// - Fallback: appsettings.json sezione Gemini/OpenAI/AzureOpenAI
+//
+// Per maggiori dettagli: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
+// ════════════════════════════════════════════════════════════════════════════════
 builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
 
 // Register agents (used by both implementations if needed)
