@@ -9,12 +9,55 @@ using DocN.Server.Middleware;
 using DocN.Core.Interfaces;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Serilog;
+using Serilog.Events;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+using App.Metrics.AspNetCore;
+using App.Metrics.Formatters.Prometheus;
+using Hangfire;
+using Hangfire.SqlServer;
+using Hangfire.Console;
 
 #pragma warning disable SKEXP0001 // Type is for evaluation purposes only
 #pragma warning disable SKEXP0010 // Method is for evaluation purposes only
 #pragma warning disable SKEXP0110 // Agents are experimental
 
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .Enrich.WithEnvironmentName()
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File("logs/docn-.log", 
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
+try
+{
+    Log.Information("Starting DocN Server...");
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Add Serilog to builder
+builder.Host.UseSerilog();
+
+// Configure App.Metrics for business and technical metrics
+builder.Host.UseMetrics(options =>
+{
+    options.EndpointOptions = endpointsOptions =>
+    {
+        endpointsOptions.MetricsTextEndpointOutputFormatter = new MetricsPrometheusTextOutputFormatter();
+        endpointsOptions.MetricsEndpointOutputFormatter = new MetricsPrometheusTextOutputFormatter();
+    };
+});
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -182,6 +225,79 @@ else
 var kernel = kernelBuilder.Build();
 builder.Services.AddSingleton(kernel);
 
+// Configure OpenTelemetry for distributed tracing
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService(serviceName: "DocN.Server", serviceVersion: "2.0"))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSqlClientInstrumentation(options =>
+        {
+            options.SetDbStatementForText = true;
+            options.RecordException = true;
+        })
+        .AddSource("DocN.*")
+        .AddConsoleExporter()
+        .AddOtlpExporter(options =>
+        {
+            // Configure OTLP endpoint if available (e.g., Jaeger, Zipkin)
+            var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
+            if (!string.IsNullOrEmpty(otlpEndpoint))
+            {
+                options.Endpoint = new Uri(otlpEndpoint);
+            }
+        }))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddMeter("DocN.*")
+        .AddConsoleExporter()
+        .AddPrometheusExporter());
+
+// Configure Hangfire for background job processing
+var hangfireConnectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+                            ?? builder.Configuration.GetConnectionString("DocArc");
+if (!string.IsNullOrEmpty(hangfireConnectionString))
+{
+    builder.Services.AddHangfire(configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseSqlServerStorage(hangfireConnectionString, new SqlServerStorageOptions
+        {
+            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+            SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+            QueuePollInterval = TimeSpan.Zero,
+            UseRecommendedIsolationLevel = true,
+            DisableGlobalLocks = true
+        })
+        .UseConsole());
+    
+    builder.Services.AddHangfireServer(options =>
+    {
+        options.WorkerCount = Environment.ProcessorCount * 2;
+        options.Queues = new[] { "critical", "default", "low" };
+    });
+}
+
+// Configure Redis distributed cache (optional, falls back to memory cache if not configured)
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrEmpty(redisConnectionString))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnectionString;
+        options.InstanceName = "DocN:";
+    });
+    Log.Information("Redis distributed cache configured");
+}
+else
+{
+    Log.Information("Redis not configured, using in-memory cache");
+}
+
 // Register core services - use Data layer implementations
 builder.Services.AddScoped<DocN.Data.Services.IEmbeddingService, DocN.Data.Services.EmbeddingService>();
 builder.Services.AddScoped<DocN.Data.Services.IChunkingService, DocN.Data.Services.ChunkingService>();
@@ -189,6 +305,9 @@ builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<IHybridSearchService, HybridSearchService>();
 builder.Services.AddScoped<IBatchProcessingService, BatchProcessingService>();
 builder.Services.AddScoped<ILogService, LogService>();
+
+// Register Distributed Cache Service (works with both Redis and in-memory cache)
+builder.Services.AddSingleton<IDistributedCacheService, DistributedCacheService>();
 
 // Register Multi-Provider AI Service (supports Gemini, OpenAI, Azure OpenAI from database config)
 builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
@@ -218,11 +337,18 @@ builder.Services.AddHostedService<BatchEmbeddingProcessor>();
 builder.Services.AddScoped<DatabaseSeeder>();
 
 // Add Health Checks for monitoring and orchestration
-builder.Services.AddHealthChecks()
+var healthChecksBuilder = builder.Services.AddHealthChecks()
     .AddDbContextCheck<ApplicationDbContext>("database", tags: new[] { "ready", "db" })
     .AddCheck<AIProviderHealthCheck>("ai_provider", tags: new[] { "ready", "ai" })
     .AddCheck<OCRServiceHealthCheck>("ocr_service", tags: new[] { "ready", "ocr" })
-    .AddCheck<SemanticKernelHealthCheck>("semantic_kernel", tags: new[] { "ready", "orchestration" });
+    .AddCheck<SemanticKernelHealthCheck>("semantic_kernel", tags: new[] { "ready", "orchestration" })
+    .AddCheck<FileStorageHealthCheck>("file_storage", tags: new[] { "ready", "storage" });
+
+// Add Redis health check if configured
+if (!string.IsNullOrEmpty(redisConnectionString))
+{
+    healthChecksBuilder.AddRedis(redisConnectionString, "redis_cache", tags: new[] { "ready", "cache" });
+}
 
 var app = builder.Build();
 
@@ -285,7 +411,24 @@ app.UseRateLimiter();
 app.UseCors();
 app.UseHttpsRedirection();
 app.UseAuthorization();
+
+// Add Hangfire Dashboard (if configured)
+if (!string.IsNullOrEmpty(hangfireConnectionString))
+{
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        DashboardTitle = "DocN Background Jobs",
+        StatsPollingInterval = 5000, // 5 seconds
+        Authorization = new[] { new HangfireAuthorizationFilter() }
+    });
+    Log.Information("Hangfire dashboard available at /hangfire");
+}
+
 app.MapControllers();
+
+// Add Prometheus-compatible metrics endpoint via OpenTelemetry
+app.UseOpenTelemetryPrometheusScrapingEndpoint();
+Log.Information("OpenTelemetry Prometheus metrics endpoint available at /metrics");
 
 // Add comprehensive health check endpoints
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
@@ -321,4 +464,15 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
     Predicate = check => check.Tags.Contains("ready")
 });
 
+Log.Information("DocN Server started successfully");
 app.Run();
+
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
