@@ -398,6 +398,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // LogEntry configuration
         modelBuilder.Entity<LogEntry>(entity =>
         {
+            entity.ToTable("LogEntries");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Timestamp).IsRequired();
             entity.Property(e => e.Level).IsRequired().HasMaxLength(50);
