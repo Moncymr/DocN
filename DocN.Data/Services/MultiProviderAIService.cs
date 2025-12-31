@@ -131,7 +131,10 @@ public class MultiProviderAIService : IMultiProviderAIService
         if (!hasGeminiKey && !hasOpenAIKey && !hasAzureKey)
         {
             await _logService.LogErrorAsync("Embedding", "Nessun provider di embedding configurato", "Tutti i provider (Gemini, OpenAI, Azure OpenAI) mancano di chiavi API valide");
-            throw new InvalidOperationException("Nessun provider di embedding ha una chiave API valida configurata. Configura almeno un provider (Gemini, OpenAI, o Azure OpenAI) tramite l'interfaccia utente delle Impostazioni AI o nel file appsettings.json con le seguenti chiavi: 'Gemini:ApiKey', 'OpenAI:ApiKey', o 'AzureOpenAI:ApiKey' e 'AzureOpenAI:Endpoint'.");
+            var errorMessage = "Nessun provider di embedding ha una chiave API valida configurata. " +
+                "Configura almeno un provider tramite l'interfaccia utente delle Impostazioni AI o nel file appsettings.json. " +
+                "Chiavi richieste: 'Gemini:ApiKey', 'OpenAI:ApiKey', oppure 'AzureOpenAI:ApiKey' e 'AzureOpenAI:Endpoint'.";
+            throw new InvalidOperationException(errorMessage);
         }
 
         // Determine which provider to use for embeddings
@@ -205,7 +208,9 @@ public class MultiProviderAIService : IMultiProviderAIService
                 }
                 
                 // All fallback attempts failed - provide helpful error message
-                var errorMessage = $"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}. Verifica le chiavi API nella configurazione AI o in appsettings.json.";
+                var errorMessage = $"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}. " +
+                    "Verifica le chiavi API nella configurazione. " +
+                    "Chiavi richieste: 'Gemini:ApiKey', 'OpenAI:ApiKey', oppure 'AzureOpenAI:ApiKey' e 'AzureOpenAI:Endpoint'.";
                 await _logService.LogErrorAsync("Embedding", "Tutti i tentativi di embedding sono falliti", errorMessage);
                 throw new InvalidOperationException(errorMessage);
             }
