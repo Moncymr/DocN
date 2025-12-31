@@ -100,32 +100,50 @@ public class LogService : ILogService
 
     public async Task<List<LogEntry>> GetUploadLogsAsync(string? userId = null, DateTime? fromDate = null, int maxRecords = 100)
     {
-        if (_context?.LogEntries == null)
+        try
         {
-            Console.WriteLine("[LOG SERVICE ERROR] Database context or LogEntries is null");
+            if (_context == null)
+            {
+                Console.WriteLine("[LOG SERVICE ERROR] Database context is null in GetUploadLogsAsync");
+                return new List<LogEntry>();
+            }
+            
+            if (_context.LogEntries == null)
+            {
+                Console.WriteLine("[LOG SERVICE ERROR] LogEntries DbSet is null in GetUploadLogsAsync");
+                return new List<LogEntry>();
+            }
+
+            var uploadCategories = new[] { "Upload", "Embedding", "AI", "Tag", "Metadata", "Category", "SimilaritySearch", "OCR" };
+            
+            var query = _context.LogEntries
+                .Where(l => uploadCategories.Contains(l.Category));
+
+            // Only filter by userId if it's not null or empty
+            // This ensures we don't filter for empty string which would match nothing
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                query = query.Where(l => l.UserId == userId);
+            }
+
+            if (fromDate.HasValue)
+            {
+                query = query.Where(l => l.Timestamp >= fromDate.Value);
+            }
+
+            var result = await query
+                .OrderByDescending(l => l.Timestamp)
+                .Take(maxRecords)
+                .ToListAsync();
+                
+            Console.WriteLine($"[LOG SERVICE] GetUploadLogsAsync returned {result.Count} entries for user '{userId ?? "(all)"}' from {fromDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "(all time)"}");
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[LOG SERVICE ERROR] Exception in GetUploadLogsAsync: {ex.Message}\n{ex.StackTrace}");
             return new List<LogEntry>();
         }
-
-        var uploadCategories = new[] { "Upload", "Embedding", "AI", "Tag", "Metadata", "Category", "SimilaritySearch", "OCR" };
-        
-        var query = _context.LogEntries
-            .Where(l => uploadCategories.Contains(l.Category));
-
-        // Only filter by userId if it's not null or empty
-        // This ensures we don't filter for empty string which would match nothing
-        if (!string.IsNullOrWhiteSpace(userId))
-        {
-            query = query.Where(l => l.UserId == userId);
-        }
-
-        if (fromDate.HasValue)
-        {
-            query = query.Where(l => l.Timestamp >= fromDate.Value);
-        }
-
-        return await query
-            .OrderByDescending(l => l.Timestamp)
-            .Take(maxRecords)
-            .ToListAsync();
     }
 }

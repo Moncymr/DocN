@@ -32,7 +32,7 @@
         <h2>📤 Upload Document</h2>
         <div style="display: flex; gap: 10px;">
             <button class="btn btn-info" @onclick="ToggleLogsModal">
-                📋 View Upload Logs
+                📋 Visualizza Log Caricamento
             </button>
             <button class="btn btn-secondary" @onclick="GoBack">
                 ← Back to Documents
@@ -615,20 +615,20 @@
     <div class="modal-overlay" @onclick="ToggleLogsModal">
         <div class="modal-content logs-modal" @onclick:stopPropagation="true">
             <div class="modal-header">
-                <h3>📋 Upload Logs</h3>
+                <h3>📋 Log Caricamento</h3>
                 <button class="btn-close" @onclick="ToggleLogsModal">×</button>
             </div>
             <div class="modal-body">
                 @if (isLoadingLogs)
                 {
                     <div class="loading-message">
-                        <span class="spinner"></span> Loading logs...
+                        <span class="spinner"></span> Caricamento log...
                     </div>
                 }
                 else if (uploadLogs == null || !uploadLogs.Any())
                 {
                     <div class="no-logs-message">
-                        ℹ️ No logs available for the last 24 hours.
+                        ℹ️ Nessun log disponibile nelle ultime 24 ore.
                     </div>
                 }
                 else
@@ -671,8 +671,8 @@
                 }
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="ToggleLogsModal">Close</button>
-                <button class="btn btn-primary" @onclick="LoadUploadLogs">🔄 Refresh</button>
+                <button class="btn btn-secondary" @onclick="ToggleLogsModal">Chiudi</button>
+                <button class="btn btn-primary" @onclick="LoadUploadLogs">🔄 Aggiorna</button>
             </div>
         </div>
     </div>
@@ -2583,17 +2583,45 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
     private async Task LoadUploadLogs()
     {
         isLoadingLogs = true;
+        errorMessage = null; // Clear any previous error messages
         StateHasChanged();
         
         try
         {
+            // Check if LogService is null
+            if (LogService == null)
+            {
+                errorMessage = "❌ Errore caricamento log: Servizio log non disponibile. Contatta l'amministratore.";
+                Console.WriteLine("[UPLOAD] LogService is null - cannot load logs");
+                return;
+            }
+            
             // Load logs for the current user from the last 24 hours
             var fromDate = DateTime.UtcNow.AddHours(-24);
+            
+            Console.WriteLine($"[UPLOAD] Loading logs for user: {currentUserId ?? "(none)"}, from: {fromDate:yyyy-MM-dd HH:mm:ss}");
+            
             uploadLogs = await LogService.GetUploadLogsAsync(currentUserId, fromDate, 100);
+            
+            if (uploadLogs == null)
+            {
+                Console.WriteLine("[UPLOAD] GetUploadLogsAsync returned null - initializing empty list");
+                uploadLogs = new List<DocN.Data.Models.LogEntry>();
+            }
+            
+            Console.WriteLine($"[UPLOAD] Loaded {uploadLogs.Count} log entries");
+        }
+        catch (NullReferenceException nrEx)
+        {
+            errorMessage = $"❌ Errore caricamento log: Riferimento null. {nrEx.Message}";
+            Console.WriteLine($"[UPLOAD] NullReferenceException in LoadUploadLogs: {nrEx.Message}\n{nrEx.StackTrace}");
+            uploadLogs = new List<DocN.Data.Models.LogEntry>();
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error loading logs: {ex.Message}";
+            errorMessage = $"❌ Errore caricamento log: {ex.Message}";
+            Console.WriteLine($"[UPLOAD] Exception in LoadUploadLogs: {ex.Message}\n{ex.StackTrace}");
+            uploadLogs = new List<DocN.Data.Models.LogEntry>();
         }
         finally
         {
