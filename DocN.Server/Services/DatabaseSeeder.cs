@@ -1,16 +1,19 @@
 using DocN.Data;
 using DocN.Data.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace DocN.Server.Services;
 
 public class DatabaseSeeder
 {
     private readonly DocArcContext _context;
+    private readonly ApplicationDbContext _appContext;
     private readonly ILogger<DatabaseSeeder> _logger;
 
-    public DatabaseSeeder(DocArcContext context, ILogger<DatabaseSeeder> logger)
+    public DatabaseSeeder(DocArcContext context, ApplicationDbContext appContext, ILogger<DatabaseSeeder> logger)
     {
         _context = context;
+        _appContext = appContext;
         _logger = logger;
     }
 
@@ -18,6 +21,9 @@ public class DatabaseSeeder
     {
         try
         {
+            // Seed AI Configuration first
+            await SeedAIConfigurationAsync();
+            
             // Check if we already have data
             if (_context.Documents.Any())
             {
@@ -103,6 +109,63 @@ public class DatabaseSeeder
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error seeding database");
+        }
+    }
+
+    private async Task SeedAIConfigurationAsync()
+    {
+        try
+        {
+            // Check if we already have an AI configuration
+            if (await _appContext.AIConfigurations.AnyAsync())
+            {
+                _logger.LogInformation("AI Configuration already exists, skipping seeding");
+                return;
+            }
+
+            // Create a default AI configuration that needs to be configured by the user
+            var defaultConfig = new AIConfiguration
+            {
+                ConfigurationName = "Default Configuration",
+                IsActive = true,
+                
+                // Set default providers (will need API keys to be configured)
+                ChatProvider = AIProviderType.Gemini,
+                EmbeddingsProvider = AIProviderType.Gemini,
+                TagExtractionProvider = AIProviderType.Gemini,
+                RAGProvider = AIProviderType.Gemini,
+                
+                // Default models
+                GeminiChatModel = "gemini-1.5-flash",
+                GeminiEmbeddingModel = "text-embedding-004",
+                OpenAIChatModel = "gpt-4",
+                OpenAIEmbeddingModel = "text-embedding-ada-002",
+                
+                // RAG settings
+                MaxDocumentsToRetrieve = 5,
+                SimilarityThreshold = 0.7,
+                MaxTokensForContext = 4000,
+                
+                // Chunking settings
+                EnableChunking = true,
+                ChunkSize = 1000,
+                ChunkOverlap = 200,
+                
+                // Enable fallback
+                EnableFallback = true,
+                
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _appContext.AIConfigurations.Add(defaultConfig);
+            await _appContext.SaveChangesAsync();
+
+            _logger.LogInformation("✅ Created default AI configuration. Please configure API keys via the application.");
+            _logger.LogWarning("⚠️  IMPORTANT: The AI configuration has been created but API keys need to be configured!");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeding AI configuration");
         }
     }
 }
