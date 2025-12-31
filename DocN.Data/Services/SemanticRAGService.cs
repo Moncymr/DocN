@@ -24,7 +24,7 @@ public class SemanticRAGService : ISemanticRAGService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SemanticRAGService> _logger;
     private readonly IEmbeddingService _embeddingService;
-    private readonly IChatCompletionService _chatService;
+    private readonly IChatCompletionService? _chatService;
     private readonly ICacheService _cacheService;
 
     // Semantic Kernel Agents for RAG pipeline
@@ -44,14 +44,22 @@ public class SemanticRAGService : ISemanticRAGService
         IEmbeddingService embeddingService,
         ICacheService cacheService)
     {
-        _kernel = kernel;
-        _context = context;
-        _logger = logger;
-        _embeddingService = embeddingService;
-        _cacheService = cacheService;
-        _chatService = kernel.GetRequiredService<IChatCompletionService>();
+        _kernel = kernel ?? throw new ArgumentNullException(nameof(kernel));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
+        _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
         
-        InitializeAgents();
+        // Defer service resolution and agent initialization to first use to avoid DI construction issues
+        try
+        {
+            _chatService = kernel.GetRequiredService<IChatCompletionService>();
+            InitializeAgents();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not initialize SemanticRAGService during construction. Services will be initialized on first use.");
+        }
     }
 
     /// <summary>
@@ -111,6 +119,19 @@ Always cite your sources using [Document N] format where N is the document numbe
 
         try
         {
+            // Ensure services are initialized
+            if (_chatService == null)
+            {
+                _logger.LogError("SemanticRAGService is not properly initialized. Chat completion service is not available.");
+                return new SemanticRAGResponse
+                {
+                    Answer = "AI services are not properly configured. Please check the configuration and try again.",
+                    SourceDocuments = new List<RelevantDocumentResult>(),
+                    ResponseTimeMs = stopwatch.ElapsedMilliseconds,
+                    Metadata = new Dictionary<string, object> { { "error", "Service not initialized" } }
+                };
+            }
+
             _logger.LogInformation(
                 "Generating RAG response for query: {Query}, User: {UserId}, Conversation: {ConvId}",
                 query, userId, conversationId);
@@ -197,6 +218,14 @@ Always cite your sources using [Document N] format where N is the document numbe
         int? conversationId = null,
         List<int>? specificDocumentIds = null)
     {
+        // Ensure services are initialized
+        if (_chatService == null)
+        {
+            _logger.LogError("SemanticRAGService is not properly initialized. Chat completion service is not available.");
+            yield return "AI services are not properly configured. Please check the configuration and try again.";
+            yield break;
+        }
+
         _logger.LogInformation("Generating streaming RAG response for query: {Query}", query);
 
         // Step 1: Retrieve relevant documents
