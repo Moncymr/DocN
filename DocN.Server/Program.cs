@@ -201,17 +201,17 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
-// Semantic Kernel Configuration - CARICATA DAL DATABASE
+// Semantic Kernel Configuration - LOADED FROM DATABASE ONLY
 // ════════════════════════════════════════════════════════════════════════════════
-// Il Semantic Kernel ora viene configurato usando SOLO la configurazione dal database,
-// non più da appsettings.json. Questo garantisce che tutti i provider AI siano gestiti
-// centralmente attraverso l'interfaccia di configurazione dell'applicazione.
+// The Semantic Kernel is now configured using ONLY database configuration,
+// not from appsettings.json. This ensures all AI providers are managed
+// centrally through the application's configuration interface.
 //
-// La factory SemanticKernelFactory carica la configurazione attiva dal database
-// (tabella AIConfigurations) e crea il Kernel dinamicamente.
+// The SemanticKernelFactory loads the active configuration from the database
+// (AIConfigurations table) and creates the Kernel dynamically.
 //
-// I servizi che necessitano del Kernel dovrebbero usare IKernelProvider.GetKernelAsync()
-// per ottenere un'istanza configurata dal database.
+// Services that need the Kernel should use IKernelProvider.GetKernelAsync()
+// to obtain an instance configured from the database.
 // ════════════════════════════════════════════════════════════════════════════════
 builder.Services.AddScoped<ISemanticKernelFactory, SemanticKernelFactory>();
 builder.Services.AddSingleton<IKernelProvider, KernelProvider>();

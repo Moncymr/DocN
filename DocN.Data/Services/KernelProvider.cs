@@ -39,7 +39,24 @@ public class KernelProvider : IKernelProvider
     {
         if (_kernelTask != null)
         {
-            return await _kernelTask;
+            try
+            {
+                return await _kernelTask;
+            }
+            catch
+            {
+                // If the cached task failed, reset it to allow retry
+                await _semaphore.WaitAsync();
+                try
+                {
+                    _kernelTask = null;
+                }
+                finally
+                {
+                    _semaphore.Release();
+                }
+                throw;
+            }
         }
 
         await _semaphore.WaitAsync();
@@ -57,6 +74,13 @@ public class KernelProvider : IKernelProvider
             _logger.LogInformation("Semantic Kernel initialized successfully");
             
             return kernel;
+        }
+        catch (Exception ex)
+        {
+            // Reset on failure to allow retry
+            _kernelTask = null;
+            _logger.LogError(ex, "Failed to initialize Semantic Kernel");
+            throw;
         }
         finally
         {
