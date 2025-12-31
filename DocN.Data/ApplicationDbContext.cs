@@ -32,6 +32,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     
     // Audit logs for GDPR/SOC2 compliance
     public DbSet<AuditLog> AuditLogs { get; set; }
+    
+    // Application logs for debugging and monitoring
+    public DbSet<LogEntry> LogEntries { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -390,6 +393,25 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => new { e.UserId, e.Timestamp });
             entity.HasIndex(e => new { e.Action, e.Timestamp });
             entity.HasIndex(e => new { e.ResourceType, e.ResourceId });
+        });
+        
+        // LogEntry configuration
+        modelBuilder.Entity<LogEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Timestamp).IsRequired();
+            entity.Property(e => e.Level).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Message).IsRequired().HasMaxLength(2000);
+            entity.Property(e => e.Details).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.UserId).HasMaxLength(450);
+            entity.Property(e => e.FileName).HasMaxLength(500);
+            entity.Property(e => e.StackTrace).HasColumnType("nvarchar(max)");
+            
+            // Indexes for efficient querying
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.Category, e.Timestamp });
+            entity.HasIndex(e => new { e.UserId, e.Timestamp });
         });
     }
     

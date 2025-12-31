@@ -5,9 +5,9 @@ namespace DocN.Data.Services;
 
 public class LogService : ILogService
 {
-    private readonly DocArcContext _context;
+    private readonly ApplicationDbContext _context;
 
-    public LogService(DocArcContext context)
+    public LogService(ApplicationDbContext context)
     {
         _context = context;
     }

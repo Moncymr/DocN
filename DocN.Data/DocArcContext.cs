@@ -13,7 +13,6 @@ public class DocArcContext : DbContext
     public DbSet<Document> Documents { get; set; }
     public DbSet<DocumentChunk> DocumentChunks { get; set; }
     public DbSet<SimilarDocument> SimilarDocuments { get; set; }
-    public DbSet<LogEntry> LogEntries { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
