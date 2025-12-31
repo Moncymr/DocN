@@ -13,25 +13,28 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
     }
 
-    public DbSet<Tenant> Tenants { get; set; } = null!;
-    public DbSet<Document> Documents { get; set; } = null!;
-    public DbSet<DocumentChunk> DocumentChunks { get; set; } = null!;
-    public DbSet<DocumentShare> DocumentShares { get; set; } = null!;
-    public DbSet<DocumentTag> DocumentTags { get; set; } = null!;
-    public DbSet<SimilarDocument> SimilarDocuments { get; set; } = null!;
-    public DbSet<AIConfiguration> AIConfigurations { get; set; } = null!;
+    public DbSet<Tenant> Tenants { get; set; }
+    public DbSet<Document> Documents { get; set; }
+    public DbSet<DocumentChunk> DocumentChunks { get; set; }
+    public DbSet<DocumentShare> DocumentShares { get; set; }
+    public DbSet<DocumentTag> DocumentTags { get; set; }
+    public DbSet<SimilarDocument> SimilarDocuments { get; set; }
+    public DbSet<AIConfiguration> AIConfigurations { get; set; }
     
     // Conversazioni e messaggi per RAG
-    public DbSet<Conversation> Conversations { get; set; } = null!;
-    public DbSet<Message> Messages { get; set; } = null!;
+    public DbSet<Conversation> Conversations { get; set; }
+    public DbSet<Message> Messages { get; set; }
     
     // Agent configuration and templates
-    public DbSet<AgentConfiguration> AgentConfigurations { get; set; } = null!;
-    public DbSet<AgentTemplate> AgentTemplates { get; set; } = null!;
-    public DbSet<AgentUsageLog> AgentUsageLogs { get; set; } = null!;
+    public DbSet<AgentConfiguration> AgentConfigurations { get; set; }
+    public DbSet<AgentTemplate> AgentTemplates { get; set; }
+    public DbSet<AgentUsageLog> AgentUsageLogs { get; set; }
     
     // Audit logs for GDPR/SOC2 compliance
-    public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+    public DbSet<AuditLog> AuditLogs { get; set; }
+    
+    // Log entries for application logging
+    public DbSet<LogEntry> LogEntries { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -390,6 +393,26 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(e => new { e.UserId, e.Timestamp });
             entity.HasIndex(e => new { e.Action, e.Timestamp });
             entity.HasIndex(e => new { e.ResourceType, e.ResourceId });
+        });
+
+        // LogEntry configuration
+        modelBuilder.Entity<LogEntry>(entity =>
+        {
+            entity.ToTable("LogEntries");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Timestamp).IsRequired();
+            entity.Property(e => e.Level).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Message).IsRequired().HasMaxLength(2000);
+            entity.Property(e => e.Details).HasColumnType("nvarchar(max)").IsRequired(false);
+            entity.Property(e => e.UserId).HasMaxLength(450).IsRequired(false);
+            entity.Property(e => e.FileName).HasMaxLength(500).IsRequired(false);
+            entity.Property(e => e.StackTrace).HasColumnType("nvarchar(max)").IsRequired(false);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.Category, e.Timestamp });
+            entity.HasIndex(e => new { e.UserId, e.Timestamp });
         });
     }
     
