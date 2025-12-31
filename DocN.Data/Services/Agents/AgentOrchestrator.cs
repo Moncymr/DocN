@@ -20,10 +20,10 @@ public class AgentOrchestrator : IAgentOrchestrator
         IClassificationAgent classificationAgent,
         ApplicationDbContext context)
     {
-        _retrievalAgent = retrievalAgent;
-        _synthesisAgent = synthesisAgent;
-        _classificationAgent = classificationAgent;
-        _context = context;
+        _retrievalAgent = retrievalAgent ?? throw new ArgumentNullException(nameof(retrievalAgent));
+        _synthesisAgent = synthesisAgent ?? throw new ArgumentNullException(nameof(synthesisAgent));
+        _classificationAgent = classificationAgent ?? throw new ArgumentNullException(nameof(classificationAgent));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     /// <summary>

@@ -13,25 +13,25 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
     }
 
-    public DbSet<Tenant> Tenants { get; set; }
-    public DbSet<Document> Documents { get; set; }
-    public DbSet<DocumentChunk> DocumentChunks { get; set; }
-    public DbSet<DocumentShare> DocumentShares { get; set; }
-    public DbSet<DocumentTag> DocumentTags { get; set; }
-    public DbSet<SimilarDocument> SimilarDocuments { get; set; }
-    public DbSet<AIConfiguration> AIConfigurations { get; set; }
+    public DbSet<Tenant> Tenants { get; set; } = null!;
+    public DbSet<Document> Documents { get; set; } = null!;
+    public DbSet<DocumentChunk> DocumentChunks { get; set; } = null!;
+    public DbSet<DocumentShare> DocumentShares { get; set; } = null!;
+    public DbSet<DocumentTag> DocumentTags { get; set; } = null!;
+    public DbSet<SimilarDocument> SimilarDocuments { get; set; } = null!;
+    public DbSet<AIConfiguration> AIConfigurations { get; set; } = null!;
     
     // Conversazioni e messaggi per RAG
-    public DbSet<Conversation> Conversations { get; set; }
-    public DbSet<Message> Messages { get; set; }
+    public DbSet<Conversation> Conversations { get; set; } = null!;
+    public DbSet<Message> Messages { get; set; } = null!;
     
     // Agent configuration and templates
-    public DbSet<AgentConfiguration> AgentConfigurations { get; set; }
-    public DbSet<AgentTemplate> AgentTemplates { get; set; }
-    public DbSet<AgentUsageLog> AgentUsageLogs { get; set; }
+    public DbSet<AgentConfiguration> AgentConfigurations { get; set; } = null!;
+    public DbSet<AgentTemplate> AgentTemplates { get; set; } = null!;
+    public DbSet<AgentUsageLog> AgentUsageLogs { get; set; } = null!;
     
     // Audit logs for GDPR/SOC2 compliance
-    public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

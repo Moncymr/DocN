@@ -20,9 +20,9 @@ public class RetrievalAgent : IRetrievalAgent
         IHybridSearchService searchService,
         IEmbeddingService embeddingService)
     {
-        _context = context;
-        _searchService = searchService;
-        _embeddingService = embeddingService;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _searchService = searchService ?? throw new ArgumentNullException(nameof(searchService));
+        _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
     }
 
     public async Task<List<Document>> RetrieveAsync(string query, string? userId = null, int topK = 5)

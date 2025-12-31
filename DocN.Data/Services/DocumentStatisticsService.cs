@@ -15,7 +15,7 @@ public class DocumentStatisticsService : IDocumentStatisticsService
 
     public DocumentStatisticsService(ApplicationDbContext context)
     {
-        _context = context;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task<DocumentStatistics> GetStatisticsAsync(string userId)

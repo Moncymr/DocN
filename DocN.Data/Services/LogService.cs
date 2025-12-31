@@ -9,7 +9,7 @@ public class LogService : ILogService
 
     public LogService(DocArcContext context)
     {
-        _context = context;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task LogInfoAsync(string category, string message, string? details = null, string? userId = null, string? fileName = null)
