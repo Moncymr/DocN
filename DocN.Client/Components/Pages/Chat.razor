@@ -874,25 +874,56 @@
             };
 
             var response = await _httpClient.PostAsJsonAsync("api/SemanticChat/query", request);
-            response.EnsureSuccessStatusCode();
-
-            var result = await response.Content.ReadFromJsonAsync<SemanticChatResponse>();
             
-            if (result != null)
+            if (response.IsSuccessStatusCode)
             {
-                // Add assistant message
-                messages.Add(new ConversationMessage
+                var result = await response.Content.ReadFromJsonAsync<SemanticChatResponse>();
+                
+                if (result != null)
                 {
-                    Role = "assistant",
-                    Content = result.Answer,
-                    Timestamp = DateTime.UtcNow,
-                    ReferencedDocumentIds = result.SourceDocuments.Select(d => d.DocumentId).ToList()
-                });
+                    // Add assistant message
+                    messages.Add(new ConversationMessage
+                    {
+                        Role = "assistant",
+                        Content = result.Answer,
+                        Timestamp = DateTime.UtcNow,
+                        ReferencedDocumentIds = result.SourceDocuments.Select(d => d.DocumentId).ToList()
+                    });
 
-                currentConversationId = result.ConversationId;
+                    currentConversationId = result.ConversationId;
 
-                // Reload conversations list
-                await LoadConversations();
+                    // Reload conversations list
+                    await LoadConversations();
+                }
+            }
+            else
+            {
+                // Handle error responses
+                try
+                {
+                    var errorResponse = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                    if (errorResponse?.ErrorCode == "AI_PROVIDER_NOT_CONFIGURED")
+                    {
+                        errorMessage = "🔧 AI Configuration Required: No AI provider is configured. " +
+                                      "Please go to Settings and configure at least one AI provider (Gemini, OpenAI, or Azure OpenAI) to use the chat feature.";
+                    }
+                    else
+                    {
+                        errorMessage = $"⚠️ {errorResponse?.Error ?? "An error occurred while processing your request."}";
+                    }
+                }
+                catch
+                {
+                    errorMessage = $"⚠️ Server error ({(int)response.StatusCode}): {response.ReasonPhrase}";
+                }
+                
+                Console.WriteLine($"API error: {response.StatusCode}");
+                
+                // Remove the user message since it wasn't sent successfully
+                if (messages.Any() && messages.Last().Role == "user")
+                {
+                    messages.RemoveAt(messages.Count - 1);
+                }
             }
         }
         catch (HttpRequestException ex)
@@ -908,7 +939,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error sending message: {ex.Message}";
+            errorMessage = $"⚠️ Error sending message: {ex.Message}";
             Console.WriteLine($"Error sending message: {ex}");
             
             // Remove the user message since it wasn't sent successfully
@@ -998,6 +1029,13 @@
         public long ResponseTimeMs { get; set; }
         public bool FromCache { get; set; }
         public Dictionary<string, object> Metadata { get; set; } = new();
+    }
+
+    public class ErrorResponse
+    {
+        public string Error { get; set; } = string.Empty;
+        public string? ErrorCode { get; set; }
+        public string? Details { get; set; }
     }
 
     public class DocumentReference
