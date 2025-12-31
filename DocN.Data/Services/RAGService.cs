@@ -19,7 +19,7 @@ public class RAGService : IRAGService
 
     public RAGService(ApplicationDbContext context)
     {
-        _context = context;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
         InitializeClient();
     }
 

@@ -22,8 +22,8 @@ public class ClassificationAgent : IClassificationAgent
 
     public ClassificationAgent(ApplicationDbContext context, IEmbeddingService embeddingService)
     {
-        _context = context;
-        _embeddingService = embeddingService;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
         InitializeClient();
     }
 

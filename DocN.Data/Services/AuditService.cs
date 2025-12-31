@@ -20,9 +20,9 @@ public class AuditService : IAuditService
         IHttpContextAccessor httpContextAccessor,
         ILogger<AuditService> logger)
     {
-        _context = context;
-        _httpContextAccessor = httpContextAccessor;
-        _logger = logger;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task LogAsync(

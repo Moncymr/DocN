@@ -10,10 +10,10 @@ public class DocArcContext : DbContext
     {
     }
 
-    public DbSet<Document> Documents { get; set; }
-    public DbSet<DocumentChunk> DocumentChunks { get; set; }
-    public DbSet<SimilarDocument> SimilarDocuments { get; set; }
-    public DbSet<LogEntry> LogEntries { get; set; }
+    public DbSet<Document> Documents { get; set; } = null!;
+    public DbSet<DocumentChunk> DocumentChunks { get; set; } = null!;
+    public DbSet<SimilarDocument> SimilarDocuments { get; set; } = null!;
+    public DbSet<LogEntry> LogEntries { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

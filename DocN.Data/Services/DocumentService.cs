@@ -25,7 +25,7 @@ public class DocumentService : IDocumentService
 
     public DocumentService(ApplicationDbContext context)
     {
-        _context = context;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task<Document?> GetDocumentAsync(int documentId, string userId)
