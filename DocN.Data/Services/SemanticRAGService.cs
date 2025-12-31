@@ -286,9 +286,21 @@ Always cite your sources using [Document N] format where N is the document numbe
     }
 
     /// <summary>
-    /// Search documents using database-level vector similarity calculation
-    /// Uses SQL Server 2025's VECTOR_DISTANCE when available, with fallback to optimized in-memory calculation
+    /// Esegue ricerca documenti utilizzando calcolo di similarità vettoriale ottimizzato a livello database
+    /// Utilizza VECTOR_DISTANCE di SQL Server 2025 quando disponibile, altrimenti calcolo in-memory ottimizzato
     /// </summary>
+    /// <param name="queryEmbedding">Vettore embedding della query</param>
+    /// <param name="userId">ID utente per controllo accesso</param>
+    /// <param name="topK">Numero massimo di risultati da restituire</param>
+    /// <param name="minSimilarity">Soglia minima di similarità (0-1)</param>
+    /// <returns>Lista di documenti rilevanti ordinati per similarità</returns>
+    /// <remarks>
+    /// Strategia di ottimizzazione:
+    /// 1. Tenta di usare VECTOR_DISTANCE nativo di SQL Server 2025 per prestazioni ottimali
+    /// 2. Se non disponibile, usa approccio ottimizzato che limita i candidati al database
+    /// 3. Recupera solo i documenti più recenti (candidateLimit) per ridurre carico memoria
+    /// 4. Combina risultati a livello documento e chunk, prioritizzando i chunk più specifici
+    /// </remarks>
     private async Task<List<RelevantDocumentResult>> SearchDocumentsWithEmbeddingDatabaseAsync(
         float[] queryEmbedding,
         string userId,
@@ -439,9 +451,18 @@ Always cite your sources using [Document N] format where N is the document numbe
     }
 
     /// <summary>
-    /// Search using SQL Server 2025 VECTOR_DISTANCE function
-    /// This provides true database-level vector similarity computation
+    /// Esegue ricerca vettoriale utilizzando la funzione VECTOR_DISTANCE di SQL Server 2025
+    /// Fornisce calcolo di similarità vettoriale a livello database per prestazioni ottimali
     /// </summary>
+    /// <param name="queryEmbedding">Vettore embedding della query</param>
+    /// <param name="userId">ID utente per filtro di accesso</param>
+    /// <param name="topK">Numero massimo di risultati da restituire</param>
+    /// <param name="minSimilarity">Soglia minima di similarità (0-1)</param>
+    /// <returns>Lista di documenti rilevanti ordinati per similarità decrescente</returns>
+    /// <remarks>
+    /// Questa funzione richiede SQL Server 2025 con supporto nativo per il tipo VECTOR.
+    /// Esegue ricerca sia a livello di documento che di chunk, dando priorità ai chunk più specifici.
+    /// </remarks>
     private async Task<List<RelevantDocumentResult>> SearchWithVectorDistanceAsync(
         float[] queryEmbedding,
         string userId,
@@ -719,8 +740,19 @@ Always cite your sources using [Document N] format where N is the document numbe
     }
 
     /// <summary>
-    /// Generate answer using Semantic Kernel with document context
+    /// Genera una risposta utilizzando Semantic Kernel con contesto dei documenti
+    /// Costruisce la chat history includendo system prompt, contesto documenti e cronologia conversazione
     /// </summary>
+    /// <param name="query">Query dell'utente</param>
+    /// <param name="documentContext">Contesto formattato dei documenti rilevanti</param>
+    /// <param name="conversationHistory">Cronologia messaggi della conversazione</param>
+    /// <returns>Risposta generata dall'AI basata sul contesto fornito</returns>
+    /// <remarks>
+    /// Utilizza le seguenti impostazioni:
+    /// - MaxTokens: 2000
+    /// - Temperature: 0.7 (equilibrio tra creatività e coerenza)
+    /// - TopP: 0.9 (nucleus sampling)
+    /// </remarks>
     private async Task<string> GenerateAnswerWithSemanticKernelAsync(
         string query,
         string documentContext,
@@ -765,8 +797,19 @@ Always cite your sources using [Document N] format where N is the document numbe
     }
 
     /// <summary>
-    /// Build formatted document context for the AI
+    /// Costruisce il contesto formattato dai documenti rilevanti per l'AI
+    /// Formatta i documenti in un formato leggibile e strutturato includendo metadati e contenuto
     /// </summary>
+    /// <param name="documents">Lista di documenti rilevanti con score di similarità</param>
+    /// <returns>Stringa formattata contenente tutti i documenti con metadati e contenuto</returns>
+    /// <remarks>
+    /// Il formato include per ogni documento:
+    /// - Numero documento (per citazioni)
+    /// - Nome file
+    /// - Categoria
+    /// - Score di rilevanza
+    /// - Contenuto (chunk rilevante o testo completo)
+    /// </remarks>
     private string BuildDocumentContext(List<RelevantDocumentResult> documents)
     {
         var builder = new StringBuilder();
@@ -792,8 +835,18 @@ Always cite your sources using [Document N] format where N is the document numbe
     }
 
     /// <summary>
-    /// Create system prompt for the AI
+    /// Crea il system prompt con istruzioni dettagliate per l'AI
+    /// Definisce il ruolo, le regole e il formato di risposta atteso dall'assistente AI
     /// </summary>
+    /// <returns>System prompt completo con linee guida per l'AI</returns>
+    /// <remarks>
+    /// Il prompt istruisce l'AI a:
+    /// - Usare solo informazioni dai documenti forniti
+    /// - Citare le fonti usando formato [Document N]
+    /// - Ammettere quando non ha informazioni sufficienti
+    /// - Mantenere un tono professionale e utile
+    /// - Essere conciso ma completo
+    /// </remarks>
     private string CreateSystemPrompt()
     {
         return @"You are an intelligent document assistant powered by RAG (Retrieval-Augmented Generation).
@@ -815,8 +868,15 @@ RESPONSE FORMAT:
     }
 
     /// <summary>
-    /// Load conversation history from database
+    /// Carica la cronologia della conversazione dal database
+    /// Recupera gli ultimi messaggi per mantenere il contesto conversazionale
     /// </summary>
+    /// <param name="conversationId">ID della conversazione da caricare</param>
+    /// <returns>Lista di messaggi ordinati cronologicamente (massimo 10 messaggi recenti)</returns>
+    /// <remarks>
+    /// Limita a 10 messaggi per evitare di sovraccaricare il contesto dell'AI
+    /// e mantenere tempi di risposta ottimali
+    /// </remarks>
     private async Task<List<Message>> LoadConversationHistoryAsync(int? conversationId)
     {
         if (!conversationId.HasValue)
@@ -839,8 +899,19 @@ RESPONSE FORMAT:
     }
 
     /// <summary>
-    /// Save conversation to database
+    /// Salva la conversazione nel database
+    /// Crea una nuova conversazione se necessario o aggiorna quella esistente
     /// </summary>
+    /// <param name="conversationId">ID conversazione esistente (null per nuova conversazione)</param>
+    /// <param name="userId">ID dell'utente proprietario della conversazione</param>
+    /// <param name="query">Domanda dell'utente da salvare</param>
+    /// <param name="answer">Risposta dell'AI da salvare</param>
+    /// <param name="documentIds">IDs dei documenti referenziati nella risposta</param>
+    /// <returns>ID della conversazione (nuovo o esistente)</returns>
+    /// <remarks>
+    /// Salva sia il messaggio utente che la risposta AI come coppia di messaggi
+    /// nella stessa transazione per garantire consistenza
+    /// </remarks>
     private async Task<int> SaveConversationAsync(
         int? conversationId,
         string userId,
@@ -903,8 +974,21 @@ RESPONSE FORMAT:
     }
 
     /// <summary>
-    /// Calculate cosine similarity between two vectors
+    /// Calcola la similarità coseno tra due vettori
+    /// Misura l'angolo tra due vettori nello spazio multidimensionale
     /// </summary>
+    /// <param name="vector1">Primo vettore embedding</param>
+    /// <param name="vector2">Secondo vettore embedding</param>
+    /// <returns>
+    /// Score di similarità tra 0 e 1, dove:
+    /// - 1 = vettori identici o molto simili
+    /// - 0 = vettori ortogonali (nessuna similarità)
+    /// - Valori vicini a 1 indicano alta similarità semantica
+    /// </returns>
+    /// <remarks>
+    /// Formula: cosine_similarity = (A · B) / (||A|| * ||B||)
+    /// dove A · B è il prodotto scalare e ||A|| è la norma euclidea
+    /// </remarks>
     private double CalculateCosineSimilarity(float[] vector1, float[] vector2)
     {
         if (vector1.Length != vector2.Length)
@@ -931,8 +1015,12 @@ RESPONSE FORMAT:
     }
 
     /// <summary>
-    /// Truncate text to specified length
+    /// Tronca il testo alla lunghezza massima specificata
+    /// Aggiunge "..." alla fine se il testo supera la lunghezza massima
     /// </summary>
+    /// <param name="text">Testo da troncare</param>
+    /// <param name="maxLength">Lunghezza massima desiderata</param>
+    /// <returns>Testo troncato con ellipsis se necessario</returns>
     private string TruncateText(string text, int maxLength)
     {
         if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
