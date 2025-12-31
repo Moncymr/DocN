@@ -123,6 +123,17 @@ public class MultiProviderAIService : IMultiProviderAIService
             throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database o in appsettings.json");
         }
 
+        // Check if at least one embedding provider is configured with a valid API key
+        bool hasGeminiKey = !string.IsNullOrEmpty(config.GeminiApiKey);
+        bool hasOpenAIKey = !string.IsNullOrEmpty(config.OpenAIApiKey);
+        bool hasAzureKey = !string.IsNullOrEmpty(config.AzureOpenAIKey) && !string.IsNullOrEmpty(config.AzureOpenAIEndpoint);
+        
+        if (!hasGeminiKey && !hasOpenAIKey && !hasAzureKey)
+        {
+            await _logService.LogErrorAsync("Embedding", "Nessun provider di embedding configurato", "Tutti i provider (Gemini, OpenAI, Azure OpenAI) mancano di chiavi API valide");
+            throw new InvalidOperationException("Nessun provider di embedding ha una chiave API valida configurata. Configura almeno un provider (Gemini, OpenAI, o Azure OpenAI) tramite l'interfaccia utente delle Impostazioni AI o nel file appsettings.json con le seguenti chiavi: 'Gemini:ApiKey', 'OpenAI:ApiKey', o 'AzureOpenAI:ApiKey' e 'AzureOpenAI:Endpoint'.");
+        }
+
         // Determine which provider to use for embeddings
         var provider = config.EmbeddingsProvider ?? config.ProviderType;
         
@@ -151,7 +162,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                 var errors = new List<string> { $"{provider}: {ex.Message}" };
                 
                 // Try alternative providers, but skip the one that just failed
-                if (provider != AIProviderType.Gemini && !string.IsNullOrEmpty(config.GeminiApiKey))
+                if (provider != AIProviderType.Gemini && hasGeminiKey)
                 {
                     try
                     {
@@ -165,7 +176,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                     }
                 }
                 
-                if (provider != AIProviderType.OpenAI && !string.IsNullOrEmpty(config.OpenAIApiKey))
+                if (provider != AIProviderType.OpenAI && hasOpenAIKey)
                 {
                     try
                     {
@@ -179,7 +190,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                     }
                 }
                 
-                if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrEmpty(config.AzureOpenAIKey))
+                if (provider != AIProviderType.AzureOpenAI && hasAzureKey)
                 {
                     try
                     {
@@ -193,8 +204,10 @@ public class MultiProviderAIService : IMultiProviderAIService
                     }
                 }
                 
-                // All fallback attempts failed
-                throw new InvalidOperationException($"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}");
+                // All fallback attempts failed - provide helpful error message
+                var errorMessage = $"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}. Verifica le chiavi API nella configurazione AI o in appsettings.json.";
+                await _logService.LogErrorAsync("Embedding", "Tutti i tentativi di embedding sono falliti", errorMessage);
+                throw new InvalidOperationException(errorMessage);
             }
             
             // Fallback is disabled, throw the original exception
