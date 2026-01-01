@@ -58,15 +58,15 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
             if (!relevantDocs.Any())
             {
                 _logger.LogWarning("No relevant documents found for query: {Query}. Generating response without document context.", query);
-                
+
                 // Generate response without document context
                 var systemPrompt = @"You are an intelligent assistant. 
 Answer the user's question to the best of your knowledge.
 If you don't have specific information, provide a helpful general response.
 Be concise, professional, and helpful.";
-                
+
                 var userPrompt = query;
-                
+
                 // Include conversation history if available
                 if (conversationHistory.Any())
                 {
@@ -81,7 +81,7 @@ Be concise, professional, and helpful.";
                     historyBuilder.AppendLine(query);
                     userPrompt = historyBuilder.ToString();
                 }
-                
+
                 answer = await _aiService.GenerateChatCompletionAsync(systemPrompt, userPrompt);
                 documentContext = "No relevant documents found";
             }
@@ -89,7 +89,7 @@ Be concise, professional, and helpful.";
             {
                 // Build context from relevant documents
                 documentContext = BuildDocumentContext(relevantDocs);
-                
+
                 // Step 4: Generate response using MultiProviderAIService with document context
                 var systemPrompt = CreateSystemPrompt();
                 var userPrompt = BuildUserPrompt(query, documentContext, conversationHistory);
@@ -160,7 +160,7 @@ Be concise, professional, and helpful.";
     {
         try
         {
-            _logger.LogInformation("Searching documents for query: '{Query}', User: {UserId}, TopK: {TopK}, MinSimilarity: {MinSimilarity}", 
+            _logger.LogInformation("Searching documents for query: '{Query}', User: {UserId}, TopK: {TopK}, MinSimilarity: {MinSimilarity}",
                 query, userId, topK, minSimilarity);
 
             // Generate query embedding using MultiProviderAIService (with automatic fallback)
@@ -171,13 +171,13 @@ Be concise, professional, and helpful.";
                 return new List<RelevantDocumentResult>();
             }
 
-            _logger.LogInformation("Successfully generated query embedding with {Dimensions} dimensions using provider: {Provider}", 
+            _logger.LogInformation("Successfully generated query embedding with {Dimensions} dimensions using provider: {Provider}",
                 queryEmbedding.Length, _aiService.GetCurrentEmbeddingProvider());
 
             var results = await SearchDocumentsWithEmbeddingAsync(queryEmbedding, userId, topK, minSimilarity);
-            
+
             _logger.LogInformation("Document search completed: Found {Count} relevant documents", results.Count);
-            
+
             return results;
         }
         catch (Exception ex)
@@ -195,7 +195,7 @@ Be concise, professional, and helpful.";
     {
         try
         {
-            _logger.LogInformation("Searching documents with embedding for user: {UserId}, Embedding dimensions: {Dimensions}", 
+            _logger.LogInformation("Searching documents with embedding for user: {UserId}, Embedding dimensions: {Dimensions}",
                 userId, queryEmbedding?.Length ?? 0);
 
             if (queryEmbedding == null || queryEmbedding.Length == 0)
@@ -301,12 +301,12 @@ Be concise, professional, and helpful.";
             }
 
             _logger.LogInformation("Returning {Count} total results (threshold: {Threshold:P0})", results.Count, minSimilarity);
-            
+
             if (!results.Any())
             {
                 _logger.LogWarning("No documents matched the similarity threshold of {Threshold:P0}. Consider lowering the threshold or checking if document embeddings are compatible with query embeddings.", minSimilarity);
             }
-            
+
             return results;
         }
         catch (Exception ex)
