@@ -117,7 +117,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                 var configuredProviders = new List<string>();
                 
                 // Check Gemini - use GeminiApiKey or fall back to ProviderApiKey if ProviderType is Gemini
-                var geminiKey = _cachedConfig.GeminiApiKey ?? (_cachedConfig.ProviderType == AIProviderType.Gemini ? _cachedConfig.ProviderApiKey : null);
+                var geminiKey = GetEffectiveApiKey(_cachedConfig.GeminiApiKey, AIProviderType.Gemini, _cachedConfig);
                 if (!string.IsNullOrWhiteSpace(geminiKey))
                 {
                     configuredProviders.Add("Gemini");
@@ -125,7 +125,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                 }
                 
                 // Check OpenAI - use OpenAIApiKey or fall back to ProviderApiKey if ProviderType is OpenAI
-                var openAIKey = _cachedConfig.OpenAIApiKey ?? (_cachedConfig.ProviderType == AIProviderType.OpenAI ? _cachedConfig.ProviderApiKey : null);
+                var openAIKey = GetEffectiveApiKey(_cachedConfig.OpenAIApiKey, AIProviderType.OpenAI, _cachedConfig);
                 if (!string.IsNullOrWhiteSpace(openAIKey))
                 {
                     configuredProviders.Add("OpenAI");
@@ -133,8 +133,8 @@ public class MultiProviderAIService : IMultiProviderAIService
                 }
                 
                 // Check Azure OpenAI - need both endpoint and key
-                var azureKey = _cachedConfig.AzureOpenAIKey ?? (_cachedConfig.ProviderType == AIProviderType.AzureOpenAI ? _cachedConfig.ProviderApiKey : null);
-                var azureEndpoint = _cachedConfig.AzureOpenAIEndpoint ?? (_cachedConfig.ProviderType == AIProviderType.AzureOpenAI ? _cachedConfig.ProviderEndpoint : null);
+                var azureKey = GetEffectiveApiKey(_cachedConfig.AzureOpenAIKey, AIProviderType.AzureOpenAI, _cachedConfig);
+                var azureEndpoint = GetEffectiveEndpoint(_cachedConfig.AzureOpenAIEndpoint, AIProviderType.AzureOpenAI, _cachedConfig);
                 if (!string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint))
                 {
                     configuredProviders.Add("Azure OpenAI");
@@ -198,6 +198,30 @@ public class MultiProviderAIService : IMultiProviderAIService
             
             return _cachedConfig;
         }
+    }
+
+    /// <summary>
+    /// Gets the effective API key for a provider, using provider-specific key or falling back to ProviderApiKey.
+    /// </summary>
+    /// <param name="providerKey">Provider-specific API key (e.g., GeminiApiKey, OpenAIApiKey)</param>
+    /// <param name="targetProviderType">The provider type to check for fallback</param>
+    /// <param name="config">AI configuration</param>
+    /// <returns>The effective API key or null</returns>
+    private string? GetEffectiveApiKey(string? providerKey, AIProviderType targetProviderType, AIConfiguration config)
+    {
+        return providerKey ?? (config.ProviderType == targetProviderType ? config.ProviderApiKey : null);
+    }
+
+    /// <summary>
+    /// Gets the effective endpoint for a provider, using provider-specific endpoint or falling back to ProviderEndpoint.
+    /// </summary>
+    /// <param name="providerEndpoint">Provider-specific endpoint (e.g., AzureOpenAIEndpoint)</param>
+    /// <param name="targetProviderType">The provider type to check for fallback</param>
+    /// <param name="config">AI configuration</param>
+    /// <returns>The effective endpoint or null</returns>
+    private string? GetEffectiveEndpoint(string? providerEndpoint, AIProviderType targetProviderType, AIConfiguration config)
+    {
+        return providerEndpoint ?? (config.ProviderType == targetProviderType ? config.ProviderEndpoint : null);
     }
 
     /// <summary>
@@ -287,7 +311,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                 var errors = new List<string> { $"{provider}: {ex.Message}" };
                 
                 // Try alternative providers, but skip the one that just failed
-                var geminiKey = config.GeminiApiKey ?? (config.ProviderType == AIProviderType.Gemini ? config.ProviderApiKey : null);
+                var geminiKey = GetEffectiveApiKey(config.GeminiApiKey, AIProviderType.Gemini, config);
                 if (provider != AIProviderType.Gemini && !string.IsNullOrWhiteSpace(geminiKey))
                 {
                     try
@@ -302,7 +326,7 @@ public class MultiProviderAIService : IMultiProviderAIService
                     }
                 }
                 
-                var openAIKey = config.OpenAIApiKey ?? (config.ProviderType == AIProviderType.OpenAI ? config.ProviderApiKey : null);
+                var openAIKey = GetEffectiveApiKey(config.OpenAIApiKey, AIProviderType.OpenAI, config);
                 if (provider != AIProviderType.OpenAI && !string.IsNullOrWhiteSpace(openAIKey))
                 {
                     try
@@ -317,8 +341,8 @@ public class MultiProviderAIService : IMultiProviderAIService
                     }
                 }
                 
-                var azureKey = config.AzureOpenAIKey ?? (config.ProviderType == AIProviderType.AzureOpenAI ? config.ProviderApiKey : null);
-                var azureEndpoint = config.AzureOpenAIEndpoint ?? (config.ProviderType == AIProviderType.AzureOpenAI ? config.ProviderEndpoint : null);
+                var azureKey = GetEffectiveApiKey(config.AzureOpenAIKey, AIProviderType.AzureOpenAI, config);
+                var azureEndpoint = GetEffectiveEndpoint(config.AzureOpenAIEndpoint, AIProviderType.AzureOpenAI, config);
                 if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint))
                 {
                     try
@@ -490,10 +514,10 @@ public class MultiProviderAIService : IMultiProviderAIService
         await _logService.LogInfoAsync("AI", $"Attempting chat with provider: {provider}");
         
         // Check if any API key is configured (with fallback to ProviderApiKey)
-        var geminiKey = config.GeminiApiKey ?? (config.ProviderType == AIProviderType.Gemini ? config.ProviderApiKey : null);
-        var openAIKey = config.OpenAIApiKey ?? (config.ProviderType == AIProviderType.OpenAI ? config.ProviderApiKey : null);
-        var azureKey = config.AzureOpenAIKey ?? (config.ProviderType == AIProviderType.AzureOpenAI ? config.ProviderApiKey : null);
-        var azureEndpoint = config.AzureOpenAIEndpoint ?? (config.ProviderType == AIProviderType.AzureOpenAI ? config.ProviderEndpoint : null);
+        var geminiKey = GetEffectiveApiKey(config.GeminiApiKey, AIProviderType.Gemini, config);
+        var openAIKey = GetEffectiveApiKey(config.OpenAIApiKey, AIProviderType.OpenAI, config);
+        var azureKey = GetEffectiveApiKey(config.AzureOpenAIKey, AIProviderType.AzureOpenAI, config);
+        var azureEndpoint = GetEffectiveEndpoint(config.AzureOpenAIEndpoint, AIProviderType.AzureOpenAI, config);
         
         bool hasGeminiKey = !string.IsNullOrWhiteSpace(geminiKey);
         bool hasOpenAIKey = !string.IsNullOrWhiteSpace(openAIKey);
