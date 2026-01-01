@@ -64,7 +64,10 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
 Rispondi alla domanda dell'utente al meglio delle tue conoscenze.
 Se non hai informazioni specifiche, fornisci una risposta generale utile.
 Sii conciso, professionale e disponibile.
-IMPORTANTE: Rispondi sempre in italiano.";
+IMPORTANTE: 
+- Rispondi sempre in italiano
+- DEVI iniziare la risposta indicando esplicitamente: 'Non ho trovato documenti rilevanti nel sistema RAG interno.'
+- Poi fornisci una risposta generale basata sulle tue conoscenze.";
 
                 var userPrompt = query;
 
@@ -348,7 +351,7 @@ Il tuo ruolo è rispondere accuratamente alle domande basandoti sui documenti fo
 
 LINEE GUIDA:
 - Usa SOLO le informazioni presenti nei documenti forniti
-- Cita le fonti usando il formato [Documento N]
+- Cita le fonti usando il formato [Documento N] e indica il nome del file tra parentesi: (nome_file.pdf)
 - Se l'informazione non è presente nei documenti, dichiaralo chiaramente
 - Sii conciso ma completo
 - Mantieni un tono professionale e disponibile
@@ -358,8 +361,9 @@ LINEE GUIDA:
 FORMATO DELLA RISPOSTA:
 1. Fornisci una risposta diretta alla domanda
 2. Supporta con dettagli rilevanti dai documenti
-3. Cita chiaramente le fonti
-4. Se non sei sicuro, riconosci i limiti";
+3. Cita chiaramente le fonti con [Documento N] e il nome del file tra parentesi (nome_file.pdf)
+4. Alla fine della risposta, elenca i documenti consultati in formato: 'Documenti consultati: (file1.pdf), (file2.docx)'
+5. Se non sei sicuro, riconosci i limiti";
     }
 
     private string BuildUserPrompt(string query, string documentContext, List<Message> conversationHistory)

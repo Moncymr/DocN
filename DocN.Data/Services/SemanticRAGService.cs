@@ -98,7 +98,8 @@ IMPORTANTE: Comunica sempre in italiano.",
 4. Mantenere il contesto e la coerenza della conversazione
 5. Essere conciso ma completo
 
-Cita sempre le tue fonti usando il formato [Documento N] in cui N è il numero del documento.
+Cita sempre le tue fonti usando il formato [Documento N] in cui N è il numero del documento, e indica il nome del file tra parentesi (nome_file.pdf).
+Alla fine della risposta, elenca tutti i documenti consultati.
 IMPORTANTE: Rispondi sempre in italiano.",
                 Kernel = _kernel
             };
@@ -954,7 +955,7 @@ Il tuo ruolo è rispondere accuratamente alle domande basandoti sui documenti fo
 
 LINEE GUIDA:
 - Usa SOLO le informazioni presenti nei documenti forniti
-- Cita le fonti usando il formato [Documento N]
+- Cita le fonti usando il formato [Documento N] e indica il nome del file tra parentesi: (nome_file.pdf)
 - Se l'informazione non è presente nei documenti, dichiaralo chiaramente
 - Sii conciso ma completo
 - Mantieni un tono professionale e disponibile
@@ -964,8 +965,9 @@ LINEE GUIDA:
 FORMATO DELLA RISPOSTA:
 1. Fornisci una risposta diretta alla domanda
 2. Supporta con dettagli rilevanti dai documenti
-3. Cita chiaramente le fonti
-4. Se non sei sicuro, riconosci i limiti";
+3. Cita chiaramente le fonti con [Documento N] e il nome del file tra parentesi (nome_file.pdf)
+4. Alla fine della risposta, elenca i documenti consultati in formato: 'Documenti consultati: (file1.pdf), (file2.docx)'
+5. Se non sei sicuro, riconosci i limiti";
     }
 
     /// <summary>
