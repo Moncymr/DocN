@@ -55,7 +55,7 @@ Edit both `appsettings.json` files and update the connection string with your SQ
 Replace `YOUR_SERVER` with your SQL Server instance name. Examples:
 - `localhost` - Default local instance
 - `localhost\\SQLEXPRESS` - Named instance
-- `NTSPJ-060-02\\SQL2025` - Remote named instance
+- `MYSERVER\\SQL2022` - Remote named instance
 
 ## 3. Initialize Database
 
