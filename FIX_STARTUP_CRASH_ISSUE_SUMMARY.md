@@ -8,21 +8,28 @@ The DocN.Client application was exiting immediately on startup with error code -
 
 ## Root Cause Analysis
 
-From the debug logs provided, the issue was identified as:
+Through systematic debugging, three separate issues were identified:
 
 1. **Missing Configuration Files**
    - `appsettings.json` and `appsettings.Development.json` were missing from both Client and Server projects
    - Only `.example.json` files existed in the repository
    - Files are intentionally excluded from git via `.gitignore` for security
 
-2. **Database Connection Failure**
-   - Without configuration files, the application couldn't load the database connection string
-   - The hardcoded fallback connection string was environment-specific
-   - Database seeding failed, throwing an `AggregateException` in `Microsoft.Extensions.DependencyInjection.dll`
+2. **Database Seeding Conflicts (Concurrent Startup)**
+   - When Client and Server start simultaneously, both try to seed the same database
+   - Database locks during concurrent seeding operations
+   - Server's seeding code was not wrapped in error handling, causing crashes
 
-3. **Strict Error Handling**
-   - In non-development mode, when database seeding failed, the application would re-throw the exception
-   - This caused immediate termination with exit code -1
+3. **Dependency Injection Lifetime Mismatch** ⚠️ **CRITICAL ISSUE**
+   - `IKernelProvider` was registered as Singleton
+   - `ISemanticKernelFactory` was registered as Scoped
+   - **Cannot consume scoped service from singleton service** - violates DI lifetime rules
+   - Caused `System.AggregateException` during `builder.Build()` with error:
+     ```
+     Cannot consume scoped service 'DocN.Data.Services.ISemanticKernelFactory' 
+     from singleton 'DocN.Data.Services.IKernelProvider'
+     ```
+   - This was the actual cause of immediate crash when applications started
 
 ## Solution Implemented
 
@@ -46,7 +53,14 @@ Modified error handling in both `DocN.Client/Program.cs` and `DocN.Server/Progra
 - When both apps start together, one may fail to seed due to database locks - this is expected and applications continue
 - Error messages explain that concurrent seeding conflicts are normal
 
-### 3. Enhanced Configuration Examples
+### 3. Dependency Injection Lifetime Fix ⭐ **CRITICAL FIX**
+Fixed the DI lifetime mismatch in `DocN.Server/Program.cs` (line 313):
+- Changed `ISemanticKernelFactory` registration from **Scoped** to **Singleton**
+- Both `ISemanticKernelFactory` and `IKernelProvider` are now Singleton
+- This resolves the `AggregateException` that occurred during `builder.Build()`
+- **This was the primary cause** of the immediate crash when starting applications together
+
+### 4. Enhanced Configuration Examples
 Created comprehensive example configuration files:
 - `DocN.Client/appsettings.example.json` - Complete client configuration template
 - `DocN.Client/appsettings.Development.example.json` - Development overrides
@@ -54,7 +68,15 @@ Created comprehensive example configuration files:
 - `DocN.Server/appsettings.Development.example.json` - Development overrides
 - All include connection strings, file storage, AI providers, and other settings
 
-### 4. Documentation
+### 4. Enhanced Configuration Examples
+Created comprehensive example configuration files:
+- `DocN.Client/appsettings.example.json` - Complete client configuration template
+- `DocN.Client/appsettings.Development.example.json` - Development overrides
+- `DocN.Server/appsettings.example.json` - Complete server configuration template
+- `DocN.Server/appsettings.Development.example.json` - Development overrides
+- All include connection strings, file storage, AI providers, and other settings
+
+### 5. Documentation
 Created `CONFIGURATION_SETUP.md`:
 - Quick start guide for resolving the immediate crash
 - Step-by-step setup instructions
@@ -66,8 +88,9 @@ Created `CONFIGURATION_SETUP.md`:
 
 ### Code Changes
 - `DocN.Client/Program.cs` - Added auto-configuration + improved error handling
-- `DocN.Server/Program.cs` - Added auto-configuration
+- `DocN.Server/Program.cs` - Added auto-configuration + database seeding error handling + **DI lifetime fix**
 - Both files: ~70 lines added each for configuration creation logic
+- **DocN.Server/Program.cs line 313**: Changed `ISemanticKernelFactory` from Scoped to Singleton ⭐
 
 ### Configuration Templates
 - `DocN.Client/appsettings.example.json` - New file
