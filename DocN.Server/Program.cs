@@ -36,15 +36,17 @@ static void EnsureConfigurationFiles()
     // Create appsettings.json if it doesn't exist
     if (!File.Exists(appsettingsPath))
     {
-        if (File.Exists(appsettingsExamplePath))
+        try
         {
-            File.Copy(appsettingsExamplePath, appsettingsPath);
-            Console.WriteLine($"Created {appsettingsPath} from example file. Please update the configuration with your settings.");
-        }
-        else
-        {
-            // Create a minimal configuration file
-            var minimalConfig = @"{
+            if (File.Exists(appsettingsExamplePath))
+            {
+                File.Copy(appsettingsExamplePath, appsettingsPath);
+                Console.WriteLine($"Created {appsettingsPath} from example file. Please update the configuration with your settings.");
+            }
+            else
+            {
+                // Create a minimal configuration file
+                var minimalConfig = @"{
   ""Logging"": {
     ""LogLevel"": {
       ""Default"": ""Information"",
@@ -59,23 +61,36 @@ static void EnsureConfigurationFiles()
   },
   ""Urls"": ""https://localhost:5211;http://localhost:5210""
 }";
-            File.WriteAllText(appsettingsPath, minimalConfig);
-            Console.WriteLine($"Created minimal {appsettingsPath}. Please update with your database connection string.");
+                File.WriteAllText(appsettingsPath, minimalConfig);
+                Console.WriteLine($"Created minimal {appsettingsPath}. Please update with your database connection string.");
+            }
+        }
+        catch (IOException ex)
+        {
+            // File might be being created by another process (e.g., Client starting at same time)
+            // Wait a moment and check if it exists now
+            Thread.Sleep(100);
+            if (!File.Exists(appsettingsPath))
+            {
+                Console.WriteLine($"Warning: Could not create {appsettingsPath}: {ex.Message}");
+            }
         }
     }
 
     // Create appsettings.Development.json if it doesn't exist
     if (!File.Exists(appsettingsDevPath))
     {
-        if (File.Exists(appsettingsDevExamplePath))
+        try
         {
-            File.Copy(appsettingsDevExamplePath, appsettingsDevPath);
-            Console.WriteLine($"Created {appsettingsDevPath} from example file.");
-        }
-        else
-        {
-            // Create a minimal development configuration
-            var minimalDevConfig = @"{
+            if (File.Exists(appsettingsDevExamplePath))
+            {
+                File.Copy(appsettingsDevExamplePath, appsettingsDevPath);
+                Console.WriteLine($"Created {appsettingsDevPath} from example file.");
+            }
+            else
+            {
+                // Create a minimal development configuration
+                var minimalDevConfig = @"{
   ""Logging"": {
     ""LogLevel"": {
       ""Default"": ""Information"",
@@ -87,8 +102,18 @@ static void EnsureConfigurationFiles()
     ""DefaultConnection"": ""Server=localhost;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=True""
   }
 }";
-            File.WriteAllText(appsettingsDevPath, minimalDevConfig);
-            Console.WriteLine($"Created minimal {appsettingsDevPath}.");
+                File.WriteAllText(appsettingsDevPath, minimalDevConfig);
+                Console.WriteLine($"Created minimal {appsettingsDevPath}.");
+            }
+        }
+        catch (IOException ex)
+        {
+            // File might be being created by another process
+            Thread.Sleep(100);
+            if (!File.Exists(appsettingsDevPath))
+            {
+                Console.WriteLine($"Warning: Could not create {appsettingsDevPath}: {ex.Message}");
+            }
         }
     }
 }
