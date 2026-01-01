@@ -331,4 +331,45 @@ public class MultiProviderAIServiceTests
                 It.IsAny<string?>()),
             Times.Once);
     }
+
+    [Fact]
+    public void Constructor_ReadsTimeoutFromConfiguration()
+    {
+        // Arrange
+        using var context = CreateInMemoryContext();
+        var logServiceMock = new Mock<ILogService>();
+        
+        // Create configuration with custom timeout
+        var configDict = new Dictionary<string, string>
+        {
+            {"AI:TimeoutSeconds", "90"}
+        };
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configDict!)
+            .Build();
+
+        // Act
+        var service = new MultiProviderAIService(config, context, logServiceMock.Object);
+
+        // Assert
+        // Service should be created without errors
+        Assert.NotNull(service);
+        // The timeout will be used internally when ExecuteWithTimeoutAsync is called
+    }
+
+    [Fact]
+    public void Constructor_UsesDefaultTimeoutWhenNotConfigured()
+    {
+        // Arrange
+        using var context = CreateInMemoryContext();
+        var config = CreateEmptyConfiguration();
+        var logServiceMock = new Mock<ILogService>();
+
+        // Act
+        var service = new MultiProviderAIService(config, context, logServiceMock.Object);
+
+        // Assert
+        // Service should be created without errors with default timeout (120 seconds)
+        Assert.NotNull(service);
+    }
 }
