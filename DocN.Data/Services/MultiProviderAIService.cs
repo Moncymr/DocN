@@ -115,12 +115,32 @@ public class MultiProviderAIService : IMultiProviderAIService
                 
                 // Log which providers are configured
                 var configuredProviders = new List<string>();
-                if (!string.IsNullOrEmpty(_cachedConfig.GeminiApiKey))
+                
+                // Check Gemini - use GeminiApiKey or fall back to ProviderApiKey if ProviderType is Gemini
+                var geminiKey = _cachedConfig.GeminiApiKey ?? (_cachedConfig.ProviderType == AIProviderType.Gemini ? _cachedConfig.ProviderApiKey : null);
+                if (!string.IsNullOrWhiteSpace(geminiKey))
+                {
                     configuredProviders.Add("Gemini");
-                if (!string.IsNullOrEmpty(_cachedConfig.OpenAIApiKey))
+                    await _logService.LogDebugAsync("Configuration", "Gemini API key detected", $"Key length: {geminiKey.Length} chars");
+                }
+                
+                // Check OpenAI - use OpenAIApiKey or fall back to ProviderApiKey if ProviderType is OpenAI
+                var openAIKey = _cachedConfig.OpenAIApiKey ?? (_cachedConfig.ProviderType == AIProviderType.OpenAI ? _cachedConfig.ProviderApiKey : null);
+                if (!string.IsNullOrWhiteSpace(openAIKey))
+                {
                     configuredProviders.Add("OpenAI");
-                if (!string.IsNullOrEmpty(_cachedConfig.AzureOpenAIKey) && !string.IsNullOrEmpty(_cachedConfig.AzureOpenAIEndpoint))
+                    await _logService.LogDebugAsync("Configuration", "OpenAI API key detected", $"Key length: {openAIKey.Length} chars");
+                }
+                
+                // Check Azure OpenAI - need both endpoint and key
+                var azureKey = _cachedConfig.AzureOpenAIKey ?? (_cachedConfig.ProviderType == AIProviderType.AzureOpenAI ? _cachedConfig.ProviderApiKey : null);
+                var azureEndpoint = _cachedConfig.AzureOpenAIEndpoint ?? (_cachedConfig.ProviderType == AIProviderType.AzureOpenAI ? _cachedConfig.ProviderEndpoint : null);
+                if (!string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint))
+                {
                     configuredProviders.Add("Azure OpenAI");
+                    await _logService.LogDebugAsync("Configuration", "Azure OpenAI configuration detected", 
+                        $"Key length: {azureKey.Length} chars, Endpoint: {azureEndpoint}");
+                }
                 
                 if (configuredProviders.Any())
                 {
@@ -129,6 +149,15 @@ public class MultiProviderAIService : IMultiProviderAIService
                 else
                 {
                     await _logService.LogWarningAsync("Configuration", "⚠️ Configuration found in database but no API keys are set!");
+                    // Add detailed debug info to help diagnose the issue
+                    await _logService.LogDebugAsync("Configuration", "Provider configuration details",
+                        $"ProviderType: {_cachedConfig.ProviderType}, " +
+                        $"GeminiApiKey: {(_cachedConfig.GeminiApiKey != null ? $"set ({_cachedConfig.GeminiApiKey.Length} chars)" : "null")}, " +
+                        $"OpenAIApiKey: {(_cachedConfig.OpenAIApiKey != null ? $"set ({_cachedConfig.OpenAIApiKey.Length} chars)" : "null")}, " +
+                        $"AzureOpenAIKey: {(_cachedConfig.AzureOpenAIKey != null ? $"set ({_cachedConfig.AzureOpenAIKey.Length} chars)" : "null")}, " +
+                        $"AzureOpenAIEndpoint: {(_cachedConfig.AzureOpenAIEndpoint != null ? $"set" : "null")}, " +
+                        $"ProviderApiKey: {(_cachedConfig.ProviderApiKey != null ? $"set ({_cachedConfig.ProviderApiKey.Length} chars)" : "null")}, " +
+                        $"ProviderEndpoint: {(_cachedConfig.ProviderEndpoint != null ? $"set" : "null")}");
                 }
             }
             else
@@ -139,11 +168,11 @@ public class MultiProviderAIService : IMultiProviderAIService
                 
                 // Log which providers are configured from appsettings
                 var configuredProviders = new List<string>();
-                if (!string.IsNullOrEmpty(_cachedConfig.GeminiApiKey))
+                if (!string.IsNullOrWhiteSpace(_cachedConfig.GeminiApiKey))
                     configuredProviders.Add("Gemini");
-                if (!string.IsNullOrEmpty(_cachedConfig.OpenAIApiKey))
+                if (!string.IsNullOrWhiteSpace(_cachedConfig.OpenAIApiKey))
                     configuredProviders.Add("OpenAI");
-                if (!string.IsNullOrEmpty(_cachedConfig.AzureOpenAIKey) && !string.IsNullOrEmpty(_cachedConfig.AzureOpenAIEndpoint))
+                if (!string.IsNullOrWhiteSpace(_cachedConfig.AzureOpenAIKey) && !string.IsNullOrWhiteSpace(_cachedConfig.AzureOpenAIEndpoint))
                     configuredProviders.Add("Azure OpenAI");
                 
                 if (configuredProviders.Any())
@@ -258,7 +287,8 @@ public class MultiProviderAIService : IMultiProviderAIService
                 var errors = new List<string> { $"{provider}: {ex.Message}" };
                 
                 // Try alternative providers, but skip the one that just failed
-                if (provider != AIProviderType.Gemini && !string.IsNullOrEmpty(config.GeminiApiKey))
+                var geminiKey = config.GeminiApiKey ?? (config.ProviderType == AIProviderType.Gemini ? config.ProviderApiKey : null);
+                if (provider != AIProviderType.Gemini && !string.IsNullOrWhiteSpace(geminiKey))
                 {
                     try
                     {
@@ -272,7 +302,8 @@ public class MultiProviderAIService : IMultiProviderAIService
                     }
                 }
                 
-                if (provider != AIProviderType.OpenAI && !string.IsNullOrEmpty(config.OpenAIApiKey))
+                var openAIKey = config.OpenAIApiKey ?? (config.ProviderType == AIProviderType.OpenAI ? config.ProviderApiKey : null);
+                if (provider != AIProviderType.OpenAI && !string.IsNullOrWhiteSpace(openAIKey))
                 {
                     try
                     {
@@ -286,7 +317,9 @@ public class MultiProviderAIService : IMultiProviderAIService
                     }
                 }
                 
-                if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrEmpty(config.AzureOpenAIKey))
+                var azureKey = config.AzureOpenAIKey ?? (config.ProviderType == AIProviderType.AzureOpenAI ? config.ProviderApiKey : null);
+                var azureEndpoint = config.AzureOpenAIEndpoint ?? (config.ProviderType == AIProviderType.AzureOpenAI ? config.ProviderEndpoint : null);
+                if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint))
                 {
                     try
                     {
@@ -456,10 +489,15 @@ public class MultiProviderAIService : IMultiProviderAIService
         // Log the configuration being used
         await _logService.LogInfoAsync("AI", $"Attempting chat with provider: {provider}");
         
-        // Check if any API key is configured
-        bool hasGeminiKey = !string.IsNullOrEmpty(config.GeminiApiKey);
-        bool hasOpenAIKey = !string.IsNullOrEmpty(config.OpenAIApiKey);
-        bool hasAzureKey = !string.IsNullOrEmpty(config.AzureOpenAIKey) && !string.IsNullOrEmpty(config.AzureOpenAIEndpoint);
+        // Check if any API key is configured (with fallback to ProviderApiKey)
+        var geminiKey = config.GeminiApiKey ?? (config.ProviderType == AIProviderType.Gemini ? config.ProviderApiKey : null);
+        var openAIKey = config.OpenAIApiKey ?? (config.ProviderType == AIProviderType.OpenAI ? config.ProviderApiKey : null);
+        var azureKey = config.AzureOpenAIKey ?? (config.ProviderType == AIProviderType.AzureOpenAI ? config.ProviderApiKey : null);
+        var azureEndpoint = config.AzureOpenAIEndpoint ?? (config.ProviderType == AIProviderType.AzureOpenAI ? config.ProviderEndpoint : null);
+        
+        bool hasGeminiKey = !string.IsNullOrWhiteSpace(geminiKey);
+        bool hasOpenAIKey = !string.IsNullOrWhiteSpace(openAIKey);
+        bool hasAzureKey = !string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint);
         
         if (!hasGeminiKey && !hasOpenAIKey && !hasAzureKey)
         {
