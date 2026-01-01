@@ -2,43 +2,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DocN.Data;
 using DocN.Data.Models;
-using DocN.Data.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// Controller REST API per gestione configurazioni AI provider (Gemini, OpenAI, Azure OpenAI)
-/// Permette CRUD configurazioni e test connettività provider
+/// Endpoints per la gestione delle configurazioni AI e test di connettività
 /// </summary>
-/// <remarks>
-/// Scopo: Fornire interfaccia per configurare e testare provider AI multi-vendor
-/// 
-/// Operazioni supportate:
-/// - POST /api/config/test: Testa connettività tutti provider configurati
-/// - GET /api/config: Lista tutte configurazioni
-/// - GET /api/config/{id}: Dettagli configurazione specifica
-/// - POST /api/config: Crea nuova configurazione
-/// - PUT /api/config/{id}: Aggiorna configurazione esistente
-/// - DELETE /api/config/{id}: Elimina configurazione
-/// - POST /api/config/{id}/activate: Attiva configurazione specifica
-/// 
-/// Provider supportati:
-/// 1. Google Gemini (API key Gemini)
-/// 2. OpenAI (API key OpenAI)
-/// 3. Azure OpenAI (endpoint + API key Azure)
-/// 
-/// Funzionalità chiave:
-/// - Test pre-salvataggio: Valida API key prima di salvare
-/// - Invalidazione cache: ClearConfigurationCache() dopo modifiche
-/// - Supporto configurazione attiva unica (IsActive flag)
-/// - Logging dettagliato per troubleshooting
-/// 
-/// Sicurezza:
-/// - TODO: Aggiungere autorizzazione (solo admin possono modificare)
-/// - API keys criptate in database
-/// - API keys non esposte in response GET
-/// </remarks>
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -47,62 +17,24 @@ public class ConfigController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ConfigController> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IMultiProviderAIService _aiService;
 
     public ConfigController(
         ApplicationDbContext context,
         ILogger<ConfigController> logger,
-        IHttpClientFactory httpClientFactory,
-        IMultiProviderAIService aiService)
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
-        _aiService = aiService;
     }
 
     /// <summary>
-    /// Testa la connettività e validità di tutti i provider AI configurati
+    /// Testa la configurazione dei provider AI
     /// </summary>
-    /// <returns>ConfigurationTestResult con esito test per ogni provider</returns>
-    /// <response code="200">Test completato (può contenere errori per singoli provider)</response>
-    /// <response code="404">Nessuna configurazione attiva trovata nel database</response>
-    /// <response code="500">Errore interno del server durante test</response>
-    /// <remarks>
-    /// Scopo: Validare configurazioni AI prima dell'uso per evitare errori runtime
-    /// 
-    /// Processo:
-    /// 1. Recupera configurazione attiva da database
-    /// 2. Per ogni provider configurato (Gemini, OpenAI, Azure):
-    ///    a. Verifica presenza API key/endpoint
-    ///    b. Effettua chiamata test API (es. list models o embedding test)
-    ///    c. Valida risposta e registra risultato
-    /// 3. Aggrega risultati e determina successo complessivo
-    /// 
-    /// Test specifici per provider:
-    /// - Gemini: Chiama /models endpoint con API key
-    /// - OpenAI: Chiama /models endpoint con Bearer token
-    /// - Azure: Chiama endpoint deployment con API key header
-    /// 
-    /// Output atteso:
-    /// - Success: true se almeno 1 provider funzionante
-    /// - ProviderResults: Array con dettagli per ogni provider
-    ///   * ProviderName: "Gemini", "OpenAI", "Azure OpenAI"
-    ///   * IsConfigured: true se API key presente
-    ///   * IsValid: true se test connessione riuscito
-    ///   * Message: Dettagli esito (successo o errore)
-    ///   * ResponseTime: Latenza chiamata API
-    /// 
-    /// Scenari:
-    /// 1. Nessun provider configurato: 404 + messaggio guida
-    /// 2. Tutti provider falliscono: 200 + Success=false + dettagli errori
-    /// 3. Almeno 1 provider OK: 200 + Success=true + riepilogo
-    /// 
-    /// Utilizzo tipico:
-    /// - Validazione post-configurazione in UI
-    /// - Diagnostica problemi connettività
-    /// - Health check periodico provider AI
-    /// </remarks>
+    /// <returns>Risultati del test per ogni provider configurato</returns>
+    /// <response code="200">Test completato con successo</response>
+    /// <response code="404">Nessuna configurazione attiva trovata</response>
+    /// <response code="500">Errore interno del server</response>
     [HttpPost("test")]
     [ProducesResponseType(typeof(ConfigurationTestResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -202,8 +134,7 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key validity by making a simple request
-            // Use named HttpClient with extended timeout for AI operations
-            var httpClient = _httpClientFactory.CreateClient("AI");
+            var httpClient = _httpClientFactory.CreateClient();
             httpClient.DefaultRequestHeaders.Add("x-goog-api-key", config.GeminiApiKey);
 
             // Use models endpoint without API key in URL for security
@@ -294,8 +225,7 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key validity by listing models
-            // Use named HttpClient with extended timeout for AI operations
-            var httpClient = _httpClientFactory.CreateClient("AI");
+            var httpClient = _httpClientFactory.CreateClient();
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {config.OpenAIApiKey}");
 
             var response = await httpClient.GetAsync("https://api.openai.com/v1/models");
@@ -384,8 +314,7 @@ public class ConfigController : ControllerBase
         try
         {
             // Test API key and endpoint validity
-            // Use named HttpClient with extended timeout for AI operations
-            var httpClient = _httpClientFactory.CreateClient("AI");
+            var httpClient = _httpClientFactory.CreateClient();
             httpClient.DefaultRequestHeaders.Add("api-key", config.AzureOpenAIKey);
 
             // Try to list deployments to verify connection
@@ -465,234 +394,235 @@ public class ConfigController : ControllerBase
     }
 
     /// <summary>
-    /// Get the current active AI configuration
+    /// Ottiene informazioni diagnostiche sulla configurazione AI
     /// </summary>
-    /// <returns>Active AI configuration</returns>
-    /// <response code="200">Configuration retrieved successfully</response>
-    /// <response code="404">No active configuration found</response>
-    [HttpGet("active")]
-    [ProducesResponseType(typeof(AIConfiguration), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<AIConfiguration>> GetActiveConfiguration()
+    /// <returns>Informazioni diagnostiche dettagliate</returns>
+    /// <response code="200">Diagnostica completata con successo</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpGet("diagnostica")]
+    [ProducesResponseType(typeof(DiagnosticResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<DiagnosticResult>> GetDiagnostics()
     {
         try
         {
-            var config = await _context.AIConfigurations
-                .FirstOrDefaultAsync(c => c.IsActive);
+            _logger.LogInformation("Getting configuration diagnostics");
 
-            if (config == null)
+            var result = new DiagnosticResult
             {
-                return NotFound(new { message = "No active configuration found" });
+                Timestamp = DateTime.UtcNow,
+                Configurations = new List<ConfigurationInfo>()
+            };
+
+            // Get all configurations
+            var allConfigs = await _context.AIConfigurations.ToListAsync();
+            result.TotalConfigurations = allConfigs.Count;
+            result.ActiveConfiguration = allConfigs.FirstOrDefault(c => c.IsActive);
+
+            foreach (var config in allConfigs)
+            {
+                var configInfo = new ConfigurationInfo
+                {
+                    Id = config.Id,
+                    Name = config.ConfigurationName,
+                    IsActive = config.IsActive,
+                    CreatedAt = config.CreatedAt,
+                    UpdatedAt = config.UpdatedAt,
+                    ProvidersConfigured = new List<string>()
+                };
+
+                // Check which providers are configured
+                if (!string.IsNullOrEmpty(config.GeminiApiKey))
+                    configInfo.ProvidersConfigured.Add("Gemini");
+                if (!string.IsNullOrEmpty(config.OpenAIApiKey))
+                    configInfo.ProvidersConfigured.Add("OpenAI");
+                if (!string.IsNullOrEmpty(config.AzureOpenAIKey) && !string.IsNullOrEmpty(config.AzureOpenAIEndpoint))
+                    configInfo.ProvidersConfigured.Add("Azure OpenAI");
+
+                // Service assignments
+                configInfo.ChatProvider = config.ChatProvider?.ToString() ?? "Not Set";
+                configInfo.EmbeddingsProvider = config.EmbeddingsProvider?.ToString() ?? "Not Set";
+                configInfo.TagExtractionProvider = config.TagExtractionProvider?.ToString() ?? "Not Set";
+                configInfo.RAGProvider = config.RAGProvider?.ToString() ?? "Not Set";
+
+                result.Configurations.Add(configInfo);
             }
 
-            return Ok(config);
+            result.Success = true;
+            result.Message = $"Diagnostica completata: {result.TotalConfigurations} configurazioni trovate";
+
+            return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving active configuration");
-            return StatusCode(500, new { error = "An error occurred" });
+            _logger.LogError(ex, "Error getting diagnostics");
+            return StatusCode(500, new DiagnosticResult
+            {
+                Success = false,
+                Message = $"Errore durante la diagnostica: {ex.Message}",
+                Timestamp = DateTime.UtcNow
+            });
         }
     }
 
     /// <summary>
-    /// Activate a specific configuration by ID
+    /// Resetta la configurazione attiva ai valori predefiniti
     /// </summary>
-    /// <param name="id">Configuration ID to activate</param>
-    /// <returns>Activated configuration</returns>
-    /// <response code="200">Configuration activated successfully</response>
-    /// <response code="404">Configuration not found</response>
-    [HttpPost("{id}/activate")]
-    [ProducesResponseType(typeof(AIConfiguration), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<AIConfiguration>> ActivateConfiguration(int id)
+    /// <returns>Risultato dell'operazione di reset</returns>
+    /// <response code="200">Reset completato con successo</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpPost("reset")]
+    [ProducesResponseType(typeof(ResetResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ResetResult>> ResetConfiguration()
     {
         try
         {
-            var config = await _context.AIConfigurations.FindAsync(id);
+            _logger.LogInformation("Resetting configuration to defaults");
+
+            // Get active configuration
+            var activeConfig = await _context.AIConfigurations
+                .FirstOrDefaultAsync(c => c.IsActive);
+
+            if (activeConfig != null)
+            {
+                // Reset to default values
+                activeConfig.ConfigurationName = "Configurazione Predefinita";
+                activeConfig.ProviderType = AIProviderType.Gemini;
+                activeConfig.MaxDocumentsToRetrieve = 5;
+                activeConfig.SimilarityThreshold = 0.7;
+                activeConfig.MaxTokensForContext = 4000;
+                activeConfig.EmbeddingDimensions = 768;
+                activeConfig.SystemPrompt = "Sei un assistente utile che risponde a domande basandoti sui documenti forniti. Cita sempre i documenti fonte quando fornisci informazioni.";
+                activeConfig.EnableChunking = true;
+                activeConfig.ChunkSize = 1000;
+                activeConfig.ChunkOverlap = 200;
+                activeConfig.EnableFallback = true;
+                activeConfig.GeminiChatModel = "gemini-1.5-flash";
+                activeConfig.GeminiEmbeddingModel = "text-embedding-004";
+                activeConfig.OpenAIChatModel = "gpt-4";
+                activeConfig.OpenAIEmbeddingModel = "text-embedding-ada-002";
+                activeConfig.AzureOpenAIChatModel = "gpt-4";
+                activeConfig.AzureOpenAIEmbeddingModel = "text-embedding-ada-002";
+                activeConfig.UpdatedAt = DateTime.UtcNow;
+
+                _context.AIConfigurations.Update(activeConfig);
+                await _context.SaveChangesAsync();
+
+                return Ok(new ResetResult
+                {
+                    Success = true,
+                    Message = "✅ Configurazione resettata ai valori predefiniti",
+                    ConfigurationId = activeConfig.Id
+                });
+            }
+            else
+            {
+                // Create a new default configuration if none exists
+                var newConfig = new AIConfiguration
+                {
+                    ConfigurationName = "Configurazione Predefinita",
+                    ProviderType = AIProviderType.Gemini,
+                    MaxDocumentsToRetrieve = 5,
+                    SimilarityThreshold = 0.7,
+                    MaxTokensForContext = 4000,
+                    EmbeddingDimensions = 768,
+                    EmbeddingModel = "text-embedding-004",
+                    SystemPrompt = "Sei un assistente utile che risponde a domande basandoti sui documenti forniti. Cita sempre i documenti fonte quando fornisci informazioni.",
+                    IsActive = true,
+                    EnableChunking = true,
+                    ChunkSize = 1000,
+                    ChunkOverlap = 200,
+                    EnableFallback = true,
+                    GeminiChatModel = "gemini-1.5-flash",
+                    GeminiEmbeddingModel = "text-embedding-004",
+                    OpenAIChatModel = "gpt-4",
+                    OpenAIEmbeddingModel = "text-embedding-ada-002",
+                    AzureOpenAIChatModel = "gpt-4",
+                    AzureOpenAIEmbeddingModel = "text-embedding-ada-002",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.AIConfigurations.Add(newConfig);
+                await _context.SaveChangesAsync();
+
+                return Ok(new ResetResult
+                {
+                    Success = true,
+                    Message = "✅ Nuova configurazione predefinita creata",
+                    ConfigurationId = newConfig.Id
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting configuration");
+            return StatusCode(500, new ResetResult
+            {
+                Success = false,
+                Message = $"❌ Errore durante il reset: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    /// Imposta una configurazione come predefinita dall'utente
+    /// </summary>
+    /// <param name="configId">ID della configurazione da impostare come predefinita</param>
+    /// <returns>Risultato dell'operazione</returns>
+    /// <response code="200">Configurazione impostata come predefinita</response>
+    /// <response code="404">Configurazione non trovata</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpPost("set-default/{configId}")]
+    [ProducesResponseType(typeof(SetDefaultResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<SetDefaultResult>> SetDefaultConfiguration(int configId)
+    {
+        try
+        {
+            _logger.LogInformation("Setting configuration {ConfigId} as default", configId);
+
+            var config = await _context.AIConfigurations.FindAsync(configId);
             
             if (config == null)
             {
-                return NotFound(new { message = $"Configuration with ID {id} not found" });
+                return NotFound(new SetDefaultResult
+                {
+                    Success = false,
+                    Message = "❌ Configurazione non trovata"
+                });
             }
 
-            _logger.LogInformation("Activating configuration '{ConfigName}' (ID: {ConfigId}). Deactivating all others...", 
-                config.ConfigurationName, config.Id);
+            // Deactivate all other configurations
+            var allConfigs = await _context.AIConfigurations.ToListAsync();
+            foreach (var c in allConfigs)
+            {
+                c.IsActive = false;
+            }
 
-            // Deactivate all other configurations efficiently with bulk update
-            await _context.AIConfigurations
-                .Where(c => c.Id != id)
-                .ExecuteUpdateAsync(s => s.SetProperty(c => c.IsActive, false));
-
-            // Activate this configuration
+            // Activate the selected configuration
             config.IsActive = true;
             config.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-            
-            // Clear the AI service configuration cache to force reload
-            _aiService.ClearConfigurationCache();
-            
-            _logger.LogInformation("✅ Configuration '{ConfigName}' (ID: {ConfigId}) activated successfully. All other configurations deactivated. Cache cleared.", 
-                config.ConfigurationName, config.Id);
 
-            return Ok(new 
-            { 
-                success = true,
-                message = $"Configuration '{config.ConfigurationName}' activated successfully",
-                configuration = config
+            return Ok(new SetDefaultResult
+            {
+                Success = true,
+                Message = $"✅ Configurazione '{config.ConfigurationName}' impostata come predefinita",
+                ConfigurationId = config.Id,
+                ConfigurationName = config.ConfigurationName
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error activating configuration with ID {ConfigId}", id);
-            return StatusCode(500, new { error = $"Error activating configuration: {ex.Message}" });
-        }
-    }
-
-    /// <summary>
-    /// Get diagnostic information about all configurations to help troubleshoot which one is being used
-    /// </summary>
-    /// <returns>Diagnostic information about all configurations</returns>
-    [HttpGet("diagnostics")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult> GetConfigurationDiagnostics()
-    {
-        try
-        {
-            var allConfigs = await _context.AIConfigurations
-                .OrderByDescending(c => c.IsActive)
-                .ThenByDescending(c => c.UpdatedAt ?? c.CreatedAt)
-                .Select(c => new
-                {
-                    c.Id,
-                    c.ConfigurationName,
-                    c.IsActive,
-                    c.CreatedAt,
-                    c.UpdatedAt,
-                    HasGeminiKey = !string.IsNullOrWhiteSpace(c.GeminiApiKey),
-                    HasOpenAIKey = !string.IsNullOrWhiteSpace(c.OpenAIApiKey),
-                    HasAzureKey = !string.IsNullOrWhiteSpace(c.AzureOpenAIKey) && !string.IsNullOrWhiteSpace(c.AzureOpenAIEndpoint),
-                    c.ProviderType,
-                    SortOrder = c.IsActive ? 0 : 1
-                })
-                .ToListAsync();
-
-            var activeConfig = allConfigs.FirstOrDefault(c => c.IsActive);
-            var multipleActive = allConfigs.Count(c => c.IsActive) > 1;
-
-            return Ok(new
+            _logger.LogError(ex, "Error setting default configuration");
+            return StatusCode(500, new SetDefaultResult
             {
-                timestamp = DateTime.UtcNow,
-                totalConfigurations = allConfigs.Count,
-                activeConfiguration = activeConfig != null ? new
-                {
-                    id = activeConfig.Id,
-                    name = activeConfig.ConfigurationName,
-                    createdAt = activeConfig.CreatedAt,
-                    updatedAt = activeConfig.UpdatedAt,
-                    hasGeminiKey = activeConfig.HasGeminiKey,
-                    hasOpenAIKey = activeConfig.HasOpenAIKey,
-                    hasAzureKey = activeConfig.HasAzureKey
-                } : null,
-                multipleActiveWarning = multipleActive,
-                allConfigurations = allConfigs,
-                recommendations = new[]
-                {
-                    multipleActive ? "⚠️ Multiple configurations are marked as active! Use POST /api/config/{id}/activate to activate only one." : null,
-                    activeConfig == null ? "❌ No active configuration found. Use POST /api/config/{id}/activate to activate a configuration." : null,
-                    activeConfig?.ConfigurationName == "Default Configuration" ? "ℹ️ You are using the default seeded configuration. If you want to use a different one, use POST /api/config/{id}/activate." : null
-                }.Where(r => r != null).ToList()
+                Success = false,
+                Message = $"❌ Errore durante l'impostazione: {ex.Message}"
             });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting configuration diagnostics");
-            return StatusCode(500, new { error = $"Error getting diagnostics: {ex.Message}" });
-        }
-    }
-
-    /// <summary>
-    /// Get all AI configurations
-    /// </summary>
-    /// <returns>List of all AI configurations</returns>
-    /// <response code="200">Configurations retrieved successfully</response>
-    [HttpGet]
-    [ProducesResponseType(typeof(List<AIConfiguration>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<AIConfiguration>>> GetAllConfigurations()
-    {
-        try
-        {
-            var configs = await _context.AIConfigurations
-                .OrderByDescending(c => c.IsActive)
-                .ThenByDescending(c => c.UpdatedAt ?? c.CreatedAt)
-                .ToListAsync();
-
-            return Ok(configs);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving configurations");
-            return StatusCode(500, new { error = "An error occurred" });
-        }
-    }
-
-    /// <summary>
-    /// Create or update an AI configuration
-    /// </summary>
-    /// <param name="config">Configuration to save</param>
-    /// <returns>Saved configuration</returns>
-    /// <response code="200">Configuration saved successfully</response>
-    /// <response code="400">Invalid configuration data</response>
-    [HttpPost]
-    [ProducesResponseType(typeof(AIConfiguration), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<AIConfiguration>> SaveConfiguration([FromBody] AIConfiguration config)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(config.ConfigurationName))
-            {
-                return BadRequest(new { error = "Configuration name is required" });
-            }
-
-            // If setting this as active, deactivate all others
-            if (config.IsActive)
-            {
-                var otherConfigs = await _context.AIConfigurations
-                    .Where(c => c.Id != config.Id)
-                    .ToListAsync();
-                
-                foreach (var other in otherConfigs)
-                {
-                    other.IsActive = false;
-                }
-            }
-
-            if (config.Id == 0)
-            {
-                config.CreatedAt = DateTime.UtcNow;
-                _context.AIConfigurations.Add(config);
-            }
-            else
-            {
-                config.UpdatedAt = DateTime.UtcNow;
-                _context.AIConfigurations.Update(config);
-            }
-
-            await _context.SaveChangesAsync();
-            
-            // Clear the AI service configuration cache to force reload from database
-            _aiService.ClearConfigurationCache();
-            
-            _logger.LogInformation("Configuration '{ConfigName}' saved successfully (ID: {ConfigId}, Active: {IsActive}). Cache cleared.", 
-                config.ConfigurationName, config.Id, config.IsActive);
-
-            return Ok(config);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error saving configuration");
-            return StatusCode(500, new { error = $"Error saving configuration: {ex.Message}" });
         }
     }
 }
