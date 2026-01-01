@@ -574,6 +574,11 @@ public class ConfigController : ControllerBase
                     HasOpenAIKey = !string.IsNullOrWhiteSpace(c.OpenAIApiKey),
                     HasAzureKey = !string.IsNullOrWhiteSpace(c.AzureOpenAIKey) && !string.IsNullOrWhiteSpace(c.AzureOpenAIEndpoint),
                     c.ProviderType,
+                    // Include per-service provider assignments
+                    c.ChatProvider,
+                    c.EmbeddingsProvider,
+                    c.TagExtractionProvider,
+                    c.RAGProvider,
                     SortOrder = c.IsActive ? 0 : 1
                 })
                 .ToListAsync();

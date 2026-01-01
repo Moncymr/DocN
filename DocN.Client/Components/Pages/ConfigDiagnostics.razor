@@ -154,22 +154,22 @@
                                     <div class="service-item">
                                         <span class="service-icon">💬</span>
                                         <span class="service-label">Chat:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderNameForService(config.ChatProvider)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🧠</span>
                                         <span class="service-label">Embeddings:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderNameForService(config.EmbeddingsProvider)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🏷️</span>
                                         <span class="service-label">Tag Extract:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderNameForService(config.TagExtractionProvider)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🔍</span>
                                         <span class="service-label">RAG:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderNameForService(config.RAGProvider)</span>
                                     </div>
                                 </div>
                             </div>
@@ -569,6 +569,8 @@
 </style>
 
 @code {
+    private const string BackendApiClientName = "BackendAPI"; // Constant for HTTP client name
+    
     private ConfigDiagnosticsResponse? diagnostics;
     private bool isLoading = true;
     private string errorMessage = string.Empty;
@@ -585,7 +587,7 @@
 
         try
         {
-            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var httpClient = HttpClientFactory.CreateClient(BackendApiClientName);
             var response = await httpClient.GetAsync("api/config/diagnostics");
 
             if (response.IsSuccessStatusCode)
@@ -611,7 +613,7 @@
     {
         try
         {
-            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var httpClient = HttpClientFactory.CreateClient(BackendApiClientName);
             var response = await httpClient.PostAsync($"api/config/{configId}/activate", null);
 
             if (response.IsSuccessStatusCode)
@@ -634,17 +636,17 @@
         return dateTime.ToString("dd/MM/yyyy HH:mm:ss");
     }
 
-    private string GetProviderName(ConfigurationInfo config)
+    private string GetProviderNameForService(int? providerType)
     {
-        // Determine which provider is configured based on available keys
-        if (config.HasGeminiKey)
-            return "Gemini";
-        if (config.HasOpenAIKey)
-            return "OpenAI";
-        if (config.HasAzureKey)
-            return "Azure OpenAI";
-        
-        return "Non configurato";
+        // Map provider type to display name
+        // AIProviderType enum: Gemini = 1, OpenAI = 2, AzureOpenAI = 3
+        return providerType switch
+        {
+            1 => "Gemini",
+            2 => "OpenAI",
+            3 => "Azure OpenAI",
+            _ => "Non configurato"
+        };
     }
 
     // Response models matching the API
@@ -681,5 +683,10 @@
         public bool HasAzureKey { get; set; }
         public int ProviderType { get; set; }
         public int SortOrder { get; set; }
+        // Per-service provider assignments
+        public int? ChatProvider { get; set; }
+        public int? EmbeddingsProvider { get; set; }
+        public int? TagExtractionProvider { get; set; }
+        public int? RAGProvider { get; set; }
     }
 }
