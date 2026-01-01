@@ -613,6 +613,34 @@ public class ConfigController : ControllerBase
     }
 
     /// <summary>
+    /// Clear the configuration cache to force reload from database
+    /// </summary>
+    /// <returns>Success message</returns>
+    /// <response code="200">Cache cleared successfully</response>
+    [HttpPost("clear-cache")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult ClearConfigurationCache()
+    {
+        try
+        {
+            _aiService.ClearConfigurationCache();
+            _logger.LogInformation("Configuration cache cleared successfully via API request");
+            
+            return Ok(new
+            {
+                success = true,
+                message = "✅ Cache della configurazione svuotata con successo. La configurazione verrà ricaricata dal database al prossimo utilizzo.",
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing configuration cache");
+            return StatusCode(500, new { success = false, error = $"Errore durante lo svuotamento della cache: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
     /// Get all AI configurations
     /// </summary>
     /// <returns>List of all AI configurations</returns>

@@ -78,6 +78,33 @@
             </div>
         }
 
+        <!-- Cache Management -->
+        <div class="cache-management-section">
+            <div class="cache-header">
+                <div>
+                    <h3>🗑️ Gestione Cache Configurazione</h3>
+                    <p class="cache-description">Svuota la cache per forzare il ricaricamento della configurazione dal database</p>
+                </div>
+                <button class="btn btn-clear-cache" @onclick="ClearCache" disabled="@isClearing">
+                    @if (isClearing)
+                    {
+                        <span>⏳ Svuotamento...</span>
+                    }
+                    else
+                    {
+                        <span>🗑️ Svuota Cache</span>
+                    }
+                </button>
+            </div>
+            
+            @if (!string.IsNullOrEmpty(cacheMessage))
+            {
+                <div class="cache-message @(cacheMessageType == "success" ? "success" : "error")">
+                    @cacheMessage
+                </div>
+            }
+        </div>
+
         <!-- Configuration List -->
         <div class="configurations-section">
             <h3>📋 Configurazioni Disponibili</h3>
@@ -304,6 +331,77 @@
 
     .recommendation-item:last-child {
         margin-bottom: 0;
+    }
+
+    .cache-management-section {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        border: 2px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .cache-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .cache-header h3 {
+        margin: 0 0 0.5rem 0;
+        color: #2d3748;
+        font-weight: 700;
+        font-size: 1.2rem;
+    }
+
+    .cache-description {
+        margin: 0;
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .btn-clear-cache {
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .btn-clear-cache:hover:not(:disabled) {
+        background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+    }
+
+    .btn-clear-cache:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .cache-message {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 6px;
+        font-weight: 500;
+    }
+
+    .cache-message.success {
+        background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(40, 167, 69, 0.05));
+        color: #28a745;
+        border: 2px solid #28a745;
+    }
+
+    .cache-message.error {
+        background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(220, 53, 69, 0.05));
+        color: #dc3545;
+        border: 2px solid #dc3545;
     }
 
     .configurations-section {
@@ -565,13 +663,26 @@
             align-items: flex-start;
             gap: 1rem;
         }
+
+        .cache-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .btn-clear-cache {
+            width: 100%;
+        }
     }
 </style>
 
 @code {
     private ConfigDiagnosticsResponse? diagnostics;
     private bool isLoading = true;
+    private bool isClearing = false;
     private string errorMessage = string.Empty;
+    private string cacheMessage = string.Empty;
+    private string cacheMessageType = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -629,6 +740,44 @@
         }
     }
 
+    private async Task ClearCache()
+    {
+        isClearing = true;
+        cacheMessage = string.Empty;
+        cacheMessageType = string.Empty;
+
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var response = await httpClient.PostAsync("api/config/clear-cache", null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ClearCacheResponse>();
+                cacheMessage = result?.Message ?? "✅ Cache svuotata con successo!";
+                cacheMessageType = "success";
+                
+                // Reload diagnostics to show fresh data
+                await Task.Delay(500); // Small delay to let the cache clear propagate
+                await LoadDiagnostics();
+            }
+            else
+            {
+                cacheMessage = $"❌ Errore durante lo svuotamento della cache: {response.StatusCode}";
+                cacheMessageType = "error";
+            }
+        }
+        catch (Exception ex)
+        {
+            cacheMessage = $"❌ Errore: {ex.Message}";
+            cacheMessageType = "error";
+        }
+        finally
+        {
+            isClearing = false;
+        }
+    }
+
     private string FormatDateTime(DateTime dateTime)
     {
         return dateTime.ToString("dd/MM/yyyy HH:mm:ss");
@@ -681,5 +830,12 @@
         public bool HasAzureKey { get; set; }
         public int ProviderType { get; set; }
         public int SortOrder { get; set; }
+    }
+
+    private class ClearCacheResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
     }
 }
