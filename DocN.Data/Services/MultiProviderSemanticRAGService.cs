@@ -352,7 +352,7 @@ LINEE GUIDA:
 - Se l'informazione non è presente nei documenti, dichiaralo chiaramente
 - Sii conciso ma completo
 - Mantieni un tono professionale e disponibile
-- Se viene chiesto di più documenti, sintetizza le informazioni in modo appropriato
+- Se vengono richiesti più documenti, sintetizza le informazioni in modo appropriato
 - IMPORTANTE: Rispondi sempre in italiano
 
 FORMATO DELLA RISPOSTA:
