@@ -683,6 +683,9 @@
     private string errorMessage = string.Empty;
     private string cacheMessage = string.Empty;
     private string cacheMessageType = string.Empty;
+    
+    // Delay after cache clear to ensure the operation completes before reloading
+    private const int CacheClearDelayMilliseconds = 500;
 
     protected override async Task OnInitializedAsync()
     {
@@ -757,8 +760,8 @@
                 cacheMessage = result?.Message ?? "✅ Cache svuotata con successo!";
                 cacheMessageType = "success";
                 
-                // Reload diagnostics to show fresh data
-                await Task.Delay(500); // Small delay to let the cache clear propagate
+                // Wait briefly to ensure cache clear completes before reloading
+                await Task.Delay(CacheClearDelayMilliseconds);
                 await LoadDiagnostics();
             }
             else

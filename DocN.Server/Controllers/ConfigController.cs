@@ -636,7 +636,7 @@ public class ConfigController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error clearing configuration cache");
-            return StatusCode(500, new { success = false, error = $"Errore durante lo svuotamento della cache: {ex.Message}" });
+            return StatusCode(500, new { success = false, error = "Errore durante lo svuotamento della cache. Riprova più tardi." });
         }
     }
 
