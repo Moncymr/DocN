@@ -372,7 +372,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         var apiKey = config.AzureOpenAIKey ?? config.ProviderApiKey;
         var deploymentName = config.EmbeddingDeploymentName ?? config.AzureOpenAIEmbeddingModel ?? "text-embedding-ada-002";
 
-        if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))
+        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey))
         {
             throw new InvalidOperationException("Endpoint e API key di Azure OpenAI non configurati");
         }
@@ -396,7 +396,7 @@ public class MultiProviderAIService : IMultiProviderAIService
     {
         var apiKey = config.OpenAIApiKey ?? config.ProviderApiKey;
         
-        if (string.IsNullOrEmpty(apiKey))
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
             throw new InvalidOperationException("API key di OpenAI non configurata");
         }
@@ -418,7 +418,7 @@ public class MultiProviderAIService : IMultiProviderAIService
     {
         var apiKey = config.GeminiApiKey ?? config.ProviderApiKey;
         
-        if (string.IsNullOrEmpty(apiKey))
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
             await _logService.LogErrorAsync("Embedding", "API key di Gemini non configurata");
             throw new InvalidOperationException("API key di Gemini non configurata");
@@ -619,7 +619,7 @@ public class MultiProviderAIService : IMultiProviderAIService
     {
         var apiKey = config.GeminiApiKey ?? config.ProviderApiKey;
         
-        if (string.IsNullOrEmpty(apiKey))
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
             await _logService.LogErrorAsync("AI", "API key di Gemini non configurata");
             throw new InvalidOperationException("API key di Gemini non configurata");
@@ -699,7 +699,7 @@ public class MultiProviderAIService : IMultiProviderAIService
     {
         var apiKey = config.OpenAIApiKey ?? config.ProviderApiKey;
         
-        if (string.IsNullOrEmpty(apiKey))
+        if (string.IsNullOrWhiteSpace(apiKey))
             throw new InvalidOperationException("API key di OpenAI non configurata");
 
         var openAIClient = new OpenAI.OpenAIClient(apiKey);
@@ -722,7 +722,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         var apiKey = config.AzureOpenAIKey ?? config.ProviderApiKey;
         var deploymentName = config.ChatDeploymentName ?? config.AzureOpenAIChatModel ?? "gpt-4";
 
-        if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))
+        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(apiKey))
         {
             throw new InvalidOperationException("Endpoint e API key di Azure OpenAI non configurati");
         }
