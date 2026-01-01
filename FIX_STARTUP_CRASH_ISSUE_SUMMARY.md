@@ -122,6 +122,11 @@ Created `CONFIGURATION_SETUP.md`:
 3. **Health Checks**: Enhance health checks to surface configuration issues
    - Recommendation: Add configuration health check endpoint
 
+4. **Race Condition Handling**: Current implementation uses `Thread.Sleep(100)` with single retry
+   - Recommendation: Implement async/await with `Task.Delay` and exponential backoff
+   - Note: Current implementation is sufficient for typical startup scenarios (100ms is adequate for file I/O)
+   - Enhanced retry logic with multiple attempts could be added if issues occur in production
+
 ## Migration Path for Users
 
 ### For Development
