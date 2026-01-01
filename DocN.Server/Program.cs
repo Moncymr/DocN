@@ -310,9 +310,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Services that need the Kernel should use IKernelProvider.GetKernelAsync()
 // to obtain an instance configured from the database.
 // ════════════════════════════════════════════════════════════════════════════════
-// Note: Both must be Singleton since IKernelProvider depends on ISemanticKernelFactory
-builder.Services.AddSingleton<ISemanticKernelFactory, SemanticKernelFactory>();
-builder.Services.AddSingleton<IKernelProvider, KernelProvider>();
+// Note: Both must be Scoped since they transitively depend on ApplicationDbContext (Scoped)
+// ISemanticKernelFactory → IMultiProviderAIService → ApplicationDbContext
+builder.Services.AddScoped<ISemanticKernelFactory, SemanticKernelFactory>();
+builder.Services.AddScoped<IKernelProvider, KernelProvider>();
 
 // Configure OpenTelemetry for distributed tracing
 builder.Services.AddOpenTelemetry()
