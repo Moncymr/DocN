@@ -706,12 +706,11 @@ public class MultiProviderAIService : IMultiProviderAIService
             return await ExecuteWithTimeoutAsync(async (cancellationToken) =>
             {
                 // Get existing categories from database
-                var existingCategories = await Task.Run(() =>
-                    _context.Documents
-                        .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
-                        .Select(d => d.ActualCategory)
-                        .Distinct()
-                        .ToList(), cancellationToken);
+                var existingCategories = await _context.Documents
+                    .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
+                    .Select(d => d.ActualCategory)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
 
                 var categoriesHint = existingCategories.Any()
                     ? $"Existing categories in the system: {string.Join(", ", existingCategories)}. You can suggest one of these or propose a new category if none fit."
@@ -738,6 +737,8 @@ Rispondi in formato JSON:
     ""reasoning"": ""spiegazione dettagliata del motivo per cui questa categoria si adatta, menzionando parole chiave specifiche, tipo di contenuto o pattern identificati""
 }}";
 
+                // TODO: Pass cancellationToken to GenerateChatCompletionAsync to properly cancel underlying HTTP requests
+                // Currently the timeout prevents indefinite waits but doesn't cancel in-flight AI API calls
                 var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
             
                 // Clean up response - sometimes AI adds markdown code blocks
@@ -875,6 +876,8 @@ Respond in JSON format:
     ""tags"": [""tag1"", ""tag2"", ""tag3"", ...]
 }}";
 
+                // TODO: Pass cancellationToken to GenerateChatCompletionAsync to properly cancel underlying HTTP requests
+                // Currently the timeout prevents indefinite waits but doesn't cancel in-flight AI API calls
                 var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
             
                 // Clean up response - sometimes AI adds markdown code blocks
