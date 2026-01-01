@@ -139,7 +139,6 @@ public class MultiProviderAIService : IMultiProviderAIService
                 if (!string.IsNullOrWhiteSpace(geminiKey))
                 {
                     configuredProviders.Add("Gemini");
-                    await _logService.LogDebugAsync("Configuration", "Gemini API key detected", $"Key length: {geminiKey.Length} chars");
                 }
                 
                 // Check OpenAI - use OpenAIApiKey or fall back to ProviderApiKey if ProviderType is OpenAI
@@ -147,7 +146,6 @@ public class MultiProviderAIService : IMultiProviderAIService
                 if (!string.IsNullOrWhiteSpace(openAIKey))
                 {
                     configuredProviders.Add("OpenAI");
-                    await _logService.LogDebugAsync("Configuration", "OpenAI API key detected", $"Key length: {openAIKey.Length} chars");
                 }
                 
                 // Check Azure OpenAI - need both endpoint and key
@@ -156,8 +154,6 @@ public class MultiProviderAIService : IMultiProviderAIService
                 if (!string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint))
                 {
                     configuredProviders.Add("Azure OpenAI");
-                    await _logService.LogDebugAsync("Configuration", "Azure OpenAI configuration detected", 
-                        $"Key length: {azureKey.Length} chars, Endpoint: {azureEndpoint}");
                 }
                 
                 if (configuredProviders.Any())
@@ -167,15 +163,14 @@ public class MultiProviderAIService : IMultiProviderAIService
                 else
                 {
                     await _logService.LogWarningAsync("Configuration", "⚠️ Configuration found in database but no API keys are set!");
-                    // Add detailed debug info to help diagnose the issue
-                    await _logService.LogDebugAsync("Configuration", "Provider configuration details",
+                    // Add minimal debug info to help diagnose the issue
+                    await _logService.LogDebugAsync("Configuration", "Provider configuration check",
                         $"ProviderType: {_cachedConfig.ProviderType}, " +
-                        $"GeminiApiKey: {(_cachedConfig.GeminiApiKey != null ? $"set ({_cachedConfig.GeminiApiKey.Length} chars)" : "null")}, " +
-                        $"OpenAIApiKey: {(_cachedConfig.OpenAIApiKey != null ? $"set ({_cachedConfig.OpenAIApiKey.Length} chars)" : "null")}, " +
-                        $"AzureOpenAIKey: {(_cachedConfig.AzureOpenAIKey != null ? $"set ({_cachedConfig.AzureOpenAIKey.Length} chars)" : "null")}, " +
-                        $"AzureOpenAIEndpoint: {(_cachedConfig.AzureOpenAIEndpoint != null ? $"set" : "null")}, " +
-                        $"ProviderApiKey: {(_cachedConfig.ProviderApiKey != null ? $"set ({_cachedConfig.ProviderApiKey.Length} chars)" : "null")}, " +
-                        $"ProviderEndpoint: {(_cachedConfig.ProviderEndpoint != null ? $"set" : "null")}");
+                        $"GeminiApiKey: {(_cachedConfig.GeminiApiKey != null ? "set" : "null")}, " +
+                        $"OpenAIApiKey: {(_cachedConfig.OpenAIApiKey != null ? "set" : "null")}, " +
+                        $"AzureOpenAIKey: {(_cachedConfig.AzureOpenAIKey != null ? "set" : "null")}, " +
+                        $"AzureOpenAIEndpoint: {(_cachedConfig.AzureOpenAIEndpoint != null ? "set" : "null")}, " +
+                        $"ProviderApiKey: {(_cachedConfig.ProviderApiKey != null ? "set" : "null")}");
                 }
             }
             else

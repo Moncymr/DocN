@@ -515,15 +515,10 @@ public class ConfigController : ControllerBase
                 return NotFound(new { message = $"Configuration with ID {id} not found" });
             }
 
-            // Deactivate all other configurations
-            var otherConfigs = await _context.AIConfigurations
+            // Deactivate all other configurations efficiently with bulk update
+            await _context.AIConfigurations
                 .Where(c => c.Id != id)
-                .ToListAsync();
-            
-            foreach (var other in otherConfigs)
-            {
-                other.IsActive = false;
-            }
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.IsActive, false));
 
             // Activate this configuration
             config.IsActive = true;
