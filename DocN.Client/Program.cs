@@ -199,6 +199,7 @@ using (var scope = app.Services.CreateScope())
     {
         var seeder = scope.ServiceProvider.GetRequiredService<DocN.Data.Services.ApplicationSeeder>();
         await seeder.SeedAsync();
+        logger.LogInformation("Database seeding completed successfully");
     }
     catch (Exception ex)
     {
@@ -206,14 +207,15 @@ using (var scope = app.Services.CreateScope())
             "Please verify:\n" +
             "1. Database connection string is correct and database server is accessible\n" +
             "2. Database has been created using the SQL scripts in Database/ folder\n" +
-            "3. Database user has appropriate permissions");
+            "3. Database user has appropriate permissions\n" +
+            "4. If this is first startup, ensure the database has been initialized");
         
-        // In development, we might want to continue even if seeding fails
-        // In production, you might want to throw and prevent startup
-        if (!app.Environment.IsDevelopment())
-        {
-            throw;
-        }
+        // Log additional diagnostic information
+        logger.LogWarning("Application will attempt to start despite seeding failure. Some features may not work correctly.");
+        
+        // Allow the application to continue even if seeding fails
+        // This prevents immediate crash and allows users to see error messages in the UI
+        // Critical database issues will be caught when users try to access features
     }
 }
 
@@ -221,9 +223,18 @@ using (var scope = app.Services.CreateScope())
 var fileStorageSettings = builder.Configuration.GetSection("FileStorage").Get<FileStorageSettings>();
 if (fileStorageSettings != null && !string.IsNullOrEmpty(fileStorageSettings.UploadPath))
 {
-    // Ensure the path is safe and create directory
-    var uploadPath = Path.GetFullPath(fileStorageSettings.UploadPath);
-    Directory.CreateDirectory(uploadPath);
+    try
+    {
+        // Ensure the path is safe and create directory
+        var uploadPath = Path.GetFullPath(fileStorageSettings.UploadPath);
+        Directory.CreateDirectory(uploadPath);
+        app.Logger.LogInformation("Upload directory created/verified: {UploadPath}", uploadPath);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Failed to create upload directory. File uploads may not work correctly.");
+    }
+}
 }
 
 // Configure the HTTP request pipeline.
