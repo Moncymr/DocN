@@ -307,14 +307,16 @@ using (var scope = app.Services.CreateScope())
             "1. Database connection string is correct and database server is accessible\n" +
             "2. Database has been created using the SQL scripts in Database/ folder\n" +
             "3. Database user has appropriate permissions\n" +
-            "4. If this is first startup, ensure the database has been initialized");
+            "4. If this is first startup, ensure the database has been initialized\n" +
+            "5. If Client and Server start simultaneously, one may fail to seed - this is normal and can be ignored");
         
         // Log additional diagnostic information
-        logger.LogWarning("Application will attempt to start despite seeding failure. Some features may not work correctly.");
+        logger.LogWarning("Application will attempt to start despite seeding failure. Database may have been seeded by another instance. Some features may not work correctly.");
         
         // Allow the application to continue even if seeding fails
         // This prevents immediate crash and allows users to see error messages in the UI
         // Critical database issues will be caught when users try to access features
+        // When Client and Server start together, one might fail to seed due to database locks - this is expected
     }
 }
 
