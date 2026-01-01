@@ -515,6 +515,9 @@ public class ConfigController : ControllerBase
                 return NotFound(new { message = $"Configuration with ID {id} not found" });
             }
 
+            _logger.LogInformation("Activating configuration '{ConfigName}' (ID: {ConfigId}). Deactivating all others...", 
+                config.ConfigurationName, config.Id);
+
             // Deactivate all other configurations efficiently with bulk update
             await _context.AIConfigurations
                 .Where(c => c.Id != id)
@@ -529,15 +532,82 @@ public class ConfigController : ControllerBase
             // Clear the AI service configuration cache to force reload
             _aiService.ClearConfigurationCache();
             
-            _logger.LogInformation("Configuration '{ConfigName}' (ID: {ConfigId}) activated successfully. All other configurations deactivated. Cache cleared.", 
+            _logger.LogInformation("✅ Configuration '{ConfigName}' (ID: {ConfigId}) activated successfully. All other configurations deactivated. Cache cleared.", 
                 config.ConfigurationName, config.Id);
 
-            return Ok(config);
+            return Ok(new 
+            { 
+                success = true,
+                message = $"Configuration '{config.ConfigurationName}' activated successfully",
+                configuration = config
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error activating configuration with ID {ConfigId}", id);
             return StatusCode(500, new { error = $"Error activating configuration: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Get diagnostic information about all configurations to help troubleshoot which one is being used
+    /// </summary>
+    /// <returns>Diagnostic information about all configurations</returns>
+    [HttpGet("diagnostics")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> GetConfigurationDiagnostics()
+    {
+        try
+        {
+            var allConfigs = await _context.AIConfigurations
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.UpdatedAt ?? c.CreatedAt)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.ConfigurationName,
+                    c.IsActive,
+                    c.CreatedAt,
+                    c.UpdatedAt,
+                    HasGeminiKey = !string.IsNullOrWhiteSpace(c.GeminiApiKey),
+                    HasOpenAIKey = !string.IsNullOrWhiteSpace(c.OpenAIApiKey),
+                    HasAzureKey = !string.IsNullOrWhiteSpace(c.AzureOpenAIKey) && !string.IsNullOrWhiteSpace(c.AzureOpenAIEndpoint),
+                    c.ProviderType,
+                    SortOrder = c.IsActive ? 0 : 1
+                })
+                .ToListAsync();
+
+            var activeConfig = allConfigs.FirstOrDefault(c => c.IsActive);
+            var multipleActive = allConfigs.Count(c => c.IsActive) > 1;
+
+            return Ok(new
+            {
+                timestamp = DateTime.UtcNow,
+                totalConfigurations = allConfigs.Count,
+                activeConfiguration = activeConfig != null ? new
+                {
+                    id = activeConfig.Id,
+                    name = activeConfig.ConfigurationName,
+                    createdAt = activeConfig.CreatedAt,
+                    updatedAt = activeConfig.UpdatedAt,
+                    hasGeminiKey = activeConfig.HasGeminiKey,
+                    hasOpenAIKey = activeConfig.HasOpenAIKey,
+                    hasAzureKey = activeConfig.HasAzureKey
+                } : null,
+                multipleActiveWarning = multipleActive,
+                allConfigurations = allConfigs,
+                recommendations = new[]
+                {
+                    multipleActive ? "⚠️ Multiple configurations are marked as active! Use POST /api/config/{id}/activate to activate only one." : null,
+                    activeConfig == null ? "❌ No active configuration found. Use POST /api/config/{id}/activate to activate a configuration." : null,
+                    activeConfig?.ConfigurationName == "Default Configuration" ? "ℹ️ You are using the default seeded configuration. If you want to use a different one, use POST /api/config/{id}/activate." : null
+                }.Where(r => r != null).ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting configuration diagnostics");
+            return StatusCode(500, new { error = $"Error getting diagnostics: {ex.Message}" });
         }
     }
 
