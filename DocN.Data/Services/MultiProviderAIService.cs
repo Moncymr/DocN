@@ -29,12 +29,25 @@ public interface IMultiProviderAIService
 }
 
 /// <summary>
-/// Multi-provider AI service implementation.
-/// Loads configuration from database (priority) or appsettings.json (fallback).
-/// Configuration is cached for 5 minutes for performance.
+/// Servizio multi-provider per operazioni AI (chat, embeddings, estrazione metadati)
+/// Supporta Google Gemini, OpenAI e Azure OpenAI con fallback automatico
 /// </summary>
 /// <remarks>
-/// Per dettagli sul caricamento configurazione: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
+/// Scopo: Fornire astrazione unificata per provider AI multipli con selezione automatica e ridondanza
+/// 
+/// Funzionalità chiave:
+/// - Configurazione da database (priorità) o appsettings.json (fallback)
+/// - Caching configurazione (5 minuti) per performance
+/// - Fallback automatico tra provider in caso di errore
+/// - Provider specifici per servizio (Chat, Embeddings, TagExtraction)
+/// - Supporto hot-reload configurazione via ClearConfigurationCache()
+/// 
+/// Provider supportati:
+/// 1. Google Gemini (gemini-2.0-flash-exp, text-embedding-004)
+/// 2. OpenAI (gpt-4, text-embedding-3-large)
+/// 3. Azure OpenAI (deployment custom)
+/// 
+/// Per dettagli: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
 /// </remarks>
 public class MultiProviderAIService : IMultiProviderAIService
 {
@@ -53,9 +66,28 @@ public class MultiProviderAIService : IMultiProviderAIService
     }
 
     /// <summary>
-    /// Gets active configuration from database (priority) or appsettings (fallback).
-    /// Configuration is cached for 5 minutes for performance.
+    /// Ottiene la configurazione AI attiva da database (priorità) o appsettings.json (fallback)
     /// </summary>
+    /// <returns>AIConfiguration attiva o null se nessuna configurazione disponibile</returns>
+    /// <remarks>
+    /// Scopo: Recuperare configurazione AI con caching per ottimizzare performance
+    /// 
+    /// Processo:
+    /// 1. Verifica cache (valida per 5 minuti)
+    /// 2. Se cache scaduta o vuota, interroga database
+    /// 3. Cerca configurazione con IsActive=true ordinata per data aggiornamento
+    /// 4. Se non trovata nel DB, fallback su appsettings.json
+    /// 5. Aggiorna cache e timestamp ultimo controllo
+    /// 
+    /// Output atteso:
+    /// - AIConfiguration con provider configurati (Gemini/OpenAI/Azure)
+    /// - null se nessuna configurazione valida disponibile
+    /// 
+    /// Cache strategy:
+    /// - Durata: 5 minuti (bilanciamento performance vs freschezza)
+    /// - Invalidazione manuale: ClearConfigurationCache()
+    /// - Auto-refresh: dopo timeout o modifica database
+    /// </remarks>
     public async Task<AIConfiguration?> GetActiveConfigurationAsync()
     {
         // Check if cached configuration is still valid

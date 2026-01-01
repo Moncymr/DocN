@@ -34,11 +34,70 @@ public interface IChunkingService
     int EstimateTokenCount(string text);
 }
 
+/// <summary>
+/// Servizio per suddividere documenti in chunk (porzioni di testo) ottimizzati per RAG e ricerca vettoriale
+/// Implementa strategie di chunking intelligenti con overlap per preservare contesto
+/// </summary>
+/// <remarks>
+/// Scopo: Suddividere documenti lunghi in porzioni gestibili per embedding generation e retrieval
+/// 
+/// Perché il chunking è necessario:
+/// 1. Limiti dimensionali: Modelli embedding hanno limite input (es. 8192 token per OpenAI)
+/// 2. Granularità ricerca: Chunk piccoli = ricerca più precisa e rilevante
+/// 3. Performance: Embedding e retrieval più veloci su porzioni piccole
+/// 4. Qualità risposte: Contesto focalizzato migliora risposte AI
+/// 
+/// Strategie implementate:
+/// - Sliding window con overlap: Preserva contesto tra chunk
+/// - Sentence-aware: Tenta di spezzare a fine frase (., !, ?)
+/// - Word-boundary: Fallback a spazio per evitare parole tagliate
+/// 
+/// Best practices chunking:
+/// - Dimensione chunk: 500-1500 caratteri (bilanciamento contesto/precisione)
+/// - Overlap: 10-20% dimensione chunk (tipicamente 100-300 caratteri)
+/// - Più è grande il documento, più chunk servono
+/// </remarks>
 public class ChunkingService : IChunkingService
 {
     /// <summary>
-    /// Chunk text using a sliding window approach with overlap
+    /// Suddivide testo in chunk utilizzando strategia sliding window con overlap intelligente
     /// </summary>
+    /// <param name="text">Testo da suddividere</param>
+    /// <param name="chunkSize">Dimensione massima caratteri per chunk (default: 1000)</param>
+    /// <param name="overlap">Numero caratteri sovrapposti tra chunk consecutivi (default: 200)</param>
+    /// <returns>Lista di stringhe (chunk di testo)</returns>
+    /// <remarks>
+    /// Scopo: Creare porzioni di testo ottimali per embedding generation e ricerca semantica
+    /// 
+    /// Algoritmo:
+    /// 1. Inizia dalla posizione 0
+    /// 2. Calcola fine chunk (position + chunkSize)
+    /// 3. Cerca boundary intelligente:
+    ///    a. Preferenza: Fine frase (., !, ?) negli ultimi 100 caratteri
+    ///    b. Fallback: Spazio (word boundary) negli ultimi 100 caratteri
+    ///    c. Ultima risorsa: Hard cut a chunkSize
+    /// 4. Estrae chunk e aggiunge a lista
+    /// 5. Avanza posizione di (chunkSize - overlap) per overlap
+    /// 6. Ripete fino a fine testo
+    /// 
+    /// Vantaggi overlap:
+    /// - Preserva contesto tra chunk (informazioni non perse a confine)
+    /// - Migliora retrieval accuracy (query può matchare meglio)
+    /// - Riduce "edge effects" del chunking
+    /// 
+    /// Output atteso:
+    /// - Lista chunk, ciascuno <= chunkSize caratteri
+    /// - Chunk consecutivi si sovrappongono per overlap caratteri
+    /// - Chunk terminano preferibilmente a fine frase o parola
+    /// - Lista vuota se testo è vuoto/null
+    /// 
+    /// Esempio:
+    /// Text: "Questo è il primo paragrafo. Questo è il secondo paragrafo."
+    /// ChunkSize: 30, Overlap: 10
+    /// Chunk 1: "Questo è il primo paragrafo."
+    /// Chunk 2: "o paragrafo. Questo è il secondo"
+    /// Chunk 3: "secondo paragrafo."
+    /// </remarks>
     public List<string> ChunkText(string text, int chunkSize = 1000, int overlap = 200)
     {
         if (string.IsNullOrWhiteSpace(text))

@@ -41,11 +41,44 @@ public class SemanticChatController : ControllerBase
     /// <summary>
     /// Elabora una query di chat utilizzando Semantic Kernel RAG con ricerca vettoriale
     /// </summary>
-    /// <param name="request">Richiesta di chat semantica</param>
-    /// <returns>Risposta generata con documenti di riferimento e punteggi di similarità</returns>
+    /// <param name="request">Richiesta di chat contenente messaggio utente, userId, parametri opzionali</param>
+    /// <returns>SemanticChatResponse con risposta AI, documenti fonte, score similarità e metadati</returns>
     /// <response code="200">Risposta generata con successo</response>
-    /// <response code="400">Richiesta non valida</response>
+    /// <response code="400">Richiesta non valida (message o userId mancanti)</response>
+    /// <response code="503">Provider AI non configurato</response>
     /// <response code="500">Errore interno del server</response>
+    /// <remarks>
+    /// Scopo: Endpoint principale per chat RAG che implementa l'intero flusso di retrieval e generation
+    /// 
+    /// Processo:
+    /// 1. Validazione input (message e userId obbligatori)
+    /// 2. Chiamata ISemanticRAGService.GenerateResponseAsync()
+    ///    - Ricerca vettoriale documenti rilevanti
+    ///    - Costruzione contesto da documenti
+    ///    - Generazione risposta con Semantic Kernel
+    ///    - Salvataggio conversazione
+    /// 3. Formattazione risposta con documenti fonte e metadati
+    /// 4. Gestione errori specifici (provider non configurato, errori AI, etc.)
+    /// 
+    /// Input:
+    /// - Message: Query utente in linguaggio naturale
+    /// - UserId: ID utente per accesso documenti
+    /// - ConversationId (opzionale): Per mantenere contesto conversazione
+    /// - SpecificDocumentIds (opzionale): Limita ricerca a documenti specifici
+    /// - TopK (opzionale): Numero massimo documenti da recuperare
+    /// 
+    /// Output atteso:
+    /// - Answer: Risposta generata dall'AI in linguaggio naturale
+    /// - SourceDocuments: Lista documenti utilizzati con score di rilevanza
+    /// - ConversationId: ID conversazione (nuovo o esistente)
+    /// - ResponseTimeMs: Tempo elaborazione in millisecondi
+    /// - Metadata: Info aggiuntive (num. documenti, top score, etc.)
+    /// 
+    /// Errori gestiti:
+    /// - AI_PROVIDER_NOT_CONFIGURED (503): Nessun provider AI configurato
+    /// - INVALID_REQUEST (400): Parametri mancanti o non validi
+    /// - INTERNAL_ERROR (500): Errori generici elaborazione
+    /// </remarks>
     [HttpPost("query")]
     [ProducesResponseType(typeof(SemanticChatResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

@@ -8,8 +8,37 @@ using Microsoft.Extensions.Logging;
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// Endpoints per la gestione delle configurazioni AI e test di connettività
+/// Controller REST API per gestione configurazioni AI provider (Gemini, OpenAI, Azure OpenAI)
+/// Permette CRUD configurazioni e test connettività provider
 /// </summary>
+/// <remarks>
+/// Scopo: Fornire interfaccia per configurare e testare provider AI multi-vendor
+/// 
+/// Operazioni supportate:
+/// - POST /api/config/test: Testa connettività tutti provider configurati
+/// - GET /api/config: Lista tutte configurazioni
+/// - GET /api/config/{id}: Dettagli configurazione specifica
+/// - POST /api/config: Crea nuova configurazione
+/// - PUT /api/config/{id}: Aggiorna configurazione esistente
+/// - DELETE /api/config/{id}: Elimina configurazione
+/// - POST /api/config/{id}/activate: Attiva configurazione specifica
+/// 
+/// Provider supportati:
+/// 1. Google Gemini (API key Gemini)
+/// 2. OpenAI (API key OpenAI)
+/// 3. Azure OpenAI (endpoint + API key Azure)
+/// 
+/// Funzionalità chiave:
+/// - Test pre-salvataggio: Valida API key prima di salvare
+/// - Invalidazione cache: ClearConfigurationCache() dopo modifiche
+/// - Supporto configurazione attiva unica (IsActive flag)
+/// - Logging dettagliato per troubleshooting
+/// 
+/// Sicurezza:
+/// - TODO: Aggiungere autorizzazione (solo admin possono modificare)
+/// - API keys criptate in database
+/// - API keys non esposte in response GET
+/// </remarks>
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -33,12 +62,47 @@ public class ConfigController : ControllerBase
     }
 
     /// <summary>
-    /// Testa la configurazione dei provider AI
+    /// Testa la connettività e validità di tutti i provider AI configurati
     /// </summary>
-    /// <returns>Risultati del test per ogni provider configurato</returns>
-    /// <response code="200">Test completato con successo</response>
-    /// <response code="404">Nessuna configurazione attiva trovata</response>
-    /// <response code="500">Errore interno del server</response>
+    /// <returns>ConfigurationTestResult con esito test per ogni provider</returns>
+    /// <response code="200">Test completato (può contenere errori per singoli provider)</response>
+    /// <response code="404">Nessuna configurazione attiva trovata nel database</response>
+    /// <response code="500">Errore interno del server durante test</response>
+    /// <remarks>
+    /// Scopo: Validare configurazioni AI prima dell'uso per evitare errori runtime
+    /// 
+    /// Processo:
+    /// 1. Recupera configurazione attiva da database
+    /// 2. Per ogni provider configurato (Gemini, OpenAI, Azure):
+    ///    a. Verifica presenza API key/endpoint
+    ///    b. Effettua chiamata test API (es. list models o embedding test)
+    ///    c. Valida risposta e registra risultato
+    /// 3. Aggrega risultati e determina successo complessivo
+    /// 
+    /// Test specifici per provider:
+    /// - Gemini: Chiama /models endpoint con API key
+    /// - OpenAI: Chiama /models endpoint con Bearer token
+    /// - Azure: Chiama endpoint deployment con API key header
+    /// 
+    /// Output atteso:
+    /// - Success: true se almeno 1 provider funzionante
+    /// - ProviderResults: Array con dettagli per ogni provider
+    ///   * ProviderName: "Gemini", "OpenAI", "Azure OpenAI"
+    ///   * IsConfigured: true se API key presente
+    ///   * IsValid: true se test connessione riuscito
+    ///   * Message: Dettagli esito (successo o errore)
+    ///   * ResponseTime: Latenza chiamata API
+    /// 
+    /// Scenari:
+    /// 1. Nessun provider configurato: 404 + messaggio guida
+    /// 2. Tutti provider falliscono: 200 + Success=false + dettagli errori
+    /// 3. Almeno 1 provider OK: 200 + Success=true + riepilogo
+    /// 
+    /// Utilizzo tipico:
+    /// - Validazione post-configurazione in UI
+    /// - Diagnostica problemi connettività
+    /// - Health check periodico provider AI
+    /// </remarks>
     [HttpPost("test")]
     [ProducesResponseType(typeof(ConfigurationTestResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

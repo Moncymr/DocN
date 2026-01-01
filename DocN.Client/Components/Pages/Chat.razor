@@ -1,3 +1,51 @@
+@*
+    Chat.razor - Componente Blazor per chat RAG (Retrieval-Augmented Generation)
+    
+    Scopo:
+    Interfaccia conversazionale per porre domande ai documenti caricati utilizzando AI
+    Implementa sistema RAG completo con ricerca semantica e generazione risposte
+    
+    Funzionalità principali:
+    - Chat in linguaggio naturale con documenti
+    - Ricerca semantica automatica documenti rilevanti
+    - Risposte AI con citazioni fonte
+    - Mantenimento contesto conversazione
+    - Cronologia conversazioni persistente
+    - Visualizzazione documenti fonte con score rilevanza
+    
+    Flusso operativo:
+    1. Utente scrive domanda in linguaggio naturale
+    2. Sistema genera embedding query
+    3. Ricerca vettoriale documenti rilevanti (top-K)
+    4. Costruzione contesto da documenti trovati
+    5. Semantic Kernel genera risposta basata su contesto
+    6. Visualizzazione risposta + link documenti fonte
+    7. Conversazione salvata per cronologia
+    
+    Caratteristiche avanzate:
+    - Contesto conversazionale: Domande follow-up mantengono contesto
+    - Multi-conversazione: Supporto conversazioni multiple separate
+    - Sidebar cronologia: Lista tutte conversazioni passate
+    - Documenti citati: Link cliccabili ai documenti utilizzati
+    - Score rilevanza: Visualizzazione similarità documenti
+    
+    Chiamate API:
+    - POST /api/semantic-chat/query: Query RAG principale
+    - GET /api/semantic-chat/history: Carica cronologia conversazioni
+    - DELETE /api/semantic-chat/history/{id}: Elimina conversazione
+    
+    Dipendenze:
+    - HttpClient: Chiamate a DocN.Server (porta 5211)
+    - AuthenticationStateProvider: UserId per accesso documenti
+    - NavigationManager: Redirect e navigazione
+    
+    Note tecniche:
+    - InteractiveServer rendermode per reattività real-time
+    - Gestione errori graceful con fallback messaggi utente
+    - Loading states per feedback utente durante elaborazione
+    
+    Versione: 2.0
+*@
 @page "/chat"
 @using System.Net.Http.Json
 @using System.Text.Json

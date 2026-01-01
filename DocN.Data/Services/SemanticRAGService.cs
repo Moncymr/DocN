@@ -109,7 +109,32 @@ Always cite your sources using [Document N] format where N is the document numbe
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Genera una risposta RAG (Retrieval-Augmented Generation) per una query utente
+    /// </summary>
+    /// <param name="query">Domanda dell'utente in linguaggio naturale</param>
+    /// <param name="userId">ID dell'utente che effettua la query (per controllo accesso)</param>
+    /// <param name="conversationId">ID conversazione per mantenere il contesto (opzionale)</param>
+    /// <param name="specificDocumentIds">Lista di ID documenti specifici su cui cercare (opzionale)</param>
+    /// <param name="topK">Numero massimo di documenti rilevanti da recuperare (default: 5)</param>
+    /// <returns>SemanticRAGResponse contenente la risposta generata, documenti fonte e metadati</returns>
+    /// <remarks>
+    /// Scopo: Implementa il flusso completo RAG end-to-end combinando retrieval vettoriale e generazione AI
+    /// 
+    /// Processo in 5 step:
+    /// 1. Ricerca documenti rilevanti tramite vector similarity search
+    /// 2. Caricamento cronologia conversazione (se presente)
+    /// 3. Costruzione contesto da documenti recuperati
+    /// 4. Generazione risposta con Semantic Kernel (orchestrazione AI)
+    /// 5. Salvataggio conversazione nel database
+    /// 
+    /// Output atteso:
+    /// - Risposta testuale in linguaggio naturale
+    /// - Lista documenti fonte con score di rilevanza
+    /// - ID conversazione per follow-up
+    /// - Tempo di elaborazione in millisecondi
+    /// - Metadati (numero documenti, score massimo, presenza cronologia)
+    /// </remarks>
     public async Task<SemanticRAGResponse> GenerateResponseAsync(
         string query,
         string userId,
@@ -213,7 +238,27 @@ Always cite your sources using [Document N] format where N is the document numbe
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Genera una risposta RAG in modalità streaming (chunk-by-chunk) per feedback real-time
+    /// </summary>
+    /// <param name="query">Domanda dell'utente in linguaggio naturale</param>
+    /// <param name="userId">ID dell'utente che effettua la query</param>
+    /// <param name="conversationId">ID conversazione per contesto (opzionale)</param>
+    /// <param name="specificDocumentIds">Lista ID documenti su cui cercare (opzionale)</param>
+    /// <returns>AsyncEnumerable di stringhe (chunk di risposta) che vengono generate progressivamente</returns>
+    /// <remarks>
+    /// Scopo: Fornire esperienza utente reattiva mostrando la risposta mentre viene generata
+    /// 
+    /// Vantaggi dello streaming:
+    /// - Feedback immediato all'utente (percezione di velocità)
+    /// - Possibilità di interrompere generazione se non necessaria
+    /// - Riduce attesa percepita per risposte lunghe
+    /// 
+    /// Output atteso:
+    /// - Stream di chunk testuali che formano la risposta completa
+    /// - Ogni chunk viene emesso appena disponibile dall'AI
+    /// - Conversazione salvata automaticamente al termine
+    /// </remarks>
     public async IAsyncEnumerable<string> GenerateStreamingResponseAsync(
         string query,
         string userId,
@@ -287,7 +332,29 @@ Always cite your sources using [Document N] format where N is the document numbe
             relevantDocs.Select(d => d.DocumentId).ToList());
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Cerca documenti rilevanti per una query utilizzando ricerca vettoriale semantica
+    /// </summary>
+    /// <param name="query">Query di ricerca in linguaggio naturale</param>
+    /// <param name="userId">ID utente per filtraggio documenti accessibili</param>
+    /// <param name="topK">Numero massimo di risultati da restituire (default: 10)</param>
+    /// <param name="minSimilarity">Soglia minima di similarità coseno 0-1 (default: 0.7)</param>
+    /// <returns>Lista di RelevantDocumentResult ordinati per score di rilevanza decrescente</returns>
+    /// <remarks>
+    /// Scopo: Implementare ricerca semantica basata su embeddings vettoriali
+    /// 
+    /// Processo:
+    /// 1. Genera embedding vettoriale della query
+    /// 2. Calcola similarità coseno tra query e documenti/chunk
+    /// 3. Filtra risultati sotto soglia minSimilarity
+    /// 4. Ordina per score decrescente e limita a topK
+    /// 
+    /// Output atteso:
+    /// - Lista documenti con score >= minSimilarity
+    /// - Ordinamento per rilevanza (score più alto = più rilevante)
+    /// - Include metadati: titolo, categoria, estratto di testo
+    /// - Lista vuota se nessun documento supera la soglia
+    /// </remarks>
     public async Task<List<RelevantDocumentResult>> SearchDocumentsAsync(
         string query,
         string userId,
