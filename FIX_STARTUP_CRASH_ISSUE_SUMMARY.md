@@ -32,6 +32,9 @@ Added `EnsureConfigurationFiles()` helper method to both Client and Server `Prog
 - If not found, attempts to copy from `.example.json` files
 - If example files are missing, creates minimal configuration with defaults
 - Logs all actions for user visibility
+- **Race condition handling**: Added try-catch blocks to handle `IOException` when both Client and Server start simultaneously
+- If file creation fails due to concurrent access, waits 100ms and re-checks existence
+- Allows both applications to start together without conflicts
 
 ### 2. Improved Error Handling
 Modified error handling in `DocN.Client/Program.cs`:
@@ -92,6 +95,13 @@ Created `CONFIGURATION_SETUP.md`:
 2. If database is available: Normal startup with seeding
 3. If database unavailable: Warning logged, application continues, features fail gracefully
 4. No immediate crash - users can see error messages and take corrective action
+
+### Concurrent Startup (Client + Server Together)
+1. Both applications attempt to create configuration files simultaneously
+2. Race condition is handled gracefully with `IOException` catch blocks
+3. Second process waits 100ms for first to complete file creation
+4. Both applications start successfully without conflicts
+5. Users can launch both from Visual Studio or command line without issues
 
 ## Security Considerations
 
