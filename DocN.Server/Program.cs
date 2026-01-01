@@ -476,12 +476,34 @@ using (var scope = app.Services.CreateScope())
 // Seed the database
 using (var scope = app.Services.CreateScope())
 {
-    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
-    await seeder.SeedAsync();
-    
-    // Seed agent templates
-    var agentTemplateSeeder = scope.ServiceProvider.GetRequiredService<AgentTemplateSeeder>();
-    await agentTemplateSeeder.SeedTemplatesAsync();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+        await seeder.SeedAsync();
+        
+        // Seed agent templates
+        var agentTemplateSeeder = scope.ServiceProvider.GetRequiredService<AgentTemplateSeeder>();
+        await agentTemplateSeeder.SeedTemplatesAsync();
+        
+        logger.LogInformation("Database seeding completed successfully");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while seeding the database. The application will continue but may not function correctly without initial data.\n" +
+            "Please verify:\n" +
+            "1. Database connection string is correct and database server is accessible\n" +
+            "2. Database has been created and migrations have been applied\n" +
+            "3. Database user has appropriate permissions\n" +
+            "4. If Client and Server start simultaneously, one may fail to seed - this is normal and can be ignored");
+        
+        // Log additional diagnostic information
+        logger.LogWarning("Application will attempt to start despite seeding failure. Database may have been seeded by another instance.");
+        
+        // Allow the application to continue even if seeding fails
+        // This is especially important when Client and Server start together
+        // as they might conflict when trying to seed the same database
+    }
 }
 
 // Configure the HTTP request pipeline.
