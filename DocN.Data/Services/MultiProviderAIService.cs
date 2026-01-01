@@ -102,16 +102,34 @@ public class MultiProviderAIService : IMultiProviderAIService
             // Priority: Fetch active configuration from database
             await _logService.LogDebugAsync("Configuration", "Fetching active configuration from database...");
             
-            _cachedConfig = await _context.AIConfigurations
+            // Get all active configurations (there should be only one, but we'll handle multiple)
+            var activeConfigs = await _context.AIConfigurations
                 .Where(c => c.IsActive)
                 .OrderByDescending(c => c.UpdatedAt ?? c.CreatedAt)
-                .FirstOrDefaultAsync();
+                .ToListAsync();
 
             _lastConfigCheck = DateTime.UtcNow;
 
+            // Check if there are multiple active configurations (shouldn't happen, but let's handle it)
+            if (activeConfigs.Count > 1)
+            {
+                await _logService.LogWarningAsync("Configuration", 
+                    $"⚠️ Found {activeConfigs.Count} active configurations. Using most recently updated: {activeConfigs.First().ConfigurationName}");
+                _cachedConfig = activeConfigs.First();
+            }
+            else if (activeConfigs.Count == 1)
+            {
+                _cachedConfig = activeConfigs.First();
+            }
+            else
+            {
+                _cachedConfig = null;
+            }
+
             if (_cachedConfig != null)
             {
-                await _logService.LogInfoAsync("Configuration", $"✅ Loaded active configuration from database: {_cachedConfig.ConfigurationName}");
+                await _logService.LogInfoAsync("Configuration", 
+                    $"✅ Loaded active configuration from database: {_cachedConfig.ConfigurationName} (ID: {_cachedConfig.Id}, CreatedAt: {_cachedConfig.CreatedAt:yyyy-MM-dd HH:mm:ss}, UpdatedAt: {_cachedConfig.UpdatedAt:yyyy-MM-dd HH:mm:ss})");
                 
                 // Log which providers are configured
                 var configuredProviders = new List<string>();
