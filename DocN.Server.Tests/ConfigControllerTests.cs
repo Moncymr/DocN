@@ -233,4 +233,40 @@ public class ConfigControllerTests
         var recommendationList = recommendations.Cast<string>().ToList();
         Assert.Contains(recommendationList, r => r.Contains("No active configuration found"));
     }
+
+    [Fact]
+    public void ClearConfigurationCache_ReturnsSuccess()
+    {
+        // Arrange
+        using var context = CreateInMemoryContext();
+        var loggerMock = new Mock<ILogger<ConfigController>>();
+        var httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        var aiServiceMock = new Mock<IMultiProviderAIService>();
+
+        var controller = new ConfigController(
+            context,
+            loggerMock.Object,
+            httpClientFactoryMock.Object,
+            aiServiceMock.Object);
+
+        // Act
+        var result = controller.ClearConfigurationCache();
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        dynamic? response = okResult.Value;
+        
+        Assert.NotNull(response);
+        
+        // Verify success flag is true
+        var success = (bool)response.GetType().GetProperty("success")?.GetValue(response)!;
+        Assert.True(success);
+        
+        // Verify message contains expected text
+        var message = (string)response.GetType().GetProperty("message")?.GetValue(response)!;
+        Assert.Contains("Cache della configurazione svuotata con successo", message);
+        
+        // Verify ClearConfigurationCache was called on the AI service
+        aiServiceMock.Verify(x => x.ClearConfigurationCache(), Times.Once);
+    }
 }
