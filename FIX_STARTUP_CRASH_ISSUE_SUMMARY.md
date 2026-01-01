@@ -21,15 +21,22 @@ Through systematic debugging, three separate issues were identified:
    - Server's seeding code was not wrapped in error handling, causing crashes
 
 3. **Dependency Injection Lifetime Mismatch** ⚠️ **CRITICAL ISSUE**
-   - `IKernelProvider` was registered as Singleton
-   - `ISemanticKernelFactory` was registered as Scoped
-   - **Cannot consume scoped service from singleton service** - violates DI lifetime rules
-   - Caused `System.AggregateException` during `builder.Build()` with error:
+   - Initial problem: `IKernelProvider` (Singleton) trying to consume `ISemanticKernelFactory` (Scoped)
+   - First fix attempt: Changed `ISemanticKernelFactory` to Singleton ❌ (Wrong - revealed cascade issue)
+   - **Actual root cause**: Complete dependency chain incompatibility
+   - Dependency chain: `IKernelProvider` → `ISemanticKernelFactory` → `IMultiProviderAIService` → `ApplicationDbContext` (Scoped)
+   - **Cannot have Singleton services depend on Scoped services**
+   - `ApplicationDbContext` **must** remain Scoped (EF Core best practice)
+   - Caused `System.AggregateException` during `builder.Build()` with errors:
      ```
      Cannot consume scoped service 'DocN.Data.Services.ISemanticKernelFactory' 
      from singleton 'DocN.Data.Services.IKernelProvider'
+     
+     Then after first fix:
+     Cannot consume scoped service 'DocN.Data.ApplicationDbContext' 
+     from singleton 'DocN.Data.Services.ISemanticKernelFactory'
      ```
-   - This was the actual cause of immediate crash when applications started
+   - **Correct solution**: All services in the dependency chain must be Scoped to match DbContext lifetime
 
 ## Solution Implemented
 
@@ -54,11 +61,35 @@ Modified error handling in both `DocN.Client/Program.cs` and `DocN.Server/Progra
 - Error messages explain that concurrent seeding conflicts are normal
 
 ### 3. Dependency Injection Lifetime Fix ⭐ **CRITICAL FIX**
-Fixed the DI lifetime mismatch in `DocN.Server/Program.cs` (line 313):
-- Changed `ISemanticKernelFactory` registration from **Scoped** to **Singleton**
-- Both `ISemanticKernelFactory` and `IKernelProvider` are now Singleton
-- This resolves the `AggregateException` that occurred during `builder.Build()`
-- **This was the primary cause** of the immediate crash when starting applications together
+Fixed the DI lifetime mismatch in `DocN.Server/Program.cs` (lines 313-316):
+
+**The Problem:**
+- Dependency chain: `IKernelProvider` → `ISemanticKernelFactory` → `IMultiProviderAIService` → `ApplicationDbContext`
+- `ApplicationDbContext` must be Scoped (EF Core requirement)
+- Initially: `IKernelProvider` was Singleton, `ISemanticKernelFactory` was Scoped → mismatch
+- First fix attempt: Changed both to Singleton ❌ (Wrong - caused cascade error with DbContext)
+
+**The Solution:**
+Changed both `ISemanticKernelFactory` and `IKernelProvider` to **Scoped**:
+```csharp
+// Before (various attempts):
+builder.Services.AddScoped<ISemanticKernelFactory, ...>();   // Original
+builder.Services.AddSingleton<IKernelProvider, ...>();        // Original → Error
+
+builder.Services.AddSingleton<ISemanticKernelFactory, ...>(); // First fix attempt
+builder.Services.AddSingleton<IKernelProvider, ...>();        // First fix attempt → Error with DbContext
+
+// After (CORRECT):
+builder.Services.AddScoped<ISemanticKernelFactory, SemanticKernelFactory>();  // ✅ Scoped
+builder.Services.AddScoped<IKernelProvider, KernelProvider>();                 // ✅ Scoped
+```
+
+**Why Scoped is Correct:**
+- All services in a dependency chain must have compatible lifetimes
+- `ApplicationDbContext` (Scoped) is at the end of the chain
+- Therefore, all services depending on it (directly or indirectly) must be Scoped or Transient
+- Scoped is appropriate here as it provides one instance per HTTP request/scope
+- This resolves the `AggregateException` during `builder.Build()`
 
 ### 4. Enhanced Configuration Examples
 Created comprehensive example configuration files:
@@ -90,7 +121,7 @@ Created `CONFIGURATION_SETUP.md`:
 - `DocN.Client/Program.cs` - Added auto-configuration + improved error handling
 - `DocN.Server/Program.cs` - Added auto-configuration + database seeding error handling + **DI lifetime fix**
 - Both files: ~70 lines added each for configuration creation logic
-- **DocN.Server/Program.cs line 313**: Changed `ISemanticKernelFactory` from Scoped to Singleton ⭐
+- **DocN.Server/Program.cs lines 313-316**: Changed `ISemanticKernelFactory` and `IKernelProvider` to Scoped (to match DbContext lifetime) ⭐
 
 ### Configuration Templates
 - `DocN.Client/appsettings.example.json` - New file
