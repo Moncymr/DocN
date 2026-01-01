@@ -24,6 +24,9 @@ using Hangfire.Console;
 #pragma warning disable SKEXP0010 // Method is for evaluation purposes only
 #pragma warning disable SKEXP0110 // Agents are experimental
 
+// Ensure configuration files exist
+EnsureConfigurationFiles();
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -471,4 +474,73 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// Helper method to ensure configuration files exist
+static void EnsureConfigurationFiles()
+{
+    var baseDirectory = AppContext.BaseDirectory;
+    var appsettingsPath = Path.Combine(baseDirectory, "appsettings.json");
+    var appsettingsDevPath = Path.Combine(baseDirectory, "appsettings.Development.json");
+    var appsettingsExamplePath = Path.Combine(baseDirectory, "appsettings.example.json");
+    var appsettingsDevExamplePath = Path.Combine(baseDirectory, "appsettings.Development.example.json");
+
+    // Create appsettings.json if it doesn't exist
+    if (!File.Exists(appsettingsPath))
+    {
+        if (File.Exists(appsettingsExamplePath))
+        {
+            File.Copy(appsettingsExamplePath, appsettingsPath);
+            Console.WriteLine($"Created {appsettingsPath} from example file. Please update the configuration with your settings.");
+        }
+        else
+        {
+            // Create a minimal configuration file
+            var minimalConfig = @"{
+  ""Logging"": {
+    ""LogLevel"": {
+      ""Default"": ""Information"",
+      ""Microsoft.AspNetCore"": ""Warning"",
+      ""Microsoft.EntityFrameworkCore"": ""Information""
+    }
+  },
+  ""AllowedHosts"": ""*"",
+  ""ConnectionStrings"": {
+    ""DefaultConnection"": ""Server=localhost;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=True"",
+    ""DocArc"": ""Server=localhost;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=True""
+  },
+  ""Urls"": ""https://localhost:5211;http://localhost:5210""
+}";
+            File.WriteAllText(appsettingsPath, minimalConfig);
+            Console.WriteLine($"Created minimal {appsettingsPath}. Please update with your database connection string.");
+        }
+    }
+
+    // Create appsettings.Development.json if it doesn't exist
+    if (!File.Exists(appsettingsDevPath))
+    {
+        if (File.Exists(appsettingsDevExamplePath))
+        {
+            File.Copy(appsettingsDevExamplePath, appsettingsDevPath);
+            Console.WriteLine($"Created {appsettingsDevPath} from example file.");
+        }
+        else
+        {
+            // Create a minimal development configuration
+            var minimalDevConfig = @"{
+  ""Logging"": {
+    ""LogLevel"": {
+      ""Default"": ""Information"",
+      ""Microsoft.AspNetCore"": ""Warning"",
+      ""Microsoft.EntityFrameworkCore"": ""Information""
+    }
+  },
+  ""ConnectionStrings"": {
+    ""DefaultConnection"": ""Server=localhost;Database=DocNDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=True""
+  }
+}";
+            File.WriteAllText(appsettingsDevPath, minimalDevConfig);
+            Console.WriteLine($"Created minimal {appsettingsDevPath}.");
+        }
+    }
 }
