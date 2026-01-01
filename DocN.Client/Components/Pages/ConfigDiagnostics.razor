@@ -109,6 +109,13 @@
         <div class="configurations-section">
             <h3>📋 Configurazioni Disponibili</h3>
             
+            @if (!string.IsNullOrEmpty(activationMessage))
+            {
+                <div class="activation-message @(activationMessageType == "success" ? "success" : "error")">
+                    @activationMessage
+                </div>
+            }
+            
             @if (diagnostics.AllConfigurations != null && diagnostics.AllConfigurations.Any())
             {
                 @foreach (var config in diagnostics.AllConfigurations)
@@ -124,8 +131,17 @@
                             </div>
                             @if (!config.IsActive)
                             {
-                                <button class="btn btn-activate" @onclick="() => ActivateConfiguration(config.Id)">
-                                    Attiva
+                                <button class="btn btn-activate" 
+                                        @onclick="() => ActivateConfiguration(config.Id)"
+                                        disabled="@(isActivating && activatingConfigId == config.Id)">
+                                    @if (isActivating && activatingConfigId == config.Id)
+                                    {
+                                        <span>⏳ Attivazione...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>✓ Attiva</span>
+                                    }
                                 </button>
                             }
                         </div>
@@ -404,6 +420,25 @@
         border: 2px solid #dc3545;
     }
 
+    .activation-message {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        border-radius: 6px;
+        font-weight: 500;
+    }
+
+    .activation-message.success {
+        background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(40, 167, 69, 0.05));
+        color: #28a745;
+        border: 2px solid #28a745;
+    }
+
+    .activation-message.error {
+        background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(220, 53, 69, 0.05));
+        color: #dc3545;
+        border: 2px solid #dc3545;
+    }
+
     .configurations-section {
         background: white;
         padding: 2rem;
@@ -483,10 +518,15 @@
         transition: all 0.3s ease;
     }
 
-    .btn-activate:hover {
+    .btn-activate:hover:not(:disabled) {
         background: linear-gradient(135deg, #f7931e 0%, #e67e22 100%);
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(255, 107, 53, 0.4);
+    }
+
+    .btn-activate:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
 
     .config-details {
@@ -680,9 +720,13 @@
     private ConfigDiagnosticsResponse? diagnostics;
     private bool isLoading = true;
     private bool isClearing = false;
+    private bool isActivating = false;
+    private int activatingConfigId = 0;
     private string errorMessage = string.Empty;
     private string cacheMessage = string.Empty;
     private string cacheMessageType = string.Empty;
+    private string activationMessage = string.Empty;
+    private string activationMessageType = string.Empty;
     
     // Delay after cache clear to ensure the operation completes before reloading
     private const int CacheClearDelayMilliseconds = 500;
@@ -723,6 +767,11 @@
 
     private async Task ActivateConfiguration(int configId)
     {
+        isActivating = true;
+        activatingConfigId = configId;
+        activationMessage = string.Empty;
+        activationMessageType = string.Empty;
+
         try
         {
             var httpClient = HttpClientFactory.CreateClient("BackendAPI");
@@ -730,16 +779,28 @@
 
             if (response.IsSuccessStatusCode)
             {
+                activationMessage = $"✅ Configurazione attivata con successo! La cache è stata svuotata automaticamente.";
+                activationMessageType = "success";
+                
+                // Wait briefly to ensure activation completes
+                await Task.Delay(CacheClearDelayMilliseconds);
                 await LoadDiagnostics(); // Reload to show updated state
             }
             else
             {
-                errorMessage = $"Errore nell'attivazione: {response.StatusCode}";
+                activationMessage = $"❌ Errore nell'attivazione: {response.StatusCode}. Verifica i log del server.";
+                activationMessageType = "error";
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Errore: {ex.Message}";
+            activationMessage = $"❌ Errore: {ex.Message}";
+            activationMessageType = "error";
+        }
+        finally
+        {
+            isActivating = false;
+            activatingConfigId = 0;
         }
     }
 
