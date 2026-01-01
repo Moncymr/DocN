@@ -6,6 +6,7 @@ using DocN.Data.Services;
 using DocN.Core.Interfaces;
 using DocN.Data.Models;
 using Microsoft.EntityFrameworkCore;
+using DocN.Data;
 
 namespace DocN.Server.Tests;
 

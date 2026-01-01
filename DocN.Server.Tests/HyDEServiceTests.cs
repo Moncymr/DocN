@@ -13,13 +13,13 @@ namespace DocN.Server.Tests;
 public class HyDEServiceTests
 {
     private readonly Mock<ILogger<HyDEService>> _mockLogger;
-    private readonly Mock<IEmbeddingService> _mockEmbeddingService;
+    private readonly Mock<DocN.Data.Services.IEmbeddingService> _mockEmbeddingService;
     private readonly Mock<ISemanticRAGService> _mockRagService;
 
     public HyDEServiceTests()
     {
         _mockLogger = new Mock<ILogger<HyDEService>>();
-        _mockEmbeddingService = new Mock<IEmbeddingService>();
+        _mockEmbeddingService = new Mock<DocN.Data.Services.IEmbeddingService>();
         _mockRagService = new Mock<ISemanticRAGService>();
         
         // Setup default behaviors
