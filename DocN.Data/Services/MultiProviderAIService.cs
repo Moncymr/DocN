@@ -36,7 +36,7 @@ public interface IMultiProviderAIService
 /// Scopo: Fornire astrazione unificata per provider AI multipli con selezione automatica e ridondanza
 /// 
 /// Funzionalità chiave:
-/// - Configurazione da database (priorità) o appsettings.json (fallback)
+/// - Configurazione esclusivamente da database (nessun fallback ad appsettings.json)
 /// - Caching configurazione (5 minuti) per performance
 /// - Fallback automatico tra provider in caso di errore
 /// - Provider specifici per servizio (Chat, Embeddings, TagExtraction)
@@ -51,8 +51,8 @@ public interface IMultiProviderAIService
 /// </remarks>
 public class MultiProviderAIService : IMultiProviderAIService
 {
-    private readonly IConfiguration _configuration;        // ← appsettings.json (fallback)
-    private readonly ApplicationDbContext _context;        // ← Database AIConfigurations (priorità)
+    private readonly IConfiguration _configuration;        // ← Mantenuto per compatibilità ma non usato per configurazione AI
+    private readonly ApplicationDbContext _context;        // ← Database AIConfigurations (unica fonte)
     private readonly ILogService _logService;
     private AIConfiguration? _cachedConfig;
     private DateTime _lastConfigCheck = DateTime.MinValue;
@@ -66,7 +66,7 @@ public class MultiProviderAIService : IMultiProviderAIService
     }
 
     /// <summary>
-    /// Ottiene la configurazione AI attiva da database (priorità) o appsettings.json (fallback)
+    /// Ottiene la configurazione AI attiva esclusivamente dal database
     /// </summary>
     /// <returns>AIConfiguration attiva o null se nessuna configurazione disponibile</returns>
     /// <remarks>
@@ -76,12 +76,12 @@ public class MultiProviderAIService : IMultiProviderAIService
     /// 1. Verifica cache (valida per 5 minuti)
     /// 2. Se cache scaduta o vuota, interroga database
     /// 3. Cerca configurazione con IsActive=true ordinata per data aggiornamento
-    /// 4. Se non trovata nel DB, fallback su appsettings.json
+    /// 4. Se non trovata nel DB, restituisce null (NESSUN FALLBACK ad appsettings.json)
     /// 5. Aggiorna cache e timestamp ultimo controllo
     /// 
     /// Output atteso:
     /// - AIConfiguration con provider configurati (Gemini/OpenAI/Azure)
-    /// - null se nessuna configurazione valida disponibile
+    /// - null se nessuna configurazione valida disponibile nel database
     /// 
     /// Cache strategy:
     /// - Durata: 5 minuti (bilanciamento performance vs freschezza)
@@ -175,38 +175,19 @@ public class MultiProviderAIService : IMultiProviderAIService
             }
             else
             {
-                // Fallback: If no database configuration exists, use appsettings.json
-                await _logService.LogWarningAsync("Configuration", "⚠️ No active configuration found in database. Falling back to appsettings.json");
-                _cachedConfig = CreateDefaultConfigurationFromAppSettings();
-                
-                // Log which providers are configured from appsettings
-                var configuredProviders = new List<string>();
-                if (!string.IsNullOrWhiteSpace(_cachedConfig.GeminiApiKey))
-                    configuredProviders.Add("Gemini");
-                if (!string.IsNullOrWhiteSpace(_cachedConfig.OpenAIApiKey))
-                    configuredProviders.Add("OpenAI");
-                if (!string.IsNullOrWhiteSpace(_cachedConfig.AzureOpenAIKey) && !string.IsNullOrWhiteSpace(_cachedConfig.AzureOpenAIEndpoint))
-                    configuredProviders.Add("Azure OpenAI");
-                
-                if (configuredProviders.Any())
-                {
-                    await _logService.LogInfoAsync("Configuration", $"Providers from appsettings: {string.Join(", ", configuredProviders)}");
-                }
-                else
-                {
-                    await _logService.LogErrorAsync("Configuration", "❌ No AI provider has valid API keys configured in database or appsettings.json!");
-                }
+                // NO FALLBACK: Always require database configuration
+                await _logService.LogErrorAsync("Configuration", "❌ No active configuration found in database! Please configure AI providers via the application UI or database.");
+                _cachedConfig = null;
             }
 
             return _cachedConfig;
         }
         catch (Exception ex)
         {
-            await _logService.LogErrorAsync("Configuration", "Error loading configuration from database", ex.Message, stackTrace: ex.StackTrace);
+            await _logService.LogErrorAsync("Configuration", "❌ Error loading configuration from database. Cannot proceed without database configuration!", ex.Message, stackTrace: ex.StackTrace);
             
-            // On error, fall back to appsettings
-            await _logService.LogWarningAsync("Configuration", "Falling back to appsettings.json due to database error");
-            _cachedConfig = CreateDefaultConfigurationFromAppSettings();
+            // NO FALLBACK: Always require database configuration
+            _cachedConfig = null;
             _lastConfigCheck = DateTime.UtcNow;
             
             return _cachedConfig;
@@ -237,50 +218,6 @@ public class MultiProviderAIService : IMultiProviderAIService
         return providerEndpoint ?? (config.ProviderType == targetProviderType ? config.ProviderEndpoint : null);
     }
 
-    /// <summary>
-    /// Creates fallback configuration from appsettings.json when database config is not available.
-    /// </summary>
-    private AIConfiguration CreateDefaultConfigurationFromAppSettings()
-    {
-        // Fallback to appsettings.json configuration for backward compatibility
-        return new AIConfiguration
-        {
-            ConfigurationName = "Default (from appsettings.json)",
-            GeminiApiKey = _configuration["Gemini:ApiKey"],
-            GeminiChatModel = "gemini-2.0-flash-exp",
-            GeminiEmbeddingModel = "text-embedding-004",
-            OpenAIApiKey = _configuration["OpenAI:ApiKey"],
-            OpenAIChatModel = _configuration["OpenAI:Model"] ?? "gpt-4",
-            OpenAIEmbeddingModel = "text-embedding-ada-002",
-            AzureOpenAIEndpoint = _configuration["AzureOpenAI:Endpoint"],
-            AzureOpenAIKey = _configuration["AzureOpenAI:ApiKey"] ?? _configuration["Embeddings:ApiKey"],
-            ChatDeploymentName = _configuration["AzureOpenAI:ChatDeployment"],
-            EmbeddingDeploymentName = _configuration["AzureOpenAI:EmbeddingDeployment"] ?? _configuration["Embeddings:DeploymentName"],
-            AzureOpenAIChatModel = "gpt-4",
-            AzureOpenAIEmbeddingModel = "text-embedding-ada-002",
-            // Determine provider from settings
-            ChatProvider = GetProviderFromConfig(_configuration["AI:Provider"]),
-            EmbeddingsProvider = GetProviderFromConfig(_configuration["Embeddings:Provider"]),
-            TagExtractionProvider = GetProviderFromConfig(_configuration["AI:Provider"]),
-            RAGProvider = GetProviderFromConfig(_configuration["AI:Provider"]),
-            EnableFallback = _configuration.GetValue<bool>("AI:EnableFallback", true),
-            EnableChunking = true,
-            ChunkSize = 1000,
-            ChunkOverlap = 200,
-            IsActive = false // This is a fallback, not a real config
-        };
-    }
-
-    private AIProviderType GetProviderFromConfig(string? providerString)
-    {
-        return providerString?.ToLower() switch
-        {
-            "gemini" => AIProviderType.Gemini,
-            "openai" => AIProviderType.OpenAI,
-            "azureopenai" => AIProviderType.AzureOpenAI,
-            _ => AIProviderType.Gemini
-        };
-    }
 
     public async Task<float[]?> GenerateEmbeddingAsync(string text)
     {
@@ -293,7 +230,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         var config = await GetActiveConfigurationAsync();
         if (config == null)
         {
-            throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database o in appsettings.json");
+            throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database. Configura un provider AI tramite l'interfaccia utente.");
         }
 
         // Determine which provider to use for embeddings
@@ -538,7 +475,7 @@ public class MultiProviderAIService : IMultiProviderAIService
         
         if (!hasGeminiKey && !hasOpenAIKey && !hasAzureKey)
         {
-            throw new InvalidOperationException("Nessun provider AI ha una chiave API valida configurata. Configura almeno un provider (Gemini, OpenAI, o Azure OpenAI) tramite l'interfaccia utente o appsettings.json.");
+            throw new InvalidOperationException("Nessun provider AI ha una chiave API valida configurata. Configura almeno un provider (Gemini, OpenAI, o Azure OpenAI) tramite l'interfaccia utente.");
         }
 
         // Try primary provider
