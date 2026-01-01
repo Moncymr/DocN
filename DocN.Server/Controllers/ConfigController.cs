@@ -495,6 +495,58 @@ public class ConfigController : ControllerBase
     }
 
     /// <summary>
+    /// Activate a specific configuration by ID
+    /// </summary>
+    /// <param name="id">Configuration ID to activate</param>
+    /// <returns>Activated configuration</returns>
+    /// <response code="200">Configuration activated successfully</response>
+    /// <response code="404">Configuration not found</response>
+    [HttpPost("{id}/activate")]
+    [ProducesResponseType(typeof(AIConfiguration), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AIConfiguration>> ActivateConfiguration(int id)
+    {
+        try
+        {
+            var config = await _context.AIConfigurations.FindAsync(id);
+            
+            if (config == null)
+            {
+                return NotFound(new { message = $"Configuration with ID {id} not found" });
+            }
+
+            // Deactivate all other configurations
+            var otherConfigs = await _context.AIConfigurations
+                .Where(c => c.Id != id)
+                .ToListAsync();
+            
+            foreach (var other in otherConfigs)
+            {
+                other.IsActive = false;
+            }
+
+            // Activate this configuration
+            config.IsActive = true;
+            config.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            
+            // Clear the AI service configuration cache to force reload
+            _aiService.ClearConfigurationCache();
+            
+            _logger.LogInformation("Configuration '{ConfigName}' (ID: {ConfigId}) activated successfully. All other configurations deactivated. Cache cleared.", 
+                config.ConfigurationName, config.Id);
+
+            return Ok(config);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error activating configuration with ID {ConfigId}", id);
+            return StatusCode(500, new { error = $"Error activating configuration: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
     /// Get all AI configurations
     /// </summary>
     /// <returns>List of all AI configurations</returns>
