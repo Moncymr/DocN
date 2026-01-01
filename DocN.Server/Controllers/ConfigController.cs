@@ -554,6 +554,7 @@ public class ConfigController : ControllerBase
     /// </summary>
     /// <returns>Diagnostic information about all configurations</returns>
     [HttpGet("diagnostics")]
+    [HttpGet("diagnostica")] // Italian alias
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult> GetConfigurationDiagnostics()
     {
