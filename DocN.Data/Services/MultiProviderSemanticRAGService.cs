@@ -60,10 +60,11 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
                 _logger.LogWarning("No relevant documents found for query: {Query}. Generating response without document context.", query);
 
                 // Generate response without document context
-                var systemPrompt = @"You are an intelligent assistant. 
-Answer the user's question to the best of your knowledge.
-If you don't have specific information, provide a helpful general response.
-Be concise, professional, and helpful.";
+                var systemPrompt = @"Sei un assistente intelligente. 
+Rispondi alla domanda dell'utente al meglio delle tue conoscenze.
+Se non hai informazioni specifiche, fornisci una risposta generale utile.
+Sii conciso, professionale e disponibile.
+IMPORTANTE: Rispondi sempre in italiano.";
 
                 var userPrompt = query;
 
@@ -342,22 +343,23 @@ Be concise, professional, and helpful.";
 
     private string CreateSystemPrompt()
     {
-        return @"You are an intelligent document assistant powered by RAG (Retrieval-Augmented Generation).
-Your role is to answer questions accurately based on the provided documents.
+        return @"Sei un assistente documentale intelligente basato su RAG (Retrieval-Augmented Generation).
+Il tuo ruolo è rispondere accuratamente alle domande basandoti sui documenti forniti.
 
-GUIDELINES:
-- Use ONLY information from the provided documents
-- Cite sources using [Document N] format
-- If information is not in the documents, clearly state that
-- Be concise but thorough
-- Maintain professional and helpful tone
-- If asked about multiple documents, synthesize information appropriately
+LINEE GUIDA:
+- Usa SOLO le informazioni presenti nei documenti forniti
+- Cita le fonti usando il formato [Documento N]
+- Se l'informazione non è presente nei documenti, dichiaralo chiaramente
+- Sii conciso ma completo
+- Mantieni un tono professionale e disponibile
+- Se viene chiesto di più documenti, sintetizza le informazioni in modo appropriato
+- IMPORTANTE: Rispondi sempre in italiano
 
-RESPONSE FORMAT:
-1. Provide a direct answer to the question
-2. Support with relevant details from documents
-3. Cite sources clearly
-4. If uncertain, acknowledge limitations";
+FORMATO DELLA RISPOSTA:
+1. Fornisci una risposta diretta alla domanda
+2. Supporta con dettagli rilevanti dai documenti
+3. Cita chiaramente le fonti
+4. Se non sei sicuro, riconosci i limiti";
     }
 
     private string BuildUserPrompt(string query, string documentContext, List<Message> conversationHistory)
