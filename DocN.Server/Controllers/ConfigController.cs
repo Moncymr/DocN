@@ -392,4 +392,237 @@ public class ConfigController : ControllerBase
 
         return result;
     }
+
+    /// <summary>
+    /// Ottiene informazioni diagnostiche sulla configurazione AI
+    /// </summary>
+    /// <returns>Informazioni diagnostiche dettagliate</returns>
+    /// <response code="200">Diagnostica completata con successo</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpGet("diagnostica")]
+    [ProducesResponseType(typeof(DiagnosticResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<DiagnosticResult>> GetDiagnostics()
+    {
+        try
+        {
+            _logger.LogInformation("Getting configuration diagnostics");
+
+            var result = new DiagnosticResult
+            {
+                Timestamp = DateTime.UtcNow,
+                Configurations = new List<ConfigurationInfo>()
+            };
+
+            // Get all configurations
+            var allConfigs = await _context.AIConfigurations.ToListAsync();
+            result.TotalConfigurations = allConfigs.Count;
+            result.ActiveConfiguration = allConfigs.FirstOrDefault(c => c.IsActive);
+
+            foreach (var config in allConfigs)
+            {
+                var configInfo = new ConfigurationInfo
+                {
+                    Id = config.Id,
+                    Name = config.ConfigurationName,
+                    IsActive = config.IsActive,
+                    CreatedAt = config.CreatedAt,
+                    UpdatedAt = config.UpdatedAt,
+                    ProvidersConfigured = new List<string>()
+                };
+
+                // Check which providers are configured
+                if (!string.IsNullOrEmpty(config.GeminiApiKey))
+                    configInfo.ProvidersConfigured.Add("Gemini");
+                if (!string.IsNullOrEmpty(config.OpenAIApiKey))
+                    configInfo.ProvidersConfigured.Add("OpenAI");
+                if (!string.IsNullOrEmpty(config.AzureOpenAIKey) && !string.IsNullOrEmpty(config.AzureOpenAIEndpoint))
+                    configInfo.ProvidersConfigured.Add("Azure OpenAI");
+
+                // Service assignments
+                configInfo.ChatProvider = config.ChatProvider?.ToString() ?? "Not Set";
+                configInfo.EmbeddingsProvider = config.EmbeddingsProvider?.ToString() ?? "Not Set";
+                configInfo.TagExtractionProvider = config.TagExtractionProvider?.ToString() ?? "Not Set";
+                configInfo.RAGProvider = config.RAGProvider?.ToString() ?? "Not Set";
+
+                result.Configurations.Add(configInfo);
+            }
+
+            result.Success = true;
+            result.Message = $"Diagnostica completata: {result.TotalConfigurations} configurazioni trovate";
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting diagnostics");
+            return StatusCode(500, new DiagnosticResult
+            {
+                Success = false,
+                Message = $"Errore durante la diagnostica: {ex.Message}",
+                Timestamp = DateTime.UtcNow
+            });
+        }
+    }
+
+    /// <summary>
+    /// Resetta la configurazione attiva ai valori predefiniti
+    /// </summary>
+    /// <returns>Risultato dell'operazione di reset</returns>
+    /// <response code="200">Reset completato con successo</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpPost("reset")]
+    [ProducesResponseType(typeof(ResetResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ResetResult>> ResetConfiguration()
+    {
+        try
+        {
+            _logger.LogInformation("Resetting configuration to defaults");
+
+            // Get active configuration
+            var activeConfig = await _context.AIConfigurations
+                .FirstOrDefaultAsync(c => c.IsActive);
+
+            if (activeConfig != null)
+            {
+                // Reset to default values
+                activeConfig.ConfigurationName = "Configurazione Predefinita";
+                activeConfig.ProviderType = AIProviderType.Gemini;
+                activeConfig.MaxDocumentsToRetrieve = 5;
+                activeConfig.SimilarityThreshold = 0.7;
+                activeConfig.MaxTokensForContext = 4000;
+                activeConfig.EmbeddingDimensions = 768;
+                activeConfig.SystemPrompt = "Sei un assistente utile che risponde a domande basandoti sui documenti forniti. Cita sempre i documenti fonte quando fornisci informazioni.";
+                activeConfig.EnableChunking = true;
+                activeConfig.ChunkSize = 1000;
+                activeConfig.ChunkOverlap = 200;
+                activeConfig.EnableFallback = true;
+                activeConfig.GeminiChatModel = "gemini-1.5-flash";
+                activeConfig.GeminiEmbeddingModel = "text-embedding-004";
+                activeConfig.OpenAIChatModel = "gpt-4";
+                activeConfig.OpenAIEmbeddingModel = "text-embedding-ada-002";
+                activeConfig.AzureOpenAIChatModel = "gpt-4";
+                activeConfig.AzureOpenAIEmbeddingModel = "text-embedding-ada-002";
+                activeConfig.UpdatedAt = DateTime.UtcNow;
+
+                _context.AIConfigurations.Update(activeConfig);
+                await _context.SaveChangesAsync();
+
+                return Ok(new ResetResult
+                {
+                    Success = true,
+                    Message = "✅ Configurazione resettata ai valori predefiniti",
+                    ConfigurationId = activeConfig.Id
+                });
+            }
+            else
+            {
+                // Create a new default configuration if none exists
+                var newConfig = new AIConfiguration
+                {
+                    ConfigurationName = "Configurazione Predefinita",
+                    ProviderType = AIProviderType.Gemini,
+                    MaxDocumentsToRetrieve = 5,
+                    SimilarityThreshold = 0.7,
+                    MaxTokensForContext = 4000,
+                    EmbeddingDimensions = 768,
+                    EmbeddingModel = "text-embedding-004",
+                    SystemPrompt = "Sei un assistente utile che risponde a domande basandoti sui documenti forniti. Cita sempre i documenti fonte quando fornisci informazioni.",
+                    IsActive = true,
+                    EnableChunking = true,
+                    ChunkSize = 1000,
+                    ChunkOverlap = 200,
+                    EnableFallback = true,
+                    GeminiChatModel = "gemini-1.5-flash",
+                    GeminiEmbeddingModel = "text-embedding-004",
+                    OpenAIChatModel = "gpt-4",
+                    OpenAIEmbeddingModel = "text-embedding-ada-002",
+                    AzureOpenAIChatModel = "gpt-4",
+                    AzureOpenAIEmbeddingModel = "text-embedding-ada-002",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.AIConfigurations.Add(newConfig);
+                await _context.SaveChangesAsync();
+
+                return Ok(new ResetResult
+                {
+                    Success = true,
+                    Message = "✅ Nuova configurazione predefinita creata",
+                    ConfigurationId = newConfig.Id
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting configuration");
+            return StatusCode(500, new ResetResult
+            {
+                Success = false,
+                Message = $"❌ Errore durante il reset: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    /// Imposta una configurazione come predefinita dall'utente
+    /// </summary>
+    /// <param name="configId">ID della configurazione da impostare come predefinita</param>
+    /// <returns>Risultato dell'operazione</returns>
+    /// <response code="200">Configurazione impostata come predefinita</response>
+    /// <response code="404">Configurazione non trovata</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpPost("set-default/{configId}")]
+    [ProducesResponseType(typeof(SetDefaultResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<SetDefaultResult>> SetDefaultConfiguration(int configId)
+    {
+        try
+        {
+            _logger.LogInformation("Setting configuration {ConfigId} as default", configId);
+
+            var config = await _context.AIConfigurations.FindAsync(configId);
+            
+            if (config == null)
+            {
+                return NotFound(new SetDefaultResult
+                {
+                    Success = false,
+                    Message = "❌ Configurazione non trovata"
+                });
+            }
+
+            // Deactivate all other configurations
+            var allConfigs = await _context.AIConfigurations.ToListAsync();
+            foreach (var c in allConfigs)
+            {
+                c.IsActive = false;
+            }
+
+            // Activate the selected configuration
+            config.IsActive = true;
+            config.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new SetDefaultResult
+            {
+                Success = true,
+                Message = $"✅ Configurazione '{config.ConfigurationName}' impostata come predefinita",
+                ConfigurationId = config.Id,
+                ConfigurationName = config.ConfigurationName
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting default configuration");
+            return StatusCode(500, new SetDefaultResult
+            {
+                Success = false,
+                Message = $"❌ Errore durante l'impostazione: {ex.Message}"
+            });
+        }
+    }
 }
