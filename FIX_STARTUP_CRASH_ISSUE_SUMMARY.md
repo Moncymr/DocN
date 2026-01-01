@@ -37,11 +37,14 @@ Added `EnsureConfigurationFiles()` helper method to both Client and Server `Prog
 - Allows both applications to start together without conflicts
 
 ### 2. Improved Error Handling
-Modified error handling in `DocN.Client/Program.cs`:
+Modified error handling in both `DocN.Client/Program.cs` and `DocN.Server/Program.cs`:
 - Removed `throw` statement that caused crash in non-development environments
 - Added comprehensive error logging with diagnostic information
 - Application now continues startup even if seeding fails
 - Users can see error messages in logs and UI instead of immediate crash
+- **Database seeding conflicts**: Both Client and Server now handle concurrent database seeding gracefully
+- When both apps start together, one may fail to seed due to database locks - this is expected and applications continue
+- Error messages explain that concurrent seeding conflicts are normal
 
 ### 3. Enhanced Configuration Examples
 Created comprehensive example configuration files:
@@ -98,10 +101,15 @@ Created `CONFIGURATION_SETUP.md`:
 
 ### Concurrent Startup (Client + Server Together)
 1. Both applications attempt to create configuration files simultaneously
-2. Race condition is handled gracefully with `IOException` catch blocks
+2. File creation race condition is handled gracefully with `IOException` catch blocks
 3. Second process waits 100ms for first to complete file creation
-4. Both applications start successfully without conflicts
-5. Users can launch both from Visual Studio or command line without issues
+4. **Both applications attempt to seed the database**
+5. Database seeding conflicts are handled with try-catch blocks in both applications
+6. One application may fail to seed (due to database locks), while the other succeeds - this is expected
+7. Both applications continue startup successfully even if one fails to seed
+8. Users see informative log messages explaining concurrent seeding is normal
+9. Applications work correctly - database is seeded by whichever process succeeds first
+10. Users can launch both from Visual Studio or command line without crashes
 
 ## Security Considerations
 
