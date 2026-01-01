@@ -48,6 +48,7 @@
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @rendermode InteractiveServer
+@implements IDisposable
 
 <PageTitle>Upload Document - DocN</PageTitle>
 
@@ -146,6 +147,14 @@
                 <div class="analyzing-section">
                     <div class="spinner"></div>
                     <p>🔄 Processing document: @processingStep</p>
+                    @if (elapsedSeconds > 0)
+                    {
+                        <p class="elapsed-time">⏱️ Elapsed time: @elapsedSeconds seconds</p>
+                        @if (elapsedSeconds > 60)
+                        {
+                            <p class="warning-text">⚠️ This operation is taking longer than expected. Please wait...</p>
+                        }
+                    }
                 </div>
             }
 
@@ -881,6 +890,26 @@
         background: #f8f9fa;
         border-radius: 5px;
         margin-bottom: 2rem;
+    }
+    
+    .analyzing-section .elapsed-time {
+        color: #666;
+        font-size: 0.95rem;
+        margin-top: 0.5rem;
+        font-weight: 500;
+    }
+    
+    .analyzing-section .warning-text {
+        color: #ff9800;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+        font-weight: 600;
+        animation: blink 1.5s ease-in-out infinite;
+    }
+    
+    @@keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
     }
 
     .spinner {
@@ -1656,6 +1685,11 @@
     private DateTime? aiAnalysisDate;
     private List<RelevantDocumentResult>? similarDocuments;
     
+    // Progress tracking
+    private System.Diagnostics.Stopwatch? operationStopwatch;
+    private System.Threading.Timer? progressTimer;
+    private int elapsedSeconds = 0;
+    
     // Processing options
     private bool enableTextExtraction = true;
     private bool enableAICategory = true;
@@ -2022,12 +2056,15 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             if (enableAICategory && !string.IsNullOrEmpty(extractedText) && string.IsNullOrEmpty(suggestedCategory))
             {
                 processingStep = STEP_ANALYZING_AI;
+                StartProgressTimer(); // Start timer for AI operation
                 StateHasChanged();
                 await Task.Delay(UI_UPDATE_DELAY_MS);
 
                 try
                 {
                     var result = await AIService.SuggestCategoryAsync(selectedFile.Name, extractedText);
+                    
+                    StopProgressTimer(); // Stop timer after AI operation completes
                     
                     aiProvider = result.Provider;
                     await LogService.LogInfoAsync("Category", "AI category suggestion completed", 
@@ -2050,6 +2087,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 }
                 catch (TimeoutException tex)
                 {
+                    StopProgressTimer(); // Stop timer on timeout
                     // Timeout during category suggestion
                     suggestedCategory = null;
                     categoryReasoning = $"⏱️ Timeout: {tex.Message}";
@@ -2060,6 +2098,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 }
                 catch (Exception ex)
                 {
+                    StopProgressTimer(); // Stop timer on error
                     // Category suggestion failed - user can still enter manually
                     suggestedCategory = null;
                     categoryReasoning = "Errore durante l'analisi della categoria. Verifica la configurazione AI o inserisci manualmente una categoria.";
@@ -2081,6 +2120,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             {
                 tagExtractionAttempted = true;
                 processingStep = "Extracting tags from document...";
+                StartProgressTimer(); // Start timer for AI operation
                 StateHasChanged();
                 await Task.Delay(UI_UPDATE_DELAY_MS);
 
@@ -2090,6 +2130,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                     var aiConfig = await AIService.GetActiveConfigurationAsync();
                     if (aiConfig == null)
                     {
+                        StopProgressTimer(); // Stop timer if no config
                         tagExtractionSucceeded = false;
                         tagExtractionError = "❌ Configurazione AI mancante. Configura almeno un provider AI (Gemini/OpenAI/Azure OpenAI) dalla pagina Configurazione.";
                         await LogService.LogWarningAsync("Tag", "AI configuration not found", 
@@ -2100,6 +2141,8 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                     else
                     {
                         aiExtractedTags = await AIService.ExtractTagsAsync(extractedText);
+                        
+                        StopProgressTimer(); // Stop timer after AI operation completes
                         
                         if (aiExtractedTags != null && aiExtractedTags.Any())
                         {
@@ -2125,6 +2168,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 }
                 catch (TimeoutException tex)
                 {
+                    StopProgressTimer(); // Stop timer on timeout
                     // Timeout during tag extraction
                     tagExtractionSucceeded = false;
                     tagExtractionError = $"⏱️ Timeout: {tex.Message}";
@@ -2135,6 +2179,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("API key") || ex.Message.Contains("configurata"))
                 {
+                    StopProgressTimer(); // Stop timer on error
                     // AI configuration issue
                     tagExtractionSucceeded = false;
                     tagExtractionError = $"❌ Errore configurazione AI: {ex.Message}. Verifica le chiavi API nella pagina Configurazione.";
@@ -2146,6 +2191,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 }
                 catch (HttpRequestException ex)
                 {
+                    StopProgressTimer(); // Stop timer on error
                     // Network or API communication error
                     tagExtractionSucceeded = false;
                     tagExtractionError = $"❌ Errore di rete o API: impossibile contattare il provider AI. Verifica la connessione internet e le chiavi API. Dettagli: {ex.Message}";
@@ -2157,6 +2203,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                 }
                 catch (Exception ex)
                 {
+                    StopProgressTimer(); // Stop timer on error
                     // Generic error - provide actionable message
                     tagExtractionSucceeded = false;
                     var errorMessage = ex.Message;
@@ -2726,5 +2773,32 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             isLoadingLogs = false;
             StateHasChanged();
         }
+    }
+    
+    private void StartProgressTimer()
+    {
+        elapsedSeconds = 0;
+        operationStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
+        // Update elapsed time every second
+        progressTimer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds = (int)operationStopwatch.Elapsed.TotalSeconds;
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+    
+    private void StopProgressTimer()
+    {
+        progressTimer?.Dispose();
+        progressTimer = null;
+        operationStopwatch?.Stop();
+        operationStopwatch = null;
+        elapsedSeconds = 0;
+    }
+    
+    public void Dispose()
+    {
+        StopProgressTimer();
     }
 }
