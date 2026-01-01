@@ -2048,6 +2048,16 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                         categoryReasoning = result.Reasoning ?? "L'AI non è riuscita a determinare una categoria appropriata. Potrebbe essere necessario verificare la configurazione dell'API (Gemini/OpenAI).";
                     }
                 }
+                catch (TimeoutException tex)
+                {
+                    // Timeout during category suggestion
+                    suggestedCategory = null;
+                    categoryReasoning = $"⏱️ Timeout: {tex.Message}";
+                    await LogService.LogWarningAsync("Category", "Category suggestion timeout", 
+                        tex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
+                }
                 catch (Exception ex)
                 {
                     // Category suggestion failed - user can still enter manually
@@ -2112,6 +2122,16 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                                 userId: currentUserId);
                         }
                     }
+                }
+                catch (TimeoutException tex)
+                {
+                    // Timeout during tag extraction
+                    tagExtractionSucceeded = false;
+                    tagExtractionError = $"⏱️ Timeout: {tex.Message}";
+                    await LogService.LogWarningAsync("Tag", "Tag extraction timeout", 
+                        tex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("API key") || ex.Message.Contains("configurata"))
                 {

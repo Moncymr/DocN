@@ -57,12 +57,16 @@ public class MultiProviderAIService : IMultiProviderAIService
     private AIConfiguration? _cachedConfig;
     private DateTime _lastConfigCheck = DateTime.MinValue;
     private readonly TimeSpan _configCacheDuration = TimeSpan.FromMinutes(5);
+    private readonly int _aiTimeoutSeconds;
 
     public MultiProviderAIService(IConfiguration configuration, ApplicationDbContext context, ILogService logService)
     {
         _configuration = configuration;
         _context = context;
         _logService = logService;
+        
+        // Read AI timeout from configuration (default 120 seconds = 2 minutes for faster feedback)
+        _aiTimeoutSeconds = configuration.GetValue<int>("AI:TimeoutSeconds", 120);
     }
 
     /// <summary>
@@ -696,26 +700,29 @@ public class MultiProviderAIService : IMultiProviderAIService
     public async Task<(string Category, string Reasoning, string Provider)> SuggestCategoryAsync(string fileName, string extractedText)
     {
         var provider = GetCurrentChatProvider();
+        
         try
         {
-            // Get existing categories from database
-            var existingCategories = await Task.Run(() =>
-                _context.Documents
-                    .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
-                    .Select(d => d.ActualCategory)
-                    .Distinct()
-                    .ToList());
+            return await ExecuteWithTimeoutAsync(async (cancellationToken) =>
+            {
+                // Get existing categories from database
+                var existingCategories = await Task.Run(() =>
+                    _context.Documents
+                        .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
+                        .Select(d => d.ActualCategory)
+                        .Distinct()
+                        .ToList(), cancellationToken);
 
-            var categoriesHint = existingCategories.Any()
-                ? $"Existing categories in the system: {string.Join(", ", existingCategories)}. You can suggest one of these or propose a new category if none fit."
-                : "This is a new system. You MUST suggest an appropriate category based on the document content.";
+                var categoriesHint = existingCategories.Any()
+                    ? $"Existing categories in the system: {string.Join(", ", existingCategories)}. You can suggest one of these or propose a new category if none fit."
+                    : "This is a new system. You MUST suggest an appropriate category based on the document content.";
 
-            var systemPrompt = @"You are a document classification expert. Your task is to ALWAYS suggest a specific, meaningful category for documents.
+                var systemPrompt = @"You are a document classification expert. Your task is to ALWAYS suggest a specific, meaningful category for documents.
 NEVER return 'Uncategorized' or generic categories. Analyze the content and propose a descriptive category name.
 Examples of good categories: 'Financial Reports', 'Legal Contracts', 'Technical Documentation', 'Marketing Materials', 'Meeting Minutes', etc.
 Always respond in Italian.";
             
-            var userPrompt = $@"Analizza questo documento e suggerisci la MIGLIORE categoria possibile. Spiega anche la tua motivazione.
+                var userPrompt = $@"Analizza questo documento e suggerisci la MIGLIORE categoria possibile. Spiega anche la tua motivazione.
 
 Nome file: {fileName}
 Anteprima contenuto: {TruncateText(extractedText, 500)}
@@ -731,53 +738,63 @@ Rispondi in formato JSON:
     ""reasoning"": ""spiegazione dettagliata del motivo per cui questa categoria si adatta, menzionando parole chiave specifiche, tipo di contenuto o pattern identificati""
 }}";
 
-            var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
+                var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
             
-            // Clean up response - sometimes AI adds markdown code blocks
-            response = response.Trim();
-            if (response.StartsWith("```json"))
-            {
-                response = response.Substring(7);
-                if (response.EndsWith("```"))
-                    response = response.Substring(0, response.Length - 3);
-            }
-            else if (response.StartsWith("```"))
-            {
-                response = response.Substring(3);
-                if (response.EndsWith("```"))
-                    response = response.Substring(0, response.Length - 3);
-            }
-            response = response.Trim();
+                // Clean up response - sometimes AI adds markdown code blocks
+                response = response.Trim();
+                if (response.StartsWith("```json"))
+                {
+                    response = response.Substring(7);
+                    if (response.EndsWith("```"))
+                        response = response.Substring(0, response.Length - 3);
+                }
+                else if (response.StartsWith("```"))
+                {
+                    response = response.Substring(3);
+                    if (response.EndsWith("```"))
+                        response = response.Substring(0, response.Length - 3);
+                }
+                response = response.Trim();
             
-            // Parse JSON response
-            CategorySuggestion? result = null;
-            try
-            {
-                result = System.Text.Json.JsonSerializer.Deserialize<CategorySuggestion>(response, 
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            }
-            catch (System.Text.Json.JsonException)
-            {
-                // If JSON parsing fails, try to extract category from response text
-                await _logService.LogWarningAsync("Category", "Failed to parse JSON response", response);
-            }
+                // Parse JSON response
+                CategorySuggestion? result = null;
+                try
+                {
+                    result = System.Text.Json.JsonSerializer.Deserialize<CategorySuggestion>(response, 
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    // If JSON parsing fails, try to extract category from response text
+                    await _logService.LogWarningAsync("Category", "Failed to parse JSON response", response);
+                }
             
-            // Validate that we got a meaningful category
-            var category = result?.Category?.Trim() ?? string.Empty;
-            var reasoning = result?.Reasoning?.Trim() ?? "Nessuna motivazione fornita";
+                // Validate that we got a meaningful category
+                var category = result?.Category?.Trim() ?? string.Empty;
+                var reasoning = result?.Reasoning?.Trim() ?? "Nessuna motivazione fornita";
             
-            // If AI still returned generic/empty category, infer from filename or content
-            if (string.IsNullOrEmpty(category) || 
-                category.Equals("Uncategorized", StringComparison.OrdinalIgnoreCase) ||
-                category.Equals("General", StringComparison.OrdinalIgnoreCase) ||
-                category.Equals("Other", StringComparison.OrdinalIgnoreCase))
-            {
-                // Try to infer from file extension or name
-                category = InferCategoryFromFileNameOrContent(fileName, extractedText);
-                reasoning = $"Categoria inferita dal nome file o contenuto. {reasoning}";
-            }
+                // If AI still returned generic/empty category, infer from filename or content
+                if (string.IsNullOrEmpty(category) || 
+                    category.Equals("Uncategorized", StringComparison.OrdinalIgnoreCase) ||
+                    category.Equals("General", StringComparison.OrdinalIgnoreCase) ||
+                    category.Equals("Other", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Try to infer from file extension or name
+                    category = InferCategoryFromFileNameOrContent(fileName, extractedText);
+                    reasoning = $"Categoria inferita dal nome file o contenuto. {reasoning}";
+                }
             
-            return (category, reasoning, provider);
+                return (category, reasoning, provider);
+            }, "CategorySuggestion");
+        }
+        catch (TimeoutException tex)
+        {
+            // Timeout occurred - return inferred category with timeout message
+            await _logService.LogWarningAsync("Category", "Category suggestion timed out", tex.Message);
+            var inferredCategory = InferCategoryFromFileNameOrContent(fileName, extractedText);
+            return (inferredCategory, 
+                $"⏱️ Timeout: L'analisi AI ha richiesto troppo tempo. Categoria inferita dal nome del file. {tex.Message}", 
+                provider);
         }
         catch (Exception ex)
         {
@@ -842,11 +859,13 @@ Rispondi in formato JSON:
     {
         try
         {
-            // Note: This method uses GenerateChatCompletionAsync which automatically
-            // determines the correct provider based on TagExtractionProvider configuration
-            var systemPrompt = "You are a tag extraction expert. Extract 5-10 relevant keywords or tags from documents.";
+            return await ExecuteWithTimeoutAsync(async (cancellationToken) =>
+            {
+                // Note: This method uses GenerateChatCompletionAsync which automatically
+                // determines the correct provider based on TagExtractionProvider configuration
+                var systemPrompt = "You are a tag extraction expert. Extract 5-10 relevant keywords or tags from documents.";
             
-            var userPrompt = $@"Extract 5-10 relevant tags or keywords from this document.
+                var userPrompt = $@"Extract 5-10 relevant tags or keywords from this document.
 Tags should be short, specific, and representative of the content.
 
 Content: {TruncateText(extractedText, 1000)}
@@ -856,38 +875,44 @@ Respond in JSON format:
     ""tags"": [""tag1"", ""tag2"", ""tag3"", ...]
 }}";
 
-            var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
+                var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
             
-            // Clean up response - sometimes AI adds markdown code blocks
-            response = response.Trim();
-            if (response.StartsWith("```json"))
-            {
-                response = response.Substring(7);
-                if (response.EndsWith("```"))
-                    response = response.Substring(0, response.Length - 3);
-            }
-            else if (response.StartsWith("```"))
-            {
-                response = response.Substring(3);
-                if (response.EndsWith("```"))
-                    response = response.Substring(0, response.Length - 3);
-            }
-            response = response.Trim();
+                // Clean up response - sometimes AI adds markdown code blocks
+                response = response.Trim();
+                if (response.StartsWith("```json"))
+                {
+                    response = response.Substring(7);
+                    if (response.EndsWith("```"))
+                        response = response.Substring(0, response.Length - 3);
+                }
+                else if (response.StartsWith("```"))
+                {
+                    response = response.Substring(3);
+                    if (response.EndsWith("```"))
+                        response = response.Substring(0, response.Length - 3);
+                }
+                response = response.Trim();
             
-            // Parse JSON response
-            TagsResponse? result = null;
-            try
-            {
-                result = System.Text.Json.JsonSerializer.Deserialize<TagsResponse>(response, 
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            }
-            catch (System.Text.Json.JsonException jsonEx)
-            {
-                // If JSON parsing fails, log it
-                await _logService.LogWarningAsync("Tag", "Failed to parse tags JSON response", $"Response: {response}\nJSON error: {jsonEx.Message}");
-            }
+                // Parse JSON response
+                TagsResponse? result = null;
+                try
+                {
+                    result = System.Text.Json.JsonSerializer.Deserialize<TagsResponse>(response, 
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch (System.Text.Json.JsonException jsonEx)
+                {
+                    // If JSON parsing fails, log it
+                    await _logService.LogWarningAsync("Tag", "Failed to parse tags JSON response", $"Response: {response}\nJSON error: {jsonEx.Message}");
+                }
             
-            return result?.Tags ?? new List<string>();
+                return result?.Tags ?? new List<string>();
+            }, "TagExtraction");
+        }
+        catch (TimeoutException tex)
+        {
+            await _logService.LogWarningAsync("Tag", "Tag extraction timed out", tex.Message);
+            return new List<string>(); // Return empty list on timeout
         }
         catch (Exception ex)
         {
@@ -1068,6 +1093,49 @@ Respond ONLY with valid JSON, no other comments.";
 
         // If we've exhausted retries, throw the last exception
         throw lastException ?? new InvalidOperationException($"Operation failed after {maxRetries} retries");
+    }
+
+    /// <summary>
+    /// Executes an AI operation with timeout protection
+    /// </summary>
+    private async Task<T> ExecuteWithTimeoutAsync<T>(
+        Func<CancellationToken, Task<T>> operation, 
+        string operationName)
+    {
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(TimeSpan.FromSeconds(_aiTimeoutSeconds));
+        
+        try
+        {
+            await _logService.LogDebugAsync(operationName, 
+                $"Starting AI operation with timeout of {_aiTimeoutSeconds} seconds");
+            
+            var result = await operation(cts.Token);
+            
+            await _logService.LogDebugAsync(operationName, 
+                "AI operation completed successfully");
+            
+            return result;
+        }
+        catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
+        {
+            await _logService.LogWarningAsync(operationName, 
+                $"AI operation timed out after {_aiTimeoutSeconds} seconds",
+                "Consider increasing AI:TimeoutSeconds in appsettings or checking AI provider health");
+            
+            throw new TimeoutException(
+                $"L'operazione AI ha superato il tempo limite di {_aiTimeoutSeconds} secondi. " +
+                "Il provider AI potrebbe essere sovraccarico o non disponibile. " +
+                "Riprova più tardi o contatta l'amministratore.");
+        }
+        catch (Exception ex)
+        {
+            await _logService.LogErrorAsync(operationName, 
+                "AI operation failed", 
+                ex.Message, 
+                stackTrace: ex.StackTrace);
+            throw;
+        }
     }
 
     private class CategorySuggestion
