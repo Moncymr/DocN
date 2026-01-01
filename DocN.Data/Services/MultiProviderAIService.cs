@@ -414,16 +414,16 @@ public class MultiProviderAIService : IMultiProviderAIService
                 ex.Message.Contains("NOT_FOUND"))
             {
                 var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
-                await _logService.LogErrorAsync("Embedding", $"Modello Gemini embedding non trovato: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-                throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è stato trovato o non è supportato. Verifica che il modello sia disponibile per la tua API key e utilizza modelli supportati come 'text-embedding-004'. Errore: {ex.Message}", ex);
+                await _logService.LogErrorAsync("Embedding", $"Gemini embedding model not found: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException($"The Gemini embedding model '{modelName}' was not found or is not supported. Please verify that the model is available for your API key and use supported models like 'text-embedding-004'. Error: {ex.Message}", ex);
             }
             catch (System.Net.Http.HttpRequestException ex) when (
                 (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
                 ex.Message.Contains("Forbidden") || 
                 ex.Message.Contains("403"))
             {
-                await _logService.LogErrorAsync("Embedding", "Problema con l'API key di Gemini (potrebbe essere non valida o segnalata)", ex.Message, stackTrace: ex.StackTrace);
-                throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
+                await _logService.LogErrorAsync("Embedding", "Problem with Gemini API key (may be invalid or flagged)", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException("The Gemini API key is invalid or has been flagged as compromised. Please use a different API key.", ex);
             }
             catch (System.Net.Http.HttpRequestException ex) when (
                 (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.BadRequest) || 
@@ -432,8 +432,8 @@ public class MultiProviderAIService : IMultiProviderAIService
                 ex.Message.Contains("INVALID_ARGUMENT"))
             {
                 var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
-                await _logService.LogErrorAsync("Embedding", $"Errore nel formato del modello Gemini embedding. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-                throw new InvalidOperationException($"Il modello Gemini embedding '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'text-embedding-004'). Errore: {ex.Message}", ex);
+                await _logService.LogErrorAsync("Embedding", $"Error in Gemini embedding model format. Requested model: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException($"The Gemini embedding model '{modelName}' is invalid or unavailable. Please verify that the model name is correct (e.g., 'text-embedding-004'). Error: {ex.Message}", ex);
             }
             catch (System.Net.Http.HttpRequestException ex) when (
                 ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
@@ -553,14 +553,14 @@ public class MultiProviderAIService : IMultiProviderAIService
                 }
                 
                 // All attempts failed
-                var errorMessage = $"Tutti i provider AI sono falliti. Errori: {string.Join("; ", errors)}";
-                await _logService.LogErrorAsync("AI", "Tutti i fallback sono falliti", errorMessage);
+                var errorMessage = $"All AI providers failed. Errors: {string.Join("; ", errors)}";
+                await _logService.LogErrorAsync("AI", "All fallbacks failed", errorMessage);
                 throw new InvalidOperationException(errorMessage);
             }
             else
             {
                 // Fallback disabled, just throw the original error
-                throw new InvalidOperationException($"Provider {provider} fallito: {ex.Message}. Fallback disabilitato.");
+                throw new InvalidOperationException($"Provider {provider} failed: {ex.Message}. Fallback disabled.");
             }
         }
     }
@@ -610,16 +610,16 @@ public class MultiProviderAIService : IMultiProviderAIService
                 ex.Message.Contains("NOT_FOUND"))
             {
                 var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
-                await _logService.LogErrorAsync("AI", $"Modello Gemini non trovato: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-                throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è stato trovato o non è supportato. I modelli più vecchi come 'gemini-1.5-flash' potrebbero non essere più disponibili. Prova a utilizzare modelli più recenti come 'gemini-2.0-flash-exp', 'gemini-2.5-flash', o 'gemini-3-flash'. Puoi anche verificare i modelli disponibili con l'API ListModels. Errore: {ex.Message}", ex);
+                await _logService.LogErrorAsync("AI", $"Gemini model not found: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException($"The Gemini model '{modelName}' was not found or is not supported. Older models like 'gemini-1.5-flash' may no longer be available. Try using more recent models like 'gemini-2.0-flash-exp', 'gemini-2.5-flash', or 'gemini-3-flash'. You can also verify available models with the ListModels API. Error: {ex.Message}", ex);
             }
             catch (System.Net.Http.HttpRequestException ex) when (
                 (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.Forbidden) || 
                 ex.Message.Contains("Forbidden") || 
                 ex.Message.Contains("403"))
             {
-                await _logService.LogErrorAsync("AI", "Problema con l'API key di Gemini (potrebbe essere non valida o segnalata)", ex.Message, stackTrace: ex.StackTrace);
-                throw new InvalidOperationException("L'API key di Gemini non è valida o è stata segnalata come compromessa. Utilizza una chiave API diversa.", ex);
+                await _logService.LogErrorAsync("AI", "Problem with Gemini API key (may be invalid or flagged)", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException("The Gemini API key is invalid or has been flagged as compromised. Please use a different API key.", ex);
             }
             catch (System.Net.Http.HttpRequestException ex) when (
                 (ex.StatusCode.HasValue && ex.StatusCode.Value == System.Net.HttpStatusCode.BadRequest) || 
@@ -628,8 +628,8 @@ public class MultiProviderAIService : IMultiProviderAIService
                 ex.Message.Contains("INVALID_ARGUMENT"))
             {
                 var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
-                await _logService.LogErrorAsync("AI", $"Errore nel formato del modello Gemini. Modello richiesto: {modelName}", ex.Message, stackTrace: ex.StackTrace);
-                throw new InvalidOperationException($"Il modello Gemini '{modelName}' non è valido o non è disponibile. Verifica che il nome del modello sia corretto (es: 'gemini-2.0-flash-exp', 'gemini-2.5-flash', 'gemini-3-flash'). Errore: {ex.Message}", ex);
+                await _logService.LogErrorAsync("AI", $"Error in Gemini model format. Requested model: {modelName}", ex.Message, stackTrace: ex.StackTrace);
+                throw new InvalidOperationException($"The Gemini model '{modelName}' is invalid or unavailable. Please verify that the model name is correct (e.g., 'gemini-2.0-flash-exp', 'gemini-2.5-flash', 'gemini-3-flash'). Error: {ex.Message}", ex);
             }
             catch (System.Net.Http.HttpRequestException ex) when (
                 ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
@@ -783,7 +783,7 @@ Rispondi in formato JSON:
         {
             // Even on error, try to return something meaningful instead of "Uncategorized"
             var inferredCategory = InferCategoryFromFileNameOrContent(fileName, extractedText);
-            return (inferredCategory, $"Errore nell'analisi AI: {ex.Message}. Categoria inferita dal nome del file.", provider);
+            return (inferredCategory, $"AI analysis error: {ex.Message}. Category inferred from file name.", provider);
         }
     }
     
