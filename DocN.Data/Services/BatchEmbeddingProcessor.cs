@@ -165,6 +165,12 @@ public class BatchEmbeddingProcessor : BackgroundService
             _logger.LogWarning("DocumentService not available for chunk processing");
             return;
         }
+        
+        if (chunkingService == null)
+        {
+            _logger.LogError("ChunkingService not available - chunks cannot be created! Check service registration in Program.cs");
+            return;
+        }
 
         try
         {
@@ -189,28 +195,38 @@ public class BatchEmbeddingProcessor : BackgroundService
                         var existingChunkCount = await context.DocumentChunks
                             .CountAsync(c => c.DocumentId == document.Id, cancellationToken);
 
-                        if (existingChunkCount == 0 && chunkingService != null)
+                        if (existingChunkCount > 0)
                         {
-                            _logger.LogInformation("Creating chunks for document {DocumentId}: {FileName}", 
-                                document.Id, document.FileName);
+                            _logger.LogInformation("Document {DocumentId} already has {ChunkCount} chunks, skipping creation", 
+                                document.Id, existingChunkCount);
+                            continue;
+                        }
+                        
+                        _logger.LogInformation("Creating chunks for document {DocumentId}: {FileName} (ExtractedText length: {TextLength})", 
+                            document.Id, document.FileName, document.ExtractedText?.Length ?? 0);
+                        
+                        // Create chunks without embeddings first
+                        var chunks = chunkingService.ChunkDocument(document);
+                        
+                        _logger.LogInformation("ChunkingService returned {ChunkCount} chunks for document {DocumentId}", 
+                            chunks.Count, document.Id);
                             
-                            // Create chunks without embeddings first
-                            var chunks = chunkingService.ChunkDocument(document);
-                            if (chunks.Any())
-                            {
-                                context.DocumentChunks.AddRange(chunks);
-                                await context.SaveChangesAsync(cancellationToken);
-                                
-                                _logger.LogInformation("Created {ChunkCount} chunks for document {DocumentId}, will generate embeddings next", 
-                                    chunks.Count, document.Id);
-                            }
-                            else
-                            {
-                                // No chunks created - mark as not required
-                                document.ChunkEmbeddingStatus = "NotRequired";
-                                await context.SaveChangesAsync(cancellationToken);
-                                continue;
-                            }
+                        if (chunks.Any())
+                        {
+                            context.DocumentChunks.AddRange(chunks);
+                            await context.SaveChangesAsync(cancellationToken);
+                            
+                            _logger.LogInformation("Created {ChunkCount} chunks for document {DocumentId}, will generate embeddings next", 
+                                chunks.Count, document.Id);
+                        }
+                        else
+                        {
+                            // No chunks created - mark as not required
+                            _logger.LogWarning("No chunks created for document {DocumentId}: {FileName} - marking as NotRequired", 
+                                document.Id, document.FileName);
+                            document.ChunkEmbeddingStatus = "NotRequired";
+                            await context.SaveChangesAsync(cancellationToken);
+                            continue;
                         }
                     }
                     catch (Exception ex)
