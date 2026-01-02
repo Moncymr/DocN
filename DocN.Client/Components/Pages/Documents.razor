@@ -161,6 +161,29 @@
                             <span class="badge badge-@doc.Visibility.ToString().ToLower()">
                                 @GetVisibilityIcon(doc.Visibility) @GetVisibilityLabel(doc.Visibility)
                             </span>
+                            
+                            @* Chunk Embedding Status Badge *@
+                            @if (!string.IsNullOrEmpty(doc.ChunkEmbeddingStatus))
+                            {
+                                @if (doc.ChunkEmbeddingStatus == "Pending")
+                                {
+                                    <span class="badge badge-warning" title="Gli embeddings dei chunks stanno per essere generati">
+                                        ⏳ Embeddings in coda
+                                    </span>
+                                }
+                                else if (doc.ChunkEmbeddingStatus == "Processing")
+                                {
+                                    <span class="badge badge-info" title="Generazione embeddings in corso...">
+                                        ⚙️ Elaborazione...
+                                    </span>
+                                }
+                                else if (doc.ChunkEmbeddingStatus == "Completed")
+                                {
+                                    <span class="badge badge-success" title="Documento pronto per ricerca semantica">
+                                        ✓ Pronto
+                                    </span>
+                                }
+                            }
                         </div>
                         
                         <div class="doc-actions">
@@ -196,9 +219,34 @@
                     <div class="doc-grid-card" @onclick="() => SelectDocument(doc)">
                         <div class="card-header">
                             <div class="doc-icon-large">@GetFileIcon(doc.FileName)</div>
-                            <span class="badge badge-@doc.Visibility.ToString().ToLower()">
-                                @GetVisibilityIcon(doc.Visibility)
-                            </span>
+                            <div class="header-badges">
+                                <span class="badge badge-@doc.Visibility.ToString().ToLower()">
+                                    @GetVisibilityIcon(doc.Visibility)
+                                </span>
+                                
+                                @* Chunk Embedding Status Badge *@
+                                @if (!string.IsNullOrEmpty(doc.ChunkEmbeddingStatus))
+                                {
+                                    @if (doc.ChunkEmbeddingStatus == "Pending")
+                                    {
+                                        <span class="badge badge-warning" title="Gli embeddings dei chunks stanno per essere generati">
+                                            ⏳
+                                        </span>
+                                    }
+                                    else if (doc.ChunkEmbeddingStatus == "Processing")
+                                    {
+                                        <span class="badge badge-info" title="Generazione embeddings in corso...">
+                                            ⚙️
+                                        </span>
+                                    }
+                                    else if (doc.ChunkEmbeddingStatus == "Completed")
+                                    {
+                                        <span class="badge badge-success" title="Documento pronto per ricerca semantica">
+                                            ✓
+                                        </span>
+                                    }
+                                }
+                            </div>
                         </div>
                         
                         <div class="card-body">
@@ -762,6 +810,44 @@
         background: linear-gradient(135deg, #e2e3e5 0%, #d6d8db 100%);
         color: #383d41;
         border: 1px solid #d6d8db;
+    }
+    
+    .badge-warning {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        color: #856404;
+        border: 1px solid #ffeaa7;
+        animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .badge-info {
+        background: linear-gradient(135deg, #cfe2ff 0%, #b6d4fe 100%);
+        color: #084298;
+        border: 1px solid #b6d4fe;
+        animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .badge-success {
+        background: linear-gradient(135deg, #d1e7dd 0%, #badbcc 100%);
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+    
+    @@keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
+    .doc-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .header-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
     }
 
     .doc-actions {
