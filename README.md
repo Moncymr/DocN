@@ -177,6 +177,7 @@ Vedi [TESSERACT_SETUP.md](TESSERACT_SETUP.md) per dettagli.
 
 ### Guide Rapide
 - [**GUIDA_CONFIGURAZIONE_GEMINI.md**](GUIDA_CONFIGURAZIONE_GEMINI.md) - 🇮🇹 Guida completa configurazione Gemini (italiano)
+- [**docs/EMBEDDING_QUEUE_MONITORING.md**](docs/EMBEDDING_QUEUE_MONITORING.md) - 🇮🇹 Monitoraggio coda embeddings e troubleshooting
 
 ### Documentazione Avanzata
 - [**ENTERPRISE_RAG_ROADMAP.md**](ENTERPRISE_RAG_ROADMAP.md) - Roadmap funzionalità enterprise
@@ -344,6 +345,21 @@ Questo errore indica che la migrazione del database non è stata applicata. Solu
 - Installa Tesseract OCR (vedi sezione Quick Start)
 - Verifica che `tessdata` sia nella cartella corretta
 - Controlla i permessi di lettura su `tessdata`
+
+**Domanda: "Quanto tempo ci vuole per elaborare gli embeddings di un PDF?"**
+
+Gli embeddings vengono elaborati in background per non rallentare il caricamento:
+- **PDF semplice (10-20 pagine)**: ~2-5 minuti con Gemini
+- **Documento lungo**: ~5-15 minuti
+- Il processo avviene automaticamente ogni 30 secondi
+- Monitora lo stato nel Dashboard o nella pagina Documenti (badge "⏳ Embeddings in coda")
+- Consulta la guida completa: [docs/EMBEDDING_QUEUE_MONITORING.md](docs/EMBEDDING_QUEUE_MONITORING.md)
+
+**Problema: "Gli embeddings non vengono mai completati"**
+
+1. Verifica che il `BatchEmbeddingProcessor` sia attivo nei log
+2. Controlla la configurazione AI in `/config`
+3. Consulta la guida troubleshooting: [docs/EMBEDDING_QUEUE_MONITORING.md](docs/EMBEDDING_QUEUE_MONITORING.md)
 
 ## 🗺️ Roadmap
 
