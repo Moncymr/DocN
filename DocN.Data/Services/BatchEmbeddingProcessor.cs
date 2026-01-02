@@ -122,6 +122,8 @@ public class BatchEmbeddingProcessor : BackgroundService
                     await context.SaveChangesAsync(cancellationToken);
                     
                     // Generate embeddings for chunks
+                    var chunksWithEmbeddings = 0;
+                    var failedChunks = 0;
                     foreach (var chunk in chunks)
                     {
                         if (cancellationToken.IsCancellationRequested)
@@ -130,24 +132,53 @@ public class BatchEmbeddingProcessor : BackgroundService
                         _logger.LogDebug("Processing chunk {ChunkIndex} of document {DocumentId}", 
                             chunk.ChunkIndex, document.Id);
 
-                        var chunkEmbedding = await embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
-                        if (chunkEmbedding != null)
+                        try
                         {
-                            // Validate embedding dimensions
-                            EmbeddingValidationHelper.ValidateEmbeddingDimensions(chunkEmbedding, _logger);
-                            chunk.ChunkEmbedding = chunkEmbedding;
-                            chunk.EmbeddingDimension = chunkEmbedding.Length;
+                            var chunkEmbedding = await embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+                            if (chunkEmbedding != null)
+                            {
+                                // Validate embedding dimensions
+                                EmbeddingValidationHelper.ValidateEmbeddingDimensions(chunkEmbedding, _logger);
+                                chunk.ChunkEmbedding = chunkEmbedding;
+                                chunk.EmbeddingDimension = chunkEmbedding.Length;
+                                chunksWithEmbeddings++;
+                                _logger.LogDebug("Successfully generated embedding for chunk {ChunkIndex} of document {DocumentId}: {Dimension} dimensions", 
+                                    chunk.ChunkIndex, document.Id, chunkEmbedding.Length);
+                            }
+                            else
+                            {
+                                failedChunks++;
+                                _logger.LogWarning("Embedding generation returned null for chunk {ChunkIndex} of document {DocumentId}", 
+                                    chunk.ChunkIndex, document.Id);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            failedChunks++;
+                            _logger.LogError(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {DocumentId}: {Error}", 
+                                chunk.ChunkIndex, document.Id, ex.Message);
                         }
                         
                         context.DocumentChunks.Add(chunk);
                     }
 
-                    // Mark as Completed after all chunks are created and embedded
-                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
-                    await context.SaveChangesAsync(cancellationToken);
+                    // Only mark as Completed if ALL chunks have embeddings
+                    // Otherwise keep as Processing so ProcessPendingChunksAsync can retry
+                    if (chunksWithEmbeddings == chunks.Count)
+                    {
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
+                        _logger.LogInformation("Created {ChunkCount} chunks for document {Id} - All chunks have embeddings - Status: Completed", 
+                            chunks.Count, document.Id);
+                    }
+                    else
+                    {
+                        // Some chunks don't have embeddings, keep as Processing
+                        // ProcessPendingChunksAsync will retry failed chunks
+                        _logger.LogWarning("Created {TotalChunks} chunks for document {Id}, but only {SuccessCount} have embeddings ({FailedCount} failed). Status remains Processing for retry.",
+                            chunks.Count, document.Id, chunksWithEmbeddings, failedChunks);
+                    }
                     
-                    _logger.LogInformation("Created {ChunkCount} chunks for document {Id} - Status: Completed", 
-                        chunks.Count, document.Id);
+                    await context.SaveChangesAsync(cancellationToken);
                 }
                 catch (Exception ex)
                 {
