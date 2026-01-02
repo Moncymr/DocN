@@ -60,7 +60,7 @@ public class BatchEmbeddingProcessor : BackgroundService
         {
             // Find documents without embeddings
             var pendingDocuments = await context.Documents
-                .Where(d => d.EmbeddingVector == null && !string.IsNullOrEmpty(d.ExtractedText))
+                .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null && !string.IsNullOrEmpty(d.ExtractedText))
                 .Take(10) // Process 10 at a time to avoid overload
                 .ToListAsync(cancellationToken);
 
@@ -330,7 +330,7 @@ public class BatchProcessingService : IBatchProcessingService
     public async Task ProcessAllPendingAsync()
     {
         var pendingDocuments = await _context.Documents
-            .Where(d => d.EmbeddingVector == null && !string.IsNullOrEmpty(d.ExtractedText))
+            .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null && !string.IsNullOrEmpty(d.ExtractedText))
             .Select(d => d.Id)
             .ToListAsync();
 
@@ -354,7 +354,7 @@ public class BatchProcessingService : IBatchProcessingService
     {
         var totalDocs = await _context.Documents.CountAsync();
         var docsWithoutEmbeddings = await _context.Documents
-            .Where(d => d.EmbeddingVector == null)
+            .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null)
             .CountAsync();
 
         var totalChunks = await _context.DocumentChunks.CountAsync();
