@@ -2,6 +2,7 @@ using DocN.Data.Models;
 using DocN.Core.Interfaces;
 using DocN.Data.Utilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DocN.Data.Services;
 
@@ -105,10 +106,20 @@ public interface IDocumentService
 public class DocumentService : IDocumentService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IChunkingService? _chunkingService;
+    private readonly IEmbeddingService? _embeddingService;
+    private readonly ILogger<DocumentService>? _logger;
 
-    public DocumentService(ApplicationDbContext context)
+    public DocumentService(
+        ApplicationDbContext context, 
+        IChunkingService? chunkingService = null,
+        IEmbeddingService? embeddingService = null,
+        ILogger<DocumentService>? logger = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _chunkingService = chunkingService;
+        _embeddingService = embeddingService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -412,6 +423,26 @@ public class DocumentService : IDocumentService
             
             _context.Documents.Add(document);
             await _context.SaveChangesAsync();
+            
+            // Create chunks with embeddings if services are available and document has text
+            if (_chunkingService != null && _embeddingService != null && !string.IsNullOrEmpty(document.ExtractedText))
+            {
+                var chunks = _chunkingService.ChunkDocument(document);
+                if (chunks.Any())
+                {
+                    _logger?.LogInformation("Creating {ChunkCount} chunks for document {Id}", chunks.Count, document.Id);
+                    
+                    // Generate embeddings for chunks with parallel processing
+                    var embeddedCount = await GenerateChunkEmbeddingsAsync(chunks, document.Id);
+                    
+                    _context.DocumentChunks.AddRange(chunks);
+                    await _context.SaveChangesAsync();
+                    
+                    _logger?.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
+                        chunks.Count, document.Id, embeddedCount);
+                }
+            }
+            
             return document;
         }
         catch (DbUpdateException ex)
@@ -584,5 +615,78 @@ public class DocumentService : IDocumentService
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Helper method to generate embeddings for a list of document chunks
+    /// Uses parallel processing with limited concurrency and batching for better performance
+    /// </summary>
+    /// <param name="chunks">List of chunks to generate embeddings for</param>
+    /// <param name="documentId">Document ID for logging purposes</param>
+    /// <param name="maxConcurrency">Maximum number of concurrent embedding requests (default: 3)</param>
+    /// <param name="batchSize">Number of chunks to process in each batch (default: 20)</param>
+    /// <returns>Number of chunks that successfully got embeddings</returns>
+    private async Task<int> GenerateChunkEmbeddingsAsync(List<DocumentChunk> chunks, int documentId, int maxConcurrency = 3, int batchSize = 20)
+    {
+        if (_embeddingService == null)
+            return 0;
+            
+        var successCount = 0;
+        
+        // Reuse semaphore across all batches for efficiency
+        using var semaphore = new System.Threading.SemaphoreSlim(maxConcurrency);
+        
+        // Process chunks in batches to avoid memory pressure with large documents
+        for (int i = 0; i < chunks.Count; i += batchSize)
+        {
+            var batch = chunks.Skip(i).Take(batchSize).ToList();
+            var tasks = new List<Task<bool>>();
+            
+            foreach (var chunk in batch)
+            {
+                tasks.Add(GenerateSingleChunkEmbeddingAsync(chunk, documentId, semaphore));
+            }
+            
+            var results = await Task.WhenAll(tasks);
+            successCount += results.Count(r => r);
+        }
+        
+        return successCount;
+    }
+
+    /// <summary>
+    /// Generate embedding for a single chunk with semaphore-controlled concurrency
+    /// </summary>
+    /// <param name="chunk">The document chunk to generate embedding for</param>
+    /// <param name="documentId">Document ID for logging purposes</param>
+    /// <param name="semaphore">Semaphore to control concurrency across multiple chunk operations</param>
+    /// <returns>True if embedding was successfully generated, false otherwise</returns>
+    private async Task<bool> GenerateSingleChunkEmbeddingAsync(DocumentChunk chunk, int documentId, System.Threading.SemaphoreSlim semaphore)
+    {
+        if (_embeddingService == null)
+            return false;
+            
+        await semaphore.WaitAsync();
+        try
+        {
+            var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+            if (chunkEmbedding != null)
+            {
+                // ChunkEmbedding setter automatically sets EmbeddingDimension
+                chunk.ChunkEmbedding = chunkEmbedding;
+                return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {DocumentId}", 
+                chunk.ChunkIndex, documentId);
+            return false;
+        }
+        finally
+        {
+            semaphore.Release();
+        }
     }
 }
