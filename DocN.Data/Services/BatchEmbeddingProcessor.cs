@@ -241,12 +241,49 @@ public class BatchEmbeddingProcessor : BackgroundService
                 try
                 {
                     var successCount = await documentService.GenerateChunkEmbeddingsForDocumentAsync(documentId);
-                    _logger.LogInformation("Generated embeddings for {Count} chunks of document {DocumentId}", 
-                        successCount, documentId);
+                    
+                    if (successCount == 0)
+                    {
+                        _logger.LogWarning("No embeddings generated for document {DocumentId}. Check if AI service is configured and available.", documentId);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Generated embeddings for {Count} chunks of document {DocumentId}", 
+                            successCount, documentId);
+                    }
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("Nessuna configurazione AI"))
+                {
+                    _logger.LogError(ex, "AI Configuration missing for document {DocumentId}. Please configure an AI provider in /config", documentId);
+                    
+                    // Update document with error status so user knows what's wrong
+                    try
+                    {
+                        var doc = await context.Documents.FindAsync(documentId);
+                        if (doc != null)
+                        {
+                            doc.ProcessingError = "Configurazione AI mancante. Configura un provider AI in /config";
+                            await context.SaveChangesAsync(cancellationToken);
+                        }
+                    }
+                    catch { /* Ignore errors updating error status */ }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing chunks for document {DocumentId}", documentId);
+                    _logger.LogError(ex, "Error processing chunks for document {DocumentId}: {ErrorMessage}", 
+                        documentId, ex.Message);
+                    
+                    // Update document with error for user visibility
+                    try
+                    {
+                        var doc = await context.Documents.FindAsync(documentId);
+                        if (doc != null)
+                        {
+                            doc.ProcessingError = $"Errore generazione embeddings: {ex.Message}";
+                            await context.SaveChangesAsync(cancellationToken);
+                        }
+                    }
+                    catch { /* Ignore errors updating error status */ }
                 }
             }
         }
