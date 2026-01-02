@@ -1,6 +1,7 @@
 using DocN.Data.Models;
 using DocN.Core.Interfaces;
 using DocN.Data.Utilities;
+using DocN.Data.Constants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -443,20 +444,20 @@ public class DocumentService : IDocumentService
                     {
                         // Generate embeddings immediately (slower but complete)
                         _logger?.LogInformation("Creating {ChunkCount} chunks WITH embeddings for document {Id} (immediate generation)", chunks.Count, document.Id);
-                        document.ChunkEmbeddingStatus = "Processing";
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Processing;
                         await _context.SaveChangesAsync();
                         
                         var embeddedCount = await GenerateChunkEmbeddingsAsync(chunks, document.Id);
                         _logger?.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
                             chunks.Count, document.Id, embeddedCount);
                         
-                        document.ChunkEmbeddingStatus = "Completed";
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
                     }
                     else
                     {
                         // Create chunks without embeddings (fast) - background processor will add them later
                         _logger?.LogInformation("Creating {ChunkCount} chunks WITHOUT embeddings for document {Id} (will be generated in background)", chunks.Count, document.Id);
-                        document.ChunkEmbeddingStatus = "Pending";
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
                     }
                     
                     _context.DocumentChunks.AddRange(chunks);
@@ -467,13 +468,13 @@ public class DocumentService : IDocumentService
                 }
                 else
                 {
-                    document.ChunkEmbeddingStatus = "NotRequired";
+                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
                     await _context.SaveChangesAsync();
                 }
             }
             else
             {
-                document.ChunkEmbeddingStatus = "NotRequired";
+                document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
                 await _context.SaveChangesAsync();
             }
             
@@ -767,7 +768,7 @@ public class DocumentService : IDocumentService
         if (!chunksWithoutEmbeddings.Any())
         {
             _logger?.LogInformation("No chunks without embeddings found for document {DocumentId}", documentId);
-            document.ChunkEmbeddingStatus = "Completed";
+            document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
             await _context.SaveChangesAsync();
             return 0;
         }
@@ -776,14 +777,14 @@ public class DocumentService : IDocumentService
             chunksWithoutEmbeddings.Count, documentId);
         
         // Update status to Processing
-        document.ChunkEmbeddingStatus = "Processing";
+        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Processing;
         await _context.SaveChangesAsync();
         
         // Generate embeddings with batching and controlled concurrency
         var successCount = await GenerateChunkEmbeddingsAsync(chunksWithoutEmbeddings, documentId);
         
         // Save all chunks with their new embeddings and update document status
-        document.ChunkEmbeddingStatus = "Completed";
+        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
         await _context.SaveChangesAsync();
         
         _logger?.LogInformation("Generated embeddings for {SuccessCount}/{TotalCount} chunks of document {DocumentId} - Status: Completed", 

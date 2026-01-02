@@ -2,6 +2,7 @@
 @page "/documents/{Page:int}"
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.JSInterop
+@using DocN.Data.Constants
 @inject IDocumentService DocumentService
 @inject IDocumentStatisticsService StatisticsService
 @inject IFileProcessingService FileProcessingService
@@ -165,19 +166,19 @@
                             @* Chunk Embedding Status Badge *@
                             @if (!string.IsNullOrEmpty(doc.ChunkEmbeddingStatus))
                             {
-                                @if (doc.ChunkEmbeddingStatus == "Pending")
+                                @if (doc.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending)
                                 {
                                     <span class="badge badge-warning" title="Gli embeddings dei chunks stanno per essere generati">
                                         ⏳ Embeddings in coda
                                     </span>
                                 }
-                                else if (doc.ChunkEmbeddingStatus == "Processing")
+                                else if (doc.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing)
                                 {
                                     <span class="badge badge-info" title="Generazione embeddings in corso...">
                                         ⚙️ Elaborazione...
                                     </span>
                                 }
-                                else if (doc.ChunkEmbeddingStatus == "Completed")
+                                else if (doc.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Completed)
                                 {
                                     <span class="badge badge-success" title="Documento pronto per ricerca semantica">
                                         ✓ Pronto
@@ -227,19 +228,19 @@
                                 @* Chunk Embedding Status Badge *@
                                 @if (!string.IsNullOrEmpty(doc.ChunkEmbeddingStatus))
                                 {
-                                    @if (doc.ChunkEmbeddingStatus == "Pending")
+                                    @if (doc.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending)
                                     {
                                         <span class="badge badge-warning" title="Gli embeddings dei chunks stanno per essere generati">
                                             ⏳
                                         </span>
                                     }
-                                    else if (doc.ChunkEmbeddingStatus == "Processing")
+                                    else if (doc.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing)
                                     {
                                         <span class="badge badge-info" title="Generazione embeddings in corso...">
                                             ⚙️
                                         </span>
                                     }
-                                    else if (doc.ChunkEmbeddingStatus == "Completed")
+                                    else if (doc.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Completed)
                                     {
                                         <span class="badge badge-success" title="Documento pronto per ricerca semantica">
                                             ✓
@@ -817,6 +818,7 @@
         color: #856404;
         border: 1px solid #ffeaa7;
         animation: pulse 2s ease-in-out infinite;
+        will-change: opacity;
     }
     
     .badge-info {
@@ -824,6 +826,7 @@
         color: #084298;
         border: 1px solid #b6d4fe;
         animation: pulse 2s ease-in-out infinite;
+        will-change: opacity;
     }
     
     .badge-success {
