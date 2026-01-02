@@ -473,16 +473,18 @@ public class DocumentsController : ControllerBase
 
     /// <summary>
     /// Helper method to generate embeddings for a list of document chunks
-    /// Uses parallel processing with limited concurrency and batching for better performance
+    /// Uses sequential processing with batching to avoid API rate limits and timeouts
     /// </summary>
     /// <param name="chunks">List of chunks to generate embeddings for</param>
     /// <param name="documentId">Document ID for logging purposes</param>
-    /// <param name="maxConcurrency">Maximum number of concurrent embedding requests (default: 3)</param>
-    /// <param name="batchSize">Number of chunks to process in each batch (default: 20)</param>
+    /// <param name="maxConcurrency">Maximum number of concurrent embedding requests (default: 1 for reliability)</param>
+    /// <param name="batchSize">Number of chunks to process in each batch (default: 10 for better progress feedback)</param>
     /// <returns>Number of chunks that successfully got embeddings</returns>
-    private async Task<int> GenerateChunkEmbeddingsAsync(List<DocumentChunk> chunks, int documentId, int maxConcurrency = 3, int batchSize = 20)
+    private async Task<int> GenerateChunkEmbeddingsAsync(List<DocumentChunk> chunks, int documentId, int maxConcurrency = 1, int batchSize = 10)
     {
         var successCount = 0;
+        var totalBatches = (int)Math.Ceiling(chunks.Count / (double)batchSize);
+        var currentBatch = 0;
         
         // Reuse semaphore across all batches for efficiency
         using var semaphore = new SemaphoreSlim(maxConcurrency);
@@ -490,7 +492,12 @@ public class DocumentsController : ControllerBase
         // Process chunks in batches to avoid memory pressure with large documents
         for (int i = 0; i < chunks.Count; i += batchSize)
         {
+            currentBatch++;
             var batch = chunks.Skip(i).Take(batchSize).ToList();
+            
+            _logger.LogInformation("Processing batch {CurrentBatch}/{TotalBatches} ({ChunkCount} chunks) for document {DocumentId}", 
+                currentBatch, totalBatches, batch.Count, documentId);
+            
             var tasks = new List<Task<bool>>();
             
             foreach (var chunk in batch)
@@ -499,7 +506,11 @@ public class DocumentsController : ControllerBase
             }
             
             var results = await Task.WhenAll(tasks);
-            successCount += results.Count(r => r);
+            var batchSuccess = results.Count(r => r);
+            successCount += batchSuccess;
+            
+            _logger.LogInformation("Batch {CurrentBatch}/{TotalBatches} completed: {Success}/{Total} chunks embedded successfully", 
+                currentBatch, totalBatches, batchSuccess, batch.Count);
         }
         
         return successCount;
