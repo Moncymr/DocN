@@ -208,6 +208,7 @@ builder.Services.Configure<EmbeddingsSettings>(builder.Configuration.GetSection(
 
 // Application Services
 builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<DocN.Data.Services.IChunkingService, DocN.Data.Services.ChunkingService>();
 builder.Services.AddScoped<DocN.Data.Services.IEmbeddingService, EmbeddingService>();
 builder.Services.AddScoped<DocN.Data.Services.ICategoryService, CategoryService>();
 builder.Services.AddScoped<IDocumentStatisticsService, DocumentStatisticsService>();
