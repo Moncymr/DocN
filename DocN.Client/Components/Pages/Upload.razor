@@ -1896,6 +1896,7 @@
             if (enableEmbeddings && !string.IsNullOrEmpty(extractedText))
             {
                 processingStep = STEP_GENERATING_EMBEDDINGS;
+                StartProgressTimer(); // Start timer for embedding generation
                 StateHasChanged();
                 await Task.Delay(UI_UPDATE_DELAY_MS);
 
@@ -1906,6 +1907,9 @@
                         userId: currentUserId, 
                         fileName: selectedFile.Name);
                     embedding = await AIService.GenerateEmbeddingAsync(extractedText);
+                    
+                    StopProgressTimer(); // Stop timer after embedding generation completes
+                    
                     embeddingGenerated = embedding != null && embedding.Length > 0;
                     
                     if (embeddingGenerated)
@@ -1994,11 +1998,23 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                             fileName: selectedFile.Name);
                     }
                 }
+                catch (TimeoutException tex)
+                {
+                    StopProgressTimer(); // Stop timer on timeout
+                    // Timeout during embedding generation
+                    embeddingGenerated = false;
+                    embeddingError = $"⏱️ Timeout: {tex.Message}";
+                    await LogService.LogWarningAsync("Embedding", "Embedding generation timed out", 
+                        tex.Message, 
+                        userId: currentUserId, 
+                        fileName: selectedFile.Name);
+                }
                 catch (Exception ex)
                 {
+                    StopProgressTimer(); // Stop timer on error
                     // Log but don't fail the whole process
                     embeddingGenerated = false;
-                    embeddingError = "Errore nella generazione degli embeddings. Verifica la configurazione AI (Gemini/OpenAI/Azure OpenAI).";
+                    embeddingError = $"❌ Errore: {ex.Message}";
                     await LogService.LogErrorAsync("Embedding", "Embedding generation exception", 
                         ex.Message, 
                         userId: currentUserId, 

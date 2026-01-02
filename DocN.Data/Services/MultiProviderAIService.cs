@@ -231,92 +231,104 @@ public class MultiProviderAIService : IMultiProviderAIService
             text = text.Substring(0, 10000);
         }
 
-        var config = await GetActiveConfigurationAsync();
-        if (config == null)
-        {
-            throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database. Configura un provider AI tramite l'interfaccia utente.");
-        }
-
-        // Determine which provider to use for embeddings
-        var provider = config.EmbeddingsProvider ?? config.ProviderType;
-        
-        // Log which provider is being used for embeddings
-        await _logService.LogInfoAsync("Embedding", $"Using {provider} for embedding generation");
-
-        // Try primary embedding provider
         try
         {
-            return provider switch
+            return await ExecuteWithTimeoutAsync(async (cancellationToken) =>
             {
-                AIProviderType.AzureOpenAI => await GenerateEmbeddingWithAzureOpenAIAsync(text, config),
-                AIProviderType.OpenAI => await GenerateEmbeddingWithOpenAIAsync(text, config),
-                AIProviderType.Gemini => await GenerateEmbeddingWithGeminiAsync(text, config),
-                _ => throw new InvalidOperationException($"Provider non supportato: {provider}")
-            };
+                var config = await GetActiveConfigurationAsync();
+                if (config == null)
+                {
+                    throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database. Configura un provider AI tramite l'interfaccia utente.");
+                }
+
+                // Determine which provider to use for embeddings
+                var provider = config.EmbeddingsProvider ?? config.ProviderType;
+                
+                // Log which provider is being used for embeddings
+                await _logService.LogInfoAsync("Embedding", $"Using {provider} for embedding generation");
+
+                // Try primary embedding provider
+                try
+                {
+                    return provider switch
+                    {
+                        AIProviderType.AzureOpenAI => await GenerateEmbeddingWithAzureOpenAIAsync(text, config),
+                        AIProviderType.OpenAI => await GenerateEmbeddingWithOpenAIAsync(text, config),
+                        AIProviderType.Gemini => await GenerateEmbeddingWithGeminiAsync(text, config),
+                        _ => throw new InvalidOperationException($"Provider non supportato: {provider}")
+                    };
+                }
+                catch (Exception ex)
+                {
+                    // Log the exception for debugging
+                    await _logService.LogErrorAsync("Embedding", $"Provider di embedding primario ({provider}) fallito", ex.Message, stackTrace: ex.StackTrace);
+                    
+                    // If primary fails and fallback is enabled, try alternatives
+                    if (config.EnableFallback)
+                    {
+                        var errors = new List<string> { $"{provider}: {ex.Message}" };
+                        
+                        // Try alternative providers, but skip the one that just failed
+                        var geminiKey = GetEffectiveApiKey(config.GeminiApiKey, AIProviderType.Gemini, config);
+                        if (provider != AIProviderType.Gemini && !string.IsNullOrWhiteSpace(geminiKey))
+                        {
+                            try
+                            {
+                                await _logService.LogInfoAsync("Embedding", "Tentativo Gemini come fallback");
+                                return await GenerateEmbeddingWithGeminiAsync(text, config);
+                            }
+                            catch (Exception ex2)
+                            {
+                                await _logService.LogWarningAsync("Embedding", "Fallback Gemini fallito", ex2.Message);
+                                errors.Add($"Gemini: {ex2.Message}");
+                            }
+                        }
+                        
+                        var openAIKey = GetEffectiveApiKey(config.OpenAIApiKey, AIProviderType.OpenAI, config);
+                        if (provider != AIProviderType.OpenAI && !string.IsNullOrWhiteSpace(openAIKey))
+                        {
+                            try
+                            {
+                                await _logService.LogInfoAsync("Embedding", "Tentativo OpenAI come fallback");
+                                return await GenerateEmbeddingWithOpenAIAsync(text, config);
+                            }
+                            catch (Exception ex3)
+                            {
+                                await _logService.LogWarningAsync("Embedding", "Fallback OpenAI fallito", ex3.Message);
+                                errors.Add($"OpenAI: {ex3.Message}");
+                            }
+                        }
+                        
+                        var azureKey = GetEffectiveApiKey(config.AzureOpenAIKey, AIProviderType.AzureOpenAI, config);
+                        var azureEndpoint = GetEffectiveEndpoint(config.AzureOpenAIEndpoint, AIProviderType.AzureOpenAI, config);
+                        if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint))
+                        {
+                            try
+                            {
+                                await _logService.LogInfoAsync("Embedding", "Tentativo AzureOpenAI come fallback");
+                                return await GenerateEmbeddingWithAzureOpenAIAsync(text, config);
+                            }
+                            catch (Exception ex4)
+                            {
+                                await _logService.LogWarningAsync("Embedding", "Fallback AzureOpenAI fallito", ex4.Message);
+                                errors.Add($"AzureOpenAI: {ex4.Message}");
+                            }
+                        }
+                        
+                        // All fallback attempts failed
+                        throw new InvalidOperationException($"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}");
+                    }
+                    
+                    // Fallback is disabled, throw the original exception
+                    throw;
+                }
+            }, "EmbeddingGeneration");
         }
-        catch (Exception ex)
+        catch (TimeoutException tex)
         {
-            // Log the exception for debugging
-            await _logService.LogErrorAsync("Embedding", $"Provider di embedding primario ({provider}) fallito", ex.Message, stackTrace: ex.StackTrace);
-            
-            // If primary fails and fallback is enabled, try alternatives
-            if (config.EnableFallback)
-            {
-                var errors = new List<string> { $"{provider}: {ex.Message}" };
-                
-                // Try alternative providers, but skip the one that just failed
-                var geminiKey = GetEffectiveApiKey(config.GeminiApiKey, AIProviderType.Gemini, config);
-                if (provider != AIProviderType.Gemini && !string.IsNullOrWhiteSpace(geminiKey))
-                {
-                    try
-                    {
-                        await _logService.LogInfoAsync("Embedding", "Tentativo Gemini come fallback");
-                        return await GenerateEmbeddingWithGeminiAsync(text, config);
-                    }
-                    catch (Exception ex2)
-                    {
-                        await _logService.LogWarningAsync("Embedding", "Fallback Gemini fallito", ex2.Message);
-                        errors.Add($"Gemini: {ex2.Message}");
-                    }
-                }
-                
-                var openAIKey = GetEffectiveApiKey(config.OpenAIApiKey, AIProviderType.OpenAI, config);
-                if (provider != AIProviderType.OpenAI && !string.IsNullOrWhiteSpace(openAIKey))
-                {
-                    try
-                    {
-                        await _logService.LogInfoAsync("Embedding", "Tentativo OpenAI come fallback");
-                        return await GenerateEmbeddingWithOpenAIAsync(text, config);
-                    }
-                    catch (Exception ex3)
-                    {
-                        await _logService.LogWarningAsync("Embedding", "Fallback OpenAI fallito", ex3.Message);
-                        errors.Add($"OpenAI: {ex3.Message}");
-                    }
-                }
-                
-                var azureKey = GetEffectiveApiKey(config.AzureOpenAIKey, AIProviderType.AzureOpenAI, config);
-                var azureEndpoint = GetEffectiveEndpoint(config.AzureOpenAIEndpoint, AIProviderType.AzureOpenAI, config);
-                if (provider != AIProviderType.AzureOpenAI && !string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint))
-                {
-                    try
-                    {
-                        await _logService.LogInfoAsync("Embedding", "Tentativo AzureOpenAI come fallback");
-                        return await GenerateEmbeddingWithAzureOpenAIAsync(text, config);
-                    }
-                    catch (Exception ex4)
-                    {
-                        await _logService.LogWarningAsync("Embedding", "Fallback AzureOpenAI fallito", ex4.Message);
-                        errors.Add($"AzureOpenAI: {ex4.Message}");
-                    }
-                }
-                
-                // All fallback attempts failed
-                throw new InvalidOperationException($"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}");
-            }
-            
-            // Fallback is disabled, throw the original exception
-            throw;
+            // Timeout occurred - log and throw with better message
+            await _logService.LogWarningAsync("Embedding", "Embedding generation timed out", tex.Message);
+            throw new TimeoutException($"⏱️ Timeout: La generazione degli embeddings ha richiesto troppo tempo ({_aiTimeoutSeconds}s). Il provider AI potrebbe essere sovraccarico. Riprova più tardi.", tex);
         }
     }
 
