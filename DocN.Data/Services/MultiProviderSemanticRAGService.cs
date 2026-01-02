@@ -3,6 +3,7 @@ using DocN.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace DocN.Data.Services;
 
@@ -19,6 +20,12 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<MultiProviderSemanticRAGService> _logger;
     private readonly IMultiProviderAIService _aiService;
+    
+    // Compiled regex for better performance
+    private static readonly Regex NumberExtractorRegex = new Regex(@"\d+", RegexOptions.Compiled);
+    
+    // Constants for fallback search
+    private const double FallbackSearchSimilarityScore = 0.6;
 
     public MultiProviderSemanticRAGService(
         ApplicationDbContext context,
@@ -533,27 +540,42 @@ FORMATO DELLA RISPOSTA:
             var queryLower = query.ToLower();
             var results = new List<RelevantDocumentResult>();
             
-            // Estrai numeri dalla query (es: "documento 775" -> 775)
-            var numbers = System.Text.RegularExpressions.Regex.Matches(query, @"\d+")
+            // Estrai numeri dalla query usando regex precompilato (es: "documento 775" -> 775)
+            var numbers = NumberExtractorRegex.Matches(query)
                 .Select(m => m.Value)
                 .ToList();
+            
+            // Ottimizzazione: Se ci sono numeri, cerca principalmente per numeri
+            // Altrimenti usa la query testuale completa
+            var useNumberSearch = numbers.Any();
             
             // Cerca documenti per:
             // 1. Nome file che contiene la query o numeri
             // 2. Testo estratto che contiene le parole chiave
-            // 3. ID documento se un numero è specificato
             
-            var documents = await _context.Documents
-                .Where(d => d.OwnerId == userId)
-                .Where(d => 
-                    // Nome file contiene query
-                    d.FileName.ToLower().Contains(queryLower) ||
-                    // Testo estratto contiene query
-                    (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(queryLower)) ||
-                    // Nome file contiene uno dei numeri
+            IQueryable<Document> documentsQuery = _context.Documents
+                .Where(d => d.OwnerId == userId);
+            
+            if (useNumberSearch)
+            {
+                // Cerca principalmente per numeri (più efficiente)
+                var numberFilters = numbers.Select(num => 
+                    (Func<Document, bool>)(d => d.FileName.Contains(num) || 
+                                                (d.ExtractedText != null && d.ExtractedText.Contains(num)))).ToList();
+                
+                documentsQuery = documentsQuery.Where(d => 
                     numbers.Any(num => d.FileName.Contains(num)) ||
-                    // Testo estratto contiene uno dei numeri
-                    (d.ExtractedText != null && numbers.Any(num => d.ExtractedText.Contains(num))))
+                    (d.ExtractedText != null && numbers.Any(num => d.ExtractedText.Contains(num))));
+            }
+            else
+            {
+                // Cerca per testo (fallback)
+                documentsQuery = documentsQuery.Where(d => 
+                    d.FileName.ToLower().Contains(queryLower) ||
+                    (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(queryLower)));
+            }
+            
+            var documents = await documentsQuery
                 .Take(topK)
                 .ToListAsync();
             
@@ -562,19 +584,30 @@ FORMATO DELLA RISPOSTA:
             foreach (var doc in documents)
             {
                 // Cerca anche nei chunks per trovare il contenuto più rilevante
-                var relevantChunk = await _context.DocumentChunks
-                    .Where(c => c.DocumentId == doc.Id)
-                    .Where(c => c.ChunkText.ToLower().Contains(queryLower) || 
-                               numbers.Any(num => c.ChunkText.Contains(num)))
-                    .OrderBy(c => c.ChunkIndex)
-                    .FirstOrDefaultAsync();
+                DocumentChunk? relevantChunk = null;
+                
+                if (useNumberSearch)
+                {
+                    relevantChunk = await _context.DocumentChunks
+                        .Where(c => c.DocumentId == doc.Id)
+                        .Where(c => numbers.Any(num => c.ChunkText.Contains(num)))
+                        .OrderBy(c => c.ChunkIndex)
+                        .FirstOrDefaultAsync();
+                }
+                else
+                {
+                    relevantChunk = await _context.DocumentChunks
+                        .Where(c => c.DocumentId == doc.Id && c.ChunkText.ToLower().Contains(queryLower))
+                        .OrderBy(c => c.ChunkIndex)
+                        .FirstOrDefaultAsync();
+                }
                 
                 results.Add(new RelevantDocumentResult
                 {
                     DocumentId = doc.Id,
                     FileName = doc.FileName,
                     Category = doc.ActualCategory,
-                    SimilarityScore = 0.6, // Score fisso per keyword match
+                    SimilarityScore = FallbackSearchSimilarityScore, // Score fisso per keyword match
                     RelevantChunk = relevantChunk?.ChunkText,
                     ChunkIndex = relevantChunk?.ChunkIndex,
                     ExtractedText = doc.ExtractedText
