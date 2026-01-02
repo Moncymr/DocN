@@ -45,8 +45,16 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
                 "Generating RAG response using MultiProvider for query: {Query}, User: {UserId}",
                 query, userId);
 
-            // Step 1: Search for relevant documents
-            var relevantDocs = await SearchDocumentsAsync(query, userId, topK, 0.7);
+            // Step 1: Search for relevant documents with improved strategy
+            // Try with lower threshold first (0.5 instead of 0.7) to find more documents
+            var relevantDocs = await SearchDocumentsAsync(query, userId, topK, 0.5);
+            
+            // If no results found, try keyword/fallback search
+            if (!relevantDocs.Any())
+            {
+                _logger.LogInformation("No documents found with semantic search, trying keyword fallback for query: {Query}", query);
+                relevantDocs = await FallbackKeywordSearch(query, userId, topK);
+            }
 
             // Step 2: Load conversation history
             var conversationHistory = await LoadConversationHistoryAsync(conversationId);
@@ -204,20 +212,45 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             if (!documents.Any())
             {
                 _logger.LogWarning("No documents with embeddings found for user {UserId}. User needs to upload documents or wait for embeddings to be generated.", userId);
+                
+                // Check if user has ANY documents (even without embeddings)
+                var totalDocs = await _context.Documents
+                    .Where(d => d.OwnerId == userId)
+                    .CountAsync();
+                    
+                if (totalDocs > 0)
+                {
+                    _logger.LogWarning("User {UserId} has {TotalDocs} documents but NONE have embeddings generated. Documents need to be processed.", userId, totalDocs);
+                }
+                
                 return new List<RelevantDocumentResult>();
             }
 
             // Calculate similarity scores for documents
             var scoredDocs = new List<(Document doc, double score)>();
+            var allScores = new List<double>(); // Track all scores for diagnostics
+            
             foreach (var doc in documents)
             {
                 if (doc.EmbeddingVector == null) continue;
 
                 var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
+                allScores.Add(similarity);
+                
                 if (similarity >= minSimilarity)
                 {
                     scoredDocs.Add((doc, similarity));
+                    _logger.LogDebug("Document {FileName} (ID: {DocId}) matched with similarity {Score:P1}", 
+                        doc.FileName, doc.Id, similarity);
                 }
+            }
+
+            // Log diagnostic info about scores
+            if (allScores.Any())
+            {
+                _logger.LogInformation(
+                    "Similarity scores - Min: {Min:P1}, Max: {Max:P1}, Avg: {Avg:P1}, Threshold: {Threshold:P0}", 
+                    allScores.Min(), allScores.Max(), allScores.Average(), minSimilarity);
             }
 
             _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
@@ -485,6 +518,85 @@ FORMATO DELLA RISPOSTA:
             return 0;
 
         return dotProduct / (magnitude1 * magnitude2);
+    }
+
+    /// <summary>
+    /// Fallback keyword search quando la ricerca semantica non trova risultati.
+    /// Cerca per nome file, numero documento, o parole chiave nel testo.
+    /// </summary>
+    private async Task<List<RelevantDocumentResult>> FallbackKeywordSearch(string query, string userId, int topK)
+    {
+        try
+        {
+            _logger.LogInformation("Executing fallback keyword search for query: {Query}", query);
+            
+            var queryLower = query.ToLower();
+            var results = new List<RelevantDocumentResult>();
+            
+            // Estrai numeri dalla query (es: "documento 775" -> 775)
+            var numbers = System.Text.RegularExpressions.Regex.Matches(query, @"\d+")
+                .Select(m => m.Value)
+                .ToList();
+            
+            // Cerca documenti per:
+            // 1. Nome file che contiene la query o numeri
+            // 2. Testo estratto che contiene le parole chiave
+            // 3. ID documento se un numero è specificato
+            
+            var documents = await _context.Documents
+                .Where(d => d.OwnerId == userId)
+                .Where(d => 
+                    // Nome file contiene query
+                    d.FileName.ToLower().Contains(queryLower) ||
+                    // Testo estratto contiene query
+                    (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(queryLower)) ||
+                    // Nome file contiene uno dei numeri
+                    numbers.Any(num => d.FileName.Contains(num)) ||
+                    // Testo estratto contiene uno dei numeri
+                    (d.ExtractedText != null && numbers.Any(num => d.ExtractedText.Contains(num))))
+                .Take(topK)
+                .ToListAsync();
+            
+            _logger.LogInformation("Fallback search found {Count} documents", documents.Count);
+            
+            foreach (var doc in documents)
+            {
+                // Cerca anche nei chunks per trovare il contenuto più rilevante
+                var relevantChunk = await _context.DocumentChunks
+                    .Where(c => c.DocumentId == doc.Id)
+                    .Where(c => c.ChunkText.ToLower().Contains(queryLower) || 
+                               numbers.Any(num => c.ChunkText.Contains(num)))
+                    .OrderBy(c => c.ChunkIndex)
+                    .FirstOrDefaultAsync();
+                
+                results.Add(new RelevantDocumentResult
+                {
+                    DocumentId = doc.Id,
+                    FileName = doc.FileName,
+                    Category = doc.ActualCategory,
+                    SimilarityScore = 0.6, // Score fisso per keyword match
+                    RelevantChunk = relevantChunk?.ChunkText,
+                    ChunkIndex = relevantChunk?.ChunkIndex,
+                    ExtractedText = doc.ExtractedText
+                });
+            }
+            
+            if (results.Any())
+            {
+                _logger.LogInformation("Fallback search successful: returning {Count} documents", results.Count);
+            }
+            else
+            {
+                _logger.LogWarning("Fallback search found no matching documents for query: {Query}", query);
+            }
+            
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in fallback keyword search for query: {Query}", query);
+            return new List<RelevantDocumentResult>();
+        }
     }
 
     private string TruncateText(string text, int maxLength)
