@@ -151,12 +151,14 @@ public class BatchEmbeddingProcessor : BackgroundService
     /// <summary>
     /// Process document chunks that don't have embeddings yet
     /// Uses DocumentService to process chunks per document with batching and concurrency control
+    /// Also handles documents marked as "Pending" that don't have chunks created yet
     /// </summary>
     private async Task ProcessPendingChunksAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var documentService = scope.ServiceProvider.GetService<IDocumentService>();
+        var chunkingService = scope.ServiceProvider.GetService<IChunkingService>();
 
         if (documentService == null)
         {
@@ -166,7 +168,59 @@ public class BatchEmbeddingProcessor : BackgroundService
 
         try
         {
-            // Find documents that have chunks without embeddings
+            // STEP 1: Find documents with ChunkEmbeddingStatus = "Pending" that need chunks created
+            var documentsNeedingChunks = await context.Documents
+                .Where(d => d.ChunkEmbeddingStatus == "Pending" && !string.IsNullOrEmpty(d.ExtractedText))
+                .Take(5) // Process 5 documents at a time
+                .ToListAsync(cancellationToken);
+
+            if (documentsNeedingChunks.Any())
+            {
+                _logger.LogInformation("Found {Count} documents needing chunk creation", documentsNeedingChunks.Count);
+
+                foreach (var document in documentsNeedingChunks)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
+
+                    try
+                    {
+                        // Check if chunks already exist (shouldn't, but safety check)
+                        var existingChunkCount = await context.DocumentChunks
+                            .CountAsync(c => c.DocumentId == document.Id, cancellationToken);
+
+                        if (existingChunkCount == 0 && chunkingService != null)
+                        {
+                            _logger.LogInformation("Creating chunks for document {DocumentId}: {FileName}", 
+                                document.Id, document.FileName);
+                            
+                            // Create chunks without embeddings first
+                            var chunks = chunkingService.ChunkDocument(document);
+                            if (chunks.Any())
+                            {
+                                context.DocumentChunks.AddRange(chunks);
+                                await context.SaveChangesAsync(cancellationToken);
+                                
+                                _logger.LogInformation("Created {ChunkCount} chunks for document {DocumentId}, will generate embeddings next", 
+                                    chunks.Count, document.Id);
+                            }
+                            else
+                            {
+                                // No chunks created - mark as not required
+                                document.ChunkEmbeddingStatus = "NotRequired";
+                                await context.SaveChangesAsync(cancellationToken);
+                                continue;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error creating chunks for document {DocumentId}", document.Id);
+                    }
+                }
+            }
+
+            // STEP 2: Find documents that have chunks without embeddings
             var documentsWithPendingChunks = await context.DocumentChunks
                 .Where(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null)
                 .Select(c => c.DocumentId)
@@ -177,7 +231,7 @@ public class BatchEmbeddingProcessor : BackgroundService
             if (!documentsWithPendingChunks.Any())
                 return;
 
-            _logger.LogInformation("Processing chunks for {Count} documents", documentsWithPendingChunks.Count);
+            _logger.LogInformation("Processing chunk embeddings for {Count} documents", documentsWithPendingChunks.Count);
 
             foreach (var documentId in documentsWithPendingChunks)
             {

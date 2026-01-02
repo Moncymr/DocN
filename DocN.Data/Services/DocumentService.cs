@@ -437,12 +437,12 @@ public class DocumentService : IDocumentService
             // Create chunks with or without embeddings based on parameter
             if (_chunkingService != null && !string.IsNullOrEmpty(document.ExtractedText))
             {
-                var chunks = _chunkingService.ChunkDocument(document);
-                if (chunks.Any())
+                if (generateChunkEmbeddingsImmediately && _aiService != null)
                 {
-                    if (generateChunkEmbeddingsImmediately && _aiService != null)
+                    // SLOW PATH: Create chunks with embeddings immediately (complete but slower)
+                    var chunks = _chunkingService.ChunkDocument(document);
+                    if (chunks.Any())
                     {
-                        // Generate embeddings immediately (slower but complete)
                         _logger?.LogInformation("Creating {ChunkCount} chunks WITH embeddings for document {Id} (immediate generation)", chunks.Count, document.Id);
                         document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Processing;
                         await _context.SaveChangesAsync();
@@ -451,24 +451,23 @@ public class DocumentService : IDocumentService
                         _logger?.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
                             chunks.Count, document.Id, embeddedCount);
                         
+                        _context.DocumentChunks.AddRange(chunks);
                         document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
+                        await _context.SaveChangesAsync();
+                        
+                        _logger?.LogInformation("Saved {ChunkCount} chunks with embeddings for document {Id}", chunks.Count, document.Id);
                     }
                     else
                     {
-                        // Create chunks without embeddings (fast) - background processor will add them later
-                        _logger?.LogInformation("Creating {ChunkCount} chunks WITHOUT embeddings for document {Id} (will be generated in background)", chunks.Count, document.Id);
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
+                        await _context.SaveChangesAsync();
                     }
-                    
-                    _context.DocumentChunks.AddRange(chunks);
-                    await _context.SaveChangesAsync();
-                    
-                    _logger?.LogInformation("Saved {ChunkCount} chunks for document {Id}, ChunkEmbeddingStatus: {Status}", 
-                        chunks.Count, document.Id, document.ChunkEmbeddingStatus);
                 }
                 else
                 {
-                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
+                    // FAST PATH: Just mark as pending - background processor will create chunks AND embeddings later
+                    _logger?.LogInformation("Marking document {Id} for background chunk generation (no chunks created during upload for speed)", document.Id);
+                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
                     await _context.SaveChangesAsync();
                 }
             }
