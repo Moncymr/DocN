@@ -484,39 +484,45 @@ public class DocumentsController : ControllerBase
     /// <returns>Number of chunks that successfully got embeddings</returns>
     private async Task<int> GenerateChunkEmbeddingsAsync(List<DocumentChunk> chunks, int documentId, int maxConcurrency = 3)
     {
-        var semaphore = new SemaphoreSlim(maxConcurrency);
+        using var semaphore = new SemaphoreSlim(maxConcurrency);
         var tasks = new List<Task<bool>>();
         
         foreach (var chunk in chunks)
         {
-            tasks.Add(Task.Run(async () =>
-            {
-                await semaphore.WaitAsync();
-                try
-                {
-                    var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
-                    if (chunkEmbedding != null)
-                    {
-                        chunk.ChunkEmbedding = chunkEmbedding;
-                        chunk.EmbeddingDimension = chunkEmbedding.Length;
-                        return true;
-                    }
-                    return false;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {DocumentId}", 
-                        chunk.ChunkIndex, documentId);
-                    return false;
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            }));
+            var currentChunk = chunk; // Capture for closure
+            tasks.Add(GenerateSingleChunkEmbeddingAsync(currentChunk, documentId, semaphore));
         }
         
         var results = await Task.WhenAll(tasks);
         return results.Count(r => r);
+    }
+
+    /// <summary>
+    /// Generate embedding for a single chunk with semaphore-controlled concurrency
+    /// </summary>
+    private async Task<bool> GenerateSingleChunkEmbeddingAsync(DocumentChunk chunk, int documentId, SemaphoreSlim semaphore)
+    {
+        await semaphore.WaitAsync();
+        try
+        {
+            var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+            if (chunkEmbedding != null)
+            {
+                chunk.ChunkEmbedding = chunkEmbedding;
+                chunk.EmbeddingDimension = chunkEmbedding.Length;
+                return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {DocumentId}", 
+                chunk.ChunkIndex, documentId);
+            return false;
+        }
+        finally
+        {
+            semaphore.Release();
+        }
     }
 }
