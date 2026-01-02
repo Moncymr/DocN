@@ -175,10 +175,21 @@ IMPORTANTE: Rispondi sempre in italiano.",
 
             if (!relevantDocs.Any())
             {
-                _logger.LogWarning("No relevant documents found for query: {Query}", query);
+                _logger.LogWarning("No relevant documents found for query: {Query}. Returning message about internal documents only.", query);
                 return new SemanticRAGResponse
                 {
-                    Answer = "I couldn't find any relevant documents to answer your question. Please try rephrasing or upload more documents.",
+                    Answer = @"❌ Non ho trovato documenti rilevanti nel sistema RAG interno per rispondere alla tua domanda.
+
+Questo sistema di chat AI funziona PRINCIPALMENTE sui documenti interni che hai caricato nel sistema. 
+
+📄 Per ottenere risposte accurate:
+1. Assicurati di aver caricato i documenti necessari nella sezione 'Upload'
+2. Verifica che i documenti siano stati elaborati correttamente (con embedding generati)
+3. Riprova la tua domanda una volta caricati i documenti pertinenti
+
+💡 Suggerimento: Puoi verificare i tuoi documenti caricati nella sezione 'Documents' del sistema.
+
+Il sistema non fornisce risposte basate su conoscenze generali, ma solo su informazioni contenute nei documenti che hai caricato.",
                     SourceDocuments = new List<RelevantDocumentResult>(),
                     ResponseTimeMs = stopwatch.ElapsedMilliseconds
                 };

@@ -57,36 +57,22 @@ public class MultiProviderSemanticRAGService : ISemanticRAGService
 
             if (!relevantDocs.Any())
             {
-                _logger.LogWarning("No relevant documents found for query: {Query}. Generating response without document context.", query);
+                _logger.LogWarning("No relevant documents found for query: {Query}. Returning message about internal documents only.", query);
 
-                // Generate response without document context
-                var systemPrompt = @"Sei un assistente intelligente. 
-Rispondi alla domanda dell'utente al meglio delle tue conoscenze.
-Se non hai informazioni specifiche, fornisci una risposta generale utile.
-Sii conciso, professionale e disponibile.
-IMPORTANTE: 
-- Rispondi sempre in italiano
-- DEVI iniziare la risposta indicando esplicitamente: 'Non ho trovato documenti rilevanti nel sistema RAG interno.'
-- Poi fornisci una risposta generale basata sulle tue conoscenze.";
+                // Don't generate AI response - inform user about internal document focus
+                answer = @"❌ Non ho trovato documenti rilevanti nel sistema RAG interno per rispondere alla tua domanda.
 
-                var userPrompt = query;
+Questo sistema di chat AI funziona PRINCIPALMENTE sui documenti interni che hai caricato nel sistema. 
 
-                // Include conversation history if available
-                if (conversationHistory.Any())
-                {
-                    var historyBuilder = new StringBuilder();
-                    historyBuilder.AppendLine("=== CONVERSATION HISTORY ===");
-                    foreach (var msg in conversationHistory)
-                    {
-                        historyBuilder.AppendLine($"{msg.Role.ToUpper()}: {msg.Content}");
-                    }
-                    historyBuilder.AppendLine();
-                    historyBuilder.AppendLine("=== CURRENT QUESTION ===");
-                    historyBuilder.AppendLine(query);
-                    userPrompt = historyBuilder.ToString();
-                }
+📄 Per ottenere risposte accurate:
+1. Assicurati di aver caricato i documenti necessari nella sezione 'Upload'
+2. Verifica che i documenti siano stati elaborati correttamente (con embedding generati)
+3. Riprova la tua domanda una volta caricati i documenti pertinenti
 
-                answer = await _aiService.GenerateChatCompletionAsync(systemPrompt, userPrompt);
+💡 Suggerimento: Puoi verificare i tuoi documenti caricati nella sezione 'Documents' del sistema.
+
+Il sistema non fornisce risposte basate su conoscenze generali, ma solo su informazioni contenute nei documenti che hai caricato.";
+                
                 documentContext = "No relevant documents found";
             }
             else
