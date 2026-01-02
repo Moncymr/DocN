@@ -78,19 +78,27 @@ public class BatchEmbeddingProcessor : BackgroundService
 
                 try
                 {
-                    // Generate embedding for document
-                    var embedding = await embeddingService.GenerateEmbeddingAsync(document.ExtractedText);
-                    if (embedding != null)
+                    // Generate embedding for document only if it doesn't have one
+                    if (document.EmbeddingVector == null)
                     {
-                        document.EmbeddingVector = embedding;
-                        document.EmbeddingDimension = embedding.Length;
-                        
-                        // Log embedding info before saving
-                        _logger.LogInformation("Generated embedding for document {Id}: {FileName}", 
-                            document.Id, document.FileName);
-                        _logger.LogInformation("Embedding details - Length: {Length}, First 5 values: [{Values}]",
-                            embedding.Length, 
-                            string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6"))));
+                        var embedding = await embeddingService.GenerateEmbeddingAsync(document.ExtractedText);
+                        if (embedding != null)
+                        {
+                            document.EmbeddingVector = embedding;
+                            document.EmbeddingDimension = embedding.Length;
+                            
+                            // Log embedding info before saving
+                            _logger.LogInformation("Generated embedding for document {Id}: {FileName}", 
+                                document.Id, document.FileName);
+                            _logger.LogInformation("Embedding details - Length: {Length}, First 5 values: [{Values}]",
+                                embedding.Length, 
+                                string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6"))));
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Document {Id} already has embedding, skipping embedding generation", 
+                            document.Id);
                     }
 
                     // Create chunks for the document
