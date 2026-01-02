@@ -148,12 +148,21 @@ public class ChunkingService : IChunkingService
                 chunks.Add(chunkText);
             }
 
-            // Move position forward, accounting for overlap
-            position = endPosition - overlap;
-            
-            // Ensure we make progress
-            if (position <= 0 || position >= text.Length)
+            // If we've reached the end of the text, we're done
+            if (endPosition >= text.Length)
                 break;
+
+            // Move position forward, accounting for overlap
+            var newPosition = endPosition - overlap;
+            
+            // Ensure we make forward progress - must move at least 1 character forward
+            if (newPosition <= position)
+            {
+                // If overlap is too large or we're not making progress, skip overlap and move to endPosition
+                newPosition = endPosition;
+            }
+            
+            position = newPosition;
         }
 
         return chunks;
