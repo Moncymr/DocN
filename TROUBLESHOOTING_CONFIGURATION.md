@@ -132,10 +132,22 @@ If you see: "The request was canceled due to the configured HttpClient.Timeout o
    - **OpenAI**: Should start with `sk-...`
    - **Azure**: 32-character hexadecimal string
 
-5. **Check Rate Limits**:
-   - Free tier Gemini: 60 requests/minute
-   - OpenAI: Varies by tier
-   - Azure: Depends on deployment configuration
+5. **Check Rate Limits and Quotas**:
+   - **Gemini Free Tier**:
+     - Rate: 15 requests/minute (RPM)
+     - Daily quota: Varies, check [Google AI Usage](https://ai.dev/usage?tab=rate-limit)
+     - Monthly quota limits apply
+   - **Gemini Paid Tier**:
+     - Higher RPM and daily quotas
+     - See [Gemini API Pricing](https://ai.google.dev/pricing)
+   - **OpenAI**: Varies by tier (free, paid, enterprise)
+   - **Azure**: Depends on deployment configuration (TPM - Tokens Per Minute)
+   
+   **Important**: A "429 Too Many Requests" error can mean:
+   - **Temporary rate limit** (will auto-retry): You're sending requests too quickly
+   - **Quota exceeded** (will not retry): Your account has used up its allocated quota
+   
+   The system automatically distinguishes between these and handles them appropriately.
 
 ## Provider-Specific Issues
 
@@ -147,7 +159,40 @@ If you see: "The request was canceled due to the configured HttpClient.Timeout o
 
 **Error**: "404 Not Found" or "modello non trovato" / "model not found"
 - **Solution**: Model name incorrect or deprecated
-- Use current models: `gemini-2.0-flash-exp`, `text-embedding-004`
+- Use current models: `gemini-2.0-flash-exp`, `gemini-1.5-flash`, `text-embedding-004`
+
+**Error**: "429 Too Many Requests" with "Quota exceeded" or "current quota"
+- **Cause**: Gemini API quota has been exhausted (free tier or paid plan limits)
+- **Symptoms**: Error message contains:
+  - "You exceeded your current quota"
+  - "check your plan and billing details"
+  - "Quota exceeded for metric"
+  - "limit: 0" (indicates zero quota available)
+- **Solutions**:
+  1. **Check Your Usage and Quota**:
+     - Visit [Google AI Studio API Keys](https://aistudio.google.com/app/apikey)
+     - Monitor usage at [Google AI Usage Dashboard](https://ai.dev/usage?tab=rate-limit)
+     - Review pricing and limits at [Gemini API Pricing](https://ai.google.dev/pricing)
+  
+  2. **Upgrade Your Plan**:
+     - Free tier has limited requests per day/month
+     - Consider upgrading to a paid plan for higher quotas
+  
+  3. **Configure Alternative Providers** (Recommended):
+     - Enable **fallback** in AI Configuration (enabled by default)
+     - Add **OpenAI** or **Azure OpenAI** as backup providers
+     - The system will automatically switch to available providers when Gemini quota is exhausted
+  
+  4. **Temporary Workaround**:
+     - Wait for quota reset (typically daily or monthly)
+     - Use a different Gemini API key if available
+  
+  5. **Optimize Usage**:
+     - Process fewer documents at once
+     - Reduce batch sizes for embedding generation
+     - Use caching to avoid re-processing same content
+
+**Note**: The system automatically retries temporary rate limits (429 with RetryInfo) but will not retry quota exceeded errors. Instead, it will attempt to use configured fallback providers.
 
 ### OpenAI Provider
 

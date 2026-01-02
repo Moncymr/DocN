@@ -48,7 +48,7 @@ public class AIConfiguration
     public AIProviderType? RAGProvider { get; set; }
     
     // Configuration for each provider type
-    // Gemini Settings
+    // Gemini Settings (Recommended models: chat: gemini-2.0-flash-exp, gemini-1.5-flash; embedding: text-embedding-004)
     public string? GeminiApiKey { get; set; }
     public string? GeminiChatModel { get; set; } = "gemini-1.5-flash";
     public string? GeminiEmbeddingModel { get; set; } = "text-embedding-004";
