@@ -75,8 +75,9 @@ public interface IDocumentService
     /// Crea un nuovo documento nel database con validazione embedding.
     /// </summary>
     /// <param name="document">Documento da creare</param>
+    /// <param name="generateChunkEmbeddingsImmediately">Se true, genera embeddings chunks immediatamente; se false (default), li genera in background</param>
     /// <returns>Documento creato con ID assegnato</returns>
-    Task<Document> CreateDocumentAsync(Document document);
+    Task<Document> CreateDocumentAsync(Document document, bool generateChunkEmbeddingsImmediately = false);
     
     /// <summary>
     /// Aggiorna un documento esistente se l'utente è il proprietario.
@@ -93,6 +94,13 @@ public interface IDocumentService
     /// <param name="similarDocuments">Lista documenti simili con score</param>
     /// <returns>Task completato</returns>
     Task SaveSimilarDocumentsAsync(int sourceDocumentId, List<RelevantDocumentResult> similarDocuments);
+    
+    /// <summary>
+    /// Genera embeddings per chunks di un documento in background (chiamato da BatchEmbeddingProcessor).
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <returns>Numero di chunks con embeddings generati con successo</returns>
+    Task<int> GenerateChunkEmbeddingsForDocumentAsync(int documentId);
 }
 
 /// <summary>
@@ -390,9 +398,10 @@ public class DocumentService : IDocumentService
     }
 
     /// <summary>
-    /// Crea nuovo documento con validazione dimensioni embedding vettoriale.
+    /// Crea nuovo documento con validazione dimensioni embedding vettoriale e gestione chunks.
     /// </summary>
     /// <param name="document">Documento da creare con metadata ed embedding</param>
+    /// <param name="generateChunkEmbeddingsImmediately">Se true, genera embeddings chunks immediatamente; se false (default), li genera in background</param>
     /// <returns>Documento creato con ID assegnato</returns>
     /// <exception cref="InvalidOperationException">Se embedding ha dimensioni errate o salvataggio DB fallisce</exception>
     /// <remarks>
@@ -400,7 +409,7 @@ public class DocumentService : IDocumentService
     /// Validazione: Verifica 768 o 1536 dimensioni prima di save.
     /// Output: Document con Id popolato, exception se errore validazione o DB.
     /// </remarks>
-    public async Task<Document> CreateDocumentAsync(Document document)
+    public async Task<Document> CreateDocumentAsync(Document document, bool generateChunkEmbeddingsImmediately = false)
     {
         try
         {
@@ -424,23 +433,48 @@ public class DocumentService : IDocumentService
             _context.Documents.Add(document);
             await _context.SaveChangesAsync();
             
-            // Create chunks with embeddings if services are available and document has text
-            if (_chunkingService != null && _aiService != null && !string.IsNullOrEmpty(document.ExtractedText))
+            // Create chunks with or without embeddings based on parameter
+            if (_chunkingService != null && !string.IsNullOrEmpty(document.ExtractedText))
             {
                 var chunks = _chunkingService.ChunkDocument(document);
                 if (chunks.Any())
                 {
-                    _logger?.LogInformation("Creating {ChunkCount} chunks for document {Id}", chunks.Count, document.Id);
-                    
-                    // Generate embeddings for chunks with parallel processing
-                    var embeddedCount = await GenerateChunkEmbeddingsAsync(chunks, document.Id);
+                    if (generateChunkEmbeddingsImmediately && _aiService != null)
+                    {
+                        // Generate embeddings immediately (slower but complete)
+                        _logger?.LogInformation("Creating {ChunkCount} chunks WITH embeddings for document {Id} (immediate generation)", chunks.Count, document.Id);
+                        document.ChunkEmbeddingStatus = "Processing";
+                        await _context.SaveChangesAsync();
+                        
+                        var embeddedCount = await GenerateChunkEmbeddingsAsync(chunks, document.Id);
+                        _logger?.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
+                            chunks.Count, document.Id, embeddedCount);
+                        
+                        document.ChunkEmbeddingStatus = "Completed";
+                    }
+                    else
+                    {
+                        // Create chunks without embeddings (fast) - background processor will add them later
+                        _logger?.LogInformation("Creating {ChunkCount} chunks WITHOUT embeddings for document {Id} (will be generated in background)", chunks.Count, document.Id);
+                        document.ChunkEmbeddingStatus = "Pending";
+                    }
                     
                     _context.DocumentChunks.AddRange(chunks);
                     await _context.SaveChangesAsync();
                     
-                    _logger?.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
-                        chunks.Count, document.Id, embeddedCount);
+                    _logger?.LogInformation("Saved {ChunkCount} chunks for document {Id}, ChunkEmbeddingStatus: {Status}", 
+                        chunks.Count, document.Id, document.ChunkEmbeddingStatus);
                 }
+                else
+                {
+                    document.ChunkEmbeddingStatus = "NotRequired";
+                    await _context.SaveChangesAsync();
+                }
+            }
+            else
+            {
+                document.ChunkEmbeddingStatus = "NotRequired";
+                await _context.SaveChangesAsync();
             }
             
             return document;
@@ -699,5 +733,62 @@ public class DocumentService : IDocumentService
         {
             semaphore.Release();
         }
+    }
+    
+    /// <summary>
+    /// Genera embeddings per tutti i chunks di un documento che non hanno ancora embeddings.
+    /// Metodo pubblico utilizzato da BatchEmbeddingProcessor per processing in background.
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <returns>Numero di chunks con embeddings generati con successo</returns>
+    public async Task<int> GenerateChunkEmbeddingsForDocumentAsync(int documentId)
+    {
+        if (_aiService == null)
+        {
+            _logger?.LogWarning("Cannot generate chunk embeddings for document {DocumentId}: AI service not available", documentId);
+            return 0;
+        }
+        
+        // Get document to update status
+        var document = await _context.Documents.FindAsync(documentId);
+        if (document == null)
+        {
+            _logger?.LogWarning("Document {DocumentId} not found", documentId);
+            return 0;
+        }
+        
+        // Get all chunks for this document that don't have embeddings
+        var chunksWithoutEmbeddings = await _context.DocumentChunks
+            .Where(c => c.DocumentId == documentId && 
+                        c.ChunkEmbedding768 == null && 
+                        c.ChunkEmbedding1536 == null)
+            .ToListAsync();
+        
+        if (!chunksWithoutEmbeddings.Any())
+        {
+            _logger?.LogInformation("No chunks without embeddings found for document {DocumentId}", documentId);
+            document.ChunkEmbeddingStatus = "Completed";
+            await _context.SaveChangesAsync();
+            return 0;
+        }
+        
+        _logger?.LogInformation("Generating embeddings for {ChunkCount} chunks of document {DocumentId}", 
+            chunksWithoutEmbeddings.Count, documentId);
+        
+        // Update status to Processing
+        document.ChunkEmbeddingStatus = "Processing";
+        await _context.SaveChangesAsync();
+        
+        // Generate embeddings with batching and controlled concurrency
+        var successCount = await GenerateChunkEmbeddingsAsync(chunksWithoutEmbeddings, documentId);
+        
+        // Save all chunks with their new embeddings and update document status
+        document.ChunkEmbeddingStatus = "Completed";
+        await _context.SaveChangesAsync();
+        
+        _logger?.LogInformation("Generated embeddings for {SuccessCount}/{TotalCount} chunks of document {DocumentId} - Status: Completed", 
+            successCount, chunksWithoutEmbeddings.Count, documentId);
+        
+        return successCount;
     }
 }

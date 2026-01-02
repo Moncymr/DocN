@@ -619,6 +619,14 @@
                             <span class="option-description">Generate vector embeddings for semantic search</span>
                         </span>
                     </label>
+                    
+                    <label class="option-checkbox">
+                        <input type="checkbox" @bind="generateChunkEmbeddingsImmediately" />
+                        <span class="option-label">
+                            <span class="option-title">⚡ Genera embeddings chunks immediatamente</span>
+                            <span class="option-description">Se disabilitato (consigliato), i chunks vengono creati subito ma gli embeddings generati in background per upload più veloci. Se abilitato, genera tutto durante l'upload (più lento ma completo subito).</span>
+                        </span>
+                    </label>
                 </div>
             </div>
 
@@ -1696,6 +1704,7 @@
     private bool enableEmbeddings = true;
     private bool enableTagExtraction = true;
     private bool enableMetadataExtraction = true;
+    private bool generateChunkEmbeddingsImmediately = false; // Default: background generation (faster)
     
     // Logs modal
     private bool showLogsModal = false;
@@ -2507,7 +2516,7 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
             // Save to database - wrapped in try-catch for better error handling
             try
             {
-                await DocumentService.CreateDocumentAsync(document);
+                await DocumentService.CreateDocumentAsync(document, generateChunkEmbeddingsImmediately);
                 
                 // Save similar documents if they were found
                 if (similarDocuments != null && similarDocuments.Any())

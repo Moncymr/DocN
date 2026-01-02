@@ -150,49 +150,51 @@ public class BatchEmbeddingProcessor : BackgroundService
 
     /// <summary>
     /// Process document chunks that don't have embeddings yet
+    /// Uses DocumentService to process chunks per document with batching and concurrency control
     /// </summary>
     private async Task ProcessPendingChunksAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+        var documentService = scope.ServiceProvider.GetService<IDocumentService>();
+
+        if (documentService == null)
+        {
+            _logger.LogWarning("DocumentService not available for chunk processing");
+            return;
+        }
 
         try
         {
-            // Find chunks without embeddings
-            var pendingChunks = await context.DocumentChunks
-                .Where(c => c.ChunkEmbedding == null)
-                .Take(20) // Process 20 chunks at a time
+            // Find documents that have chunks without embeddings
+            var documentsWithPendingChunks = await context.DocumentChunks
+                .Where(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null)
+                .Select(c => c.DocumentId)
+                .Distinct()
+                .Take(5) // Process 5 documents at a time
                 .ToListAsync(cancellationToken);
 
-            if (!pendingChunks.Any())
+            if (!documentsWithPendingChunks.Any())
                 return;
 
-            _logger.LogInformation("Processing {Count} chunks for embeddings", pendingChunks.Count);
+            _logger.LogInformation("Processing chunks for {Count} documents", documentsWithPendingChunks.Count);
 
-            foreach (var chunk in pendingChunks)
+            foreach (var documentId in documentsWithPendingChunks)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
                 try
                 {
-                    var embedding = await embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
-                    if (embedding != null)
-                    {
-                        chunk.ChunkEmbedding = embedding;
-                        chunk.EmbeddingDimension = embedding.Length;
-                        _logger.LogDebug("Generated embedding for chunk {Id} of document {DocumentId}", 
-                            chunk.Id, chunk.DocumentId);
-                    }
+                    var successCount = await documentService.GenerateChunkEmbeddingsForDocumentAsync(documentId);
+                    _logger.LogInformation("Generated embeddings for {Count} chunks of document {DocumentId}", 
+                        successCount, documentId);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing chunk {Id}", chunk.Id);
+                    _logger.LogError(ex, "Error processing chunks for document {DocumentId}", documentId);
                 }
             }
-
-            await context.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {

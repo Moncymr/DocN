@@ -26,6 +26,7 @@ public class Document
     public string? DetectedLanguage { get; set; }
     public string? ProcessingStatus { get; set; } // "Pending", "Processing", "Completed", "Failed"
     public string? ProcessingError { get; set; }
+    public string? ChunkEmbeddingStatus { get; set; } // "Pending", "Processing", "Completed", "NotRequired"
     
     // User notes
     public string? Notes { get; set; }
