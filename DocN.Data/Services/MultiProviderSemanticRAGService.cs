@@ -553,89 +553,107 @@ FORMATO DELLA RISPOSTA:
             
             var keywords = query.ToLower()
                 .Split(new[] { ' ', ',', '.', ';', ':', '-', '_' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(w => !stopWords.Contains(w) && !numbers.Contains(w) && w.Length > 2)
+                .Where(w => !stopWords.Contains(w) && !numbers.Contains(w) && w.Length > 1) // Changed from > 2 to > 1 to allow 2-char keywords
                 .ToList();
             
             _logger.LogInformation("Extracted {NumCount} numbers and {KeywordCount} keywords from query", 
                 numbers.Count, keywords.Count);
             
-            // Carica documenti con Include per Tags
-            var documentsQuery = _context.Documents
+            // Carica TUTTI i documenti dell'utente con Tags
+            // Faremo il filtro in memoria per garantire case-insensitive funzionante
+            var allUserDocuments = await _context.Documents
                 .Include(d => d.Tags)
-                .Where(d => d.OwnerId == userId);
+                .Where(d => d.OwnerId == userId)
+                .ToListAsync();
             
-            // Build query dinamica basata su cosa abbiamo estratto
+            _logger.LogInformation("Loaded {Count} total documents for user {UserId}", allUserDocuments.Count, userId);
+            
+            if (!allUserDocuments.Any())
+            {
+                _logger.LogWarning("User {UserId} has no documents", userId);
+                return new List<RelevantDocumentResult>();
+            }
+            
+            // Filtra documenti in memoria con case-insensitive
+            List<Document> filteredDocuments;
+            
             if (numbers.Any() && keywords.Any())
             {
-                // Query combinata: numero + keywords (es: "documento 775 di Rossi")
-                _logger.LogInformation("Using combined search: numbers + keywords");
+                // Query combinata: numero + keywords (es: "n 5 Rossi")
+                _logger.LogInformation("Using combined search: numbers {Numbers} + keywords {Keywords}", 
+                    string.Join(", ", numbers), string.Join(", ", keywords));
                 
-                documentsQuery = documentsQuery.Where(d =>
-                    // Numero nel nome file o testo
-                    (numbers.Any(num => d.FileName.Contains(num) || 
-                                       (d.ExtractedText != null && d.ExtractedText.Contains(num)))) &&
-                    // E almeno una keyword in uno qualsiasi dei campi
-                    (keywords.Any(kw => 
-                        d.FileName.ToLower().Contains(kw) ||
-                        (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(kw)) ||
-                        (d.ActualCategory != null && d.ActualCategory.ToLower().Contains(kw)) ||
-                        (d.SuggestedCategory != null && d.SuggestedCategory.ToLower().Contains(kw)) ||
-                        (d.Notes != null && d.Notes.ToLower().Contains(kw)) ||
-                        (d.AITagsJson != null && d.AITagsJson.ToLower().Contains(kw)) ||
-                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.ToLower().Contains(kw))
-                    ))
-                );
+                filteredDocuments = allUserDocuments.Where(d =>
+                {
+                    // Check se contiene almeno un numero
+                    bool hasNumber = numbers.Any(num =>
+                        d.FileName.Contains(num, StringComparison.OrdinalIgnoreCase) ||
+                        (d.ExtractedText != null && d.ExtractedText.Contains(num, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.AITagsJson != null && d.AITagsJson.Contains(num, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(num, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.Notes != null && d.Notes.Contains(num, StringComparison.OrdinalIgnoreCase)));
+                    
+                    if (!hasNumber) return false;
+                    
+                    // Check se contiene almeno una keyword
+                    bool hasKeyword = keywords.Any(kw =>
+                        d.FileName.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                        (d.ExtractedText != null && d.ExtractedText.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.ActualCategory != null && d.ActualCategory.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.SuggestedCategory != null && d.SuggestedCategory.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.Notes != null && d.Notes.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.AITagsJson != null && d.AITagsJson.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(kw, StringComparison.OrdinalIgnoreCase)));
+                    
+                    return hasKeyword;
+                }).ToList();
             }
             else if (numbers.Any())
             {
-                // Solo numeri (es: "775", "fattura 775", "n775")
-                _logger.LogInformation("Using number-only search");
+                // Solo numeri
+                _logger.LogInformation("Using number-only search for numbers: {Numbers}", string.Join(", ", numbers));
                 
-                documentsQuery = documentsQuery.Where(d =>
-                    numbers.Any(num => 
-                        d.FileName.Contains(num) ||
-                        (d.ExtractedText != null && d.ExtractedText.Contains(num)) ||
-                        (d.AITagsJson != null && d.AITagsJson.Contains(num)) ||
-                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(num)) ||
-                        (d.Notes != null && d.Notes.Contains(num))
-                    )
-                );
+                filteredDocuments = allUserDocuments.Where(d =>
+                    numbers.Any(num =>
+                        d.FileName.Contains(num, StringComparison.OrdinalIgnoreCase) ||
+                        (d.ExtractedText != null && d.ExtractedText.Contains(num, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.AITagsJson != null && d.AITagsJson.Contains(num, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(num, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.Notes != null && d.Notes.Contains(num, StringComparison.OrdinalIgnoreCase)))
+                ).ToList();
             }
             else if (keywords.Any())
             {
-                // Solo keywords (es: "fattura", "contratto rossi")
-                _logger.LogInformation("Using keyword-only search");
+                // Solo keywords
+                _logger.LogInformation("Using keyword-only search for keywords: {Keywords}", string.Join(", ", keywords));
                 
-                documentsQuery = documentsQuery.Where(d =>
+                filteredDocuments = allUserDocuments.Where(d =>
                     keywords.Any(kw =>
-                        d.FileName.ToLower().Contains(kw) ||
-                        (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(kw)) ||
-                        (d.ActualCategory != null && d.ActualCategory.ToLower().Contains(kw)) ||
-                        (d.SuggestedCategory != null && d.SuggestedCategory.ToLower().Contains(kw)) ||
-                        (d.Notes != null && d.Notes.ToLower().Contains(kw)) ||
-                        (d.AITagsJson != null && d.AITagsJson.ToLower().Contains(kw)) ||
-                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.ToLower().Contains(kw))
-                    )
-                );
+                        d.FileName.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                        (d.ExtractedText != null && d.ExtractedText.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.ActualCategory != null && d.ActualCategory.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.SuggestedCategory != null && d.SuggestedCategory.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.Notes != null && d.Notes.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.AITagsJson != null && d.AITagsJson.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(kw, StringComparison.OrdinalIgnoreCase)))
+                ).ToList();
             }
             else
             {
                 // Fallback generico: cerca query completa
-                _logger.LogInformation("Using full-text fallback search");
+                _logger.LogInformation("Using full-text fallback search for query: {Query}", query);
                 
-                documentsQuery = documentsQuery.Where(d =>
-                    d.FileName.ToLower().Contains(queryLower) ||
-                    (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(queryLower)) ||
-                    (d.ActualCategory != null && d.ActualCategory.ToLower().Contains(queryLower)) ||
-                    (d.Notes != null && d.Notes.ToLower().Contains(queryLower)) ||
-                    (d.AITagsJson != null && d.AITagsJson.ToLower().Contains(queryLower)) ||
-                    (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.ToLower().Contains(queryLower))
-                );
+                filteredDocuments = allUserDocuments.Where(d =>
+                    d.FileName.Contains(queryLower, StringComparison.OrdinalIgnoreCase) ||
+                    (d.ExtractedText != null && d.ExtractedText.Contains(queryLower, StringComparison.OrdinalIgnoreCase)) ||
+                    (d.ActualCategory != null && d.ActualCategory.Contains(queryLower, StringComparison.OrdinalIgnoreCase)) ||
+                    (d.Notes != null && d.Notes.Contains(queryLower, StringComparison.OrdinalIgnoreCase)) ||
+                    (d.AITagsJson != null && d.AITagsJson.Contains(queryLower, StringComparison.OrdinalIgnoreCase)) ||
+                    (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(queryLower, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
             }
             
-            var documents = await documentsQuery
-                .Take(topK * 2) // Prendi più documenti per poi rankare
-                .ToListAsync();
+            var documents = filteredDocuments.Take(topK * 2).ToList();
             
             _logger.LogInformation("Fallback search found {Count} candidate documents", documents.Count);
             
