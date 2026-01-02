@@ -107,18 +107,18 @@ public class DocumentService : IDocumentService
 {
     private readonly ApplicationDbContext _context;
     private readonly IChunkingService? _chunkingService;
-    private readonly IEmbeddingService? _embeddingService;
+    private readonly IMultiProviderAIService? _aiService;
     private readonly ILogger<DocumentService>? _logger;
 
     public DocumentService(
         ApplicationDbContext context, 
         IChunkingService? chunkingService = null,
-        IEmbeddingService? embeddingService = null,
+        IMultiProviderAIService? aiService = null,
         ILogger<DocumentService>? logger = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _chunkingService = chunkingService;
-        _embeddingService = embeddingService;
+        _aiService = aiService;
         _logger = logger;
     }
 
@@ -425,7 +425,7 @@ public class DocumentService : IDocumentService
             await _context.SaveChangesAsync();
             
             // Create chunks with embeddings if services are available and document has text
-            if (_chunkingService != null && _embeddingService != null && !string.IsNullOrEmpty(document.ExtractedText))
+            if (_chunkingService != null && _aiService != null && !string.IsNullOrEmpty(document.ExtractedText))
             {
                 var chunks = _chunkingService.ChunkDocument(document);
                 if (chunks.Any())
@@ -628,7 +628,7 @@ public class DocumentService : IDocumentService
     /// <returns>Number of chunks that successfully got embeddings</returns>
     private async Task<int> GenerateChunkEmbeddingsAsync(List<DocumentChunk> chunks, int documentId, int maxConcurrency = 3, int batchSize = 20)
     {
-        if (_embeddingService == null)
+        if (_aiService == null)
             return 0;
             
         var successCount = 0;
@@ -663,13 +663,13 @@ public class DocumentService : IDocumentService
     /// <returns>True if embedding was successfully generated, false otherwise</returns>
     private async Task<bool> GenerateSingleChunkEmbeddingAsync(DocumentChunk chunk, int documentId, System.Threading.SemaphoreSlim semaphore)
     {
-        if (_embeddingService == null)
+        if (_aiService == null)
             return false;
             
         await semaphore.WaitAsync();
         try
         {
-            var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+            var chunkEmbedding = await _aiService.GenerateEmbeddingAsync(chunk.ChunkText);
             if (chunkEmbedding != null)
             {
                 // ChunkEmbedding setter automatically sets EmbeddingDimension
