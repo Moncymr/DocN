@@ -63,6 +63,82 @@
             </div>
         </div>
 
+        @* Embedding Queue Status Card *@
+        <div class="embedding-queue-card">
+            <div class="card-header">
+                <h3>⚙️ Stato Elaborazione Embeddings</h3>
+                <button class="btn-refresh" @onclick="RefreshStats" disabled="@isLoading">
+                    🔄 Aggiorna
+                </button>
+            </div>
+            
+            <div class="queue-stats">
+                @if (stats.PendingEmbeddingsCount > 0 || stats.ProcessingEmbeddingsCount > 0)
+                {
+                    <div class="queue-info-box queue-pending">
+                        <div class="queue-icon">⏳</div>
+                        <div class="queue-details">
+                            <div class="queue-count">@stats.PendingEmbeddingsCount</div>
+                            <div class="queue-label">Documenti in Coda</div>
+                        </div>
+                    </div>
+                    
+                    @if (stats.ProcessingEmbeddingsCount > 0)
+                    {
+                        <div class="queue-info-box queue-processing">
+                            <div class="queue-icon">⚙️</div>
+                            <div class="queue-details">
+                                <div class="queue-count">@stats.ProcessingEmbeddingsCount</div>
+                                <div class="queue-label">In Elaborazione</div>
+                            </div>
+                        </div>
+                    }
+                    
+                    <div class="queue-info-box queue-chunks">
+                        <div class="queue-icon">📦</div>
+                        <div class="queue-details">
+                            <div class="queue-count">@stats.PendingChunksCount</div>
+                            <div class="queue-label">Chunks da Processare</div>
+                        </div>
+                    </div>
+                    
+                    <div class="queue-info-box queue-time">
+                        <div class="queue-icon">⏱️</div>
+                        <div class="queue-details">
+                            <div class="queue-count">@FormatEstimatedTime(stats.EstimatedProcessingTimeMinutes)</div>
+                            <div class="queue-label">Tempo Stimato</div>
+                        </div>
+                    </div>
+                }
+                else if (stats.CompletedEmbeddingsCount > 0)
+                {
+                    <div class="queue-info-box queue-completed">
+                        <div class="queue-icon">✅</div>
+                        <div class="queue-details">
+                            <div class="queue-count">@stats.CompletedEmbeddingsCount</div>
+                            <div class="queue-label">Documenti Completati</div>
+                            <div class="queue-message">Tutti i documenti hanno embeddings pronti!</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="queue-empty">
+                        <div class="empty-icon">🎉</div>
+                        <p>Nessun documento in attesa di elaborazione</p>
+                    </div>
+                }
+            </div>
+            
+            <div class="queue-info-text">
+                <p>
+                    <strong>ℹ️ Informazioni:</strong>
+                    Il sistema elabora automaticamente gli embeddings in background ogni 30 secondi.
+                    Un PDF semplice richiede tipicamente <strong>2-5 minuti</strong> per completare l'elaborazione con Gemini.
+                </p>
+            </div>
+        </div>
+
         <div class="charts-grid">
             <div class="chart-card">
                 <h3>Documenti per Categoria</h3>
@@ -394,6 +470,164 @@
         display: block;
         margin-bottom: 0.5rem;
     }
+    
+    /* Embedding Queue Styles */
+    .embedding-queue-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .embedding-queue-card .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .embedding-queue-card h3 {
+        margin: 0;
+        font-size: 1.3rem;
+        color: #333;
+    }
+    
+    .btn-refresh {
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.3s;
+    }
+    
+    .btn-refresh:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-refresh:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .queue-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .queue-info-box {
+        padding: 1.5rem;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: transform 0.2s;
+    }
+    
+    .queue-info-box:hover {
+        transform: translateY(-2px);
+    }
+    
+    .queue-pending {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        border-left: 4px solid #ffc107;
+    }
+    
+    .queue-processing {
+        background: linear-gradient(135deg, #cfe2ff 0%, #9ec5fe 100%);
+        border-left: 4px solid #0d6efd;
+    }
+    
+    .queue-chunks {
+        background: linear-gradient(135deg, #e7f3ff 0%, #c3e0ff 100%);
+        border-left: 4px solid #0dcaf0;
+    }
+    
+    .queue-time {
+        background: linear-gradient(135deg, #d1e7dd 0%, #a3cfbb 100%);
+        border-left: 4px solid #198754;
+    }
+    
+    .queue-completed {
+        background: linear-gradient(135deg, #d1e7dd 0%, #badbcc 100%);
+        border-left: 4px solid #198754;
+        grid-column: 1 / -1;
+    }
+    
+    .queue-icon {
+        font-size: 2rem;
+        line-height: 1;
+    }
+    
+    .queue-details {
+        flex: 1;
+    }
+    
+    .queue-count {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #333;
+        line-height: 1;
+        margin-bottom: 0.3rem;
+    }
+    
+    .queue-label {
+        font-size: 0.85rem;
+        color: #666;
+        font-weight: 500;
+    }
+    
+    .queue-message {
+        font-size: 0.9rem;
+        color: #198754;
+        margin-top: 0.5rem;
+        font-weight: 500;
+    }
+    
+    .queue-empty {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 3rem 2rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 10px;
+    }
+    
+    .queue-empty .empty-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    
+    .queue-empty p {
+        color: #666;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+    
+    .queue-info-text {
+        background: linear-gradient(135deg, #e7f3ff 0%, #d4e9ff 100%);
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #0dcaf0;
+    }
+    
+    .queue-info-text p {
+        margin: 0;
+        color: #0c5460;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    
+    .queue-info-text strong {
+        color: #084c61;
+    }
 </style>
 
 @code {
@@ -467,5 +701,29 @@
             var t when t.Contains("text") => "📄",
             _ => "📎"
         };
+    }
+    
+    private async Task RefreshStats()
+    {
+        await LoadStatistics();
+    }
+    
+    private string FormatEstimatedTime(double minutes)
+    {
+        if (minutes < 1)
+        {
+            var seconds = (int)(minutes * 60);
+            return $"~{seconds}s";
+        }
+        else if (minutes < 60)
+        {
+            return $"~{Math.Ceiling(minutes)} min";
+        }
+        else
+        {
+            var hours = Math.Floor(minutes / 60);
+            var remainingMinutes = Math.Ceiling(minutes % 60);
+            return $"~{hours}h {remainingMinutes}min";
+        }
     }
 }

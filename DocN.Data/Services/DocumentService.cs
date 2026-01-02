@@ -782,6 +782,12 @@ public class DocumentService : IDocumentService
         // Generate embeddings with batching and controlled concurrency
         var successCount = await GenerateChunkEmbeddingsAsync(chunksWithoutEmbeddings, documentId);
         
+        // Ensure chunks are marked as modified so their embeddings are saved
+        foreach (var chunk in chunksWithoutEmbeddings.Where(c => c.ChunkEmbedding != null))
+        {
+            _context.Entry(chunk).State = EntityState.Modified;
+        }
+        
         // Save all chunks with their new embeddings and update document status
         document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
         await _context.SaveChangesAsync();

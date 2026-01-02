@@ -1,3 +1,4 @@
+using DocN.Data.Constants;
 using DocN.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -89,6 +90,25 @@ public class DocumentStatisticsService : IDocumentStatisticsService
         // Optimization suggestions
         var optimizations = GenerateOptimizationSuggestions(docsByCategory, totalDocs);
         
+        // Embedding Queue Statistics - count all documents regardless of user
+        var pendingCount = await _context.Documents
+            .CountAsync(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending);
+        
+        var processingCount = await _context.Documents
+            .CountAsync(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing);
+        
+        var completedCount = await _context.Documents
+            .CountAsync(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Completed);
+        
+        // Count chunks without embeddings
+        var pendingChunksCount = await _context.DocumentChunks
+            .CountAsync(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null);
+        
+        // Calculate estimated processing time
+        // Based on observations: ~2-4 seconds per chunk with Gemini
+        // BatchEmbeddingProcessor processes 5 documents at a time every 30 seconds
+        var estimatedTimeMinutes = CalculateEstimatedProcessingTime(pendingCount, pendingChunksCount);
+        
         return new DocumentStatistics
         {
             TotalDocuments = totalDocs,
@@ -99,7 +119,13 @@ public class DocumentStatisticsService : IDocumentStatisticsService
             DocumentsByCategory = docsByCategory,
             DocumentsByType = docsByType,
             MostAccessedDocuments = topDocs,
-            OptimizationSuggestions = optimizations
+            OptimizationSuggestions = optimizations,
+            PendingEmbeddingsCount = pendingCount,
+            ProcessingEmbeddingsCount = processingCount,
+            CompletedEmbeddingsCount = completedCount,
+            PendingChunksCount = pendingChunksCount,
+            EstimatedProcessingTimeMinutes = estimatedTimeMinutes,
+            LastBatchProcessingTime = DateTime.UtcNow // Will be updated by background processor in future
         };
     }
 
@@ -147,5 +173,51 @@ public class DocumentStatisticsService : IDocumentStatisticsService
         }
         
         return suggestions;
+    }
+    
+    /// <summary>
+    /// Calculate estimated processing time based on pending documents and chunks
+    /// </summary>
+    /// <param name="pendingDocs">Number of documents waiting for processing</param>
+    /// <param name="pendingChunks">Number of chunks without embeddings</param>
+    /// <returns>Estimated time in minutes</returns>
+    private double CalculateEstimatedProcessingTime(int pendingDocs, int pendingChunks)
+    {
+        // Based on real-world observations:
+        // - Average simple PDF: 10-20 chunks
+        // - Gemini embedding generation: ~2-4 seconds per chunk
+        // - BatchEmbeddingProcessor: processes 5 documents at a time, runs every 30 seconds
+        
+        const double AVG_SECONDS_PER_CHUNK = 3.0; // Average time to generate embedding for one chunk
+        const int BATCH_SIZE = 5; // Documents processed per batch
+        const int BATCH_INTERVAL_SECONDS = 30; // How often the processor runs
+        
+        // If we have pending chunks, use that for estimation
+        if (pendingChunks > 0)
+        {
+            // Direct estimation based on chunks
+            var totalProcessingTimeSeconds = pendingChunks * AVG_SECONDS_PER_CHUNK;
+            
+            // Add batch interval overhead (processor runs every 30s)
+            var batchesNeeded = Math.Ceiling(pendingDocs / (double)BATCH_SIZE);
+            var batchOverheadSeconds = batchesNeeded * BATCH_INTERVAL_SECONDS;
+            
+            return (totalProcessingTimeSeconds + batchOverheadSeconds) / 60.0; // Convert to minutes
+        }
+        
+        // If no chunks info, estimate based on pending documents
+        if (pendingDocs > 0)
+        {
+            const double AVG_CHUNKS_PER_DOC = 15.0; // Average chunks per document
+            var estimatedChunks = pendingDocs * AVG_CHUNKS_PER_DOC;
+            var totalProcessingTimeSeconds = estimatedChunks * AVG_SECONDS_PER_CHUNK;
+            
+            var batchesNeeded = Math.Ceiling(pendingDocs / (double)BATCH_SIZE);
+            var batchOverheadSeconds = batchesNeeded * BATCH_INTERVAL_SECONDS;
+            
+            return (totalProcessingTimeSeconds + batchOverheadSeconds) / 60.0;
+        }
+        
+        return 0; // No pending work
     }
 }

@@ -12,6 +12,14 @@ public class DocumentStatistics
     public Dictionary<string, int> DocumentsByType { get; set; } = new();
     public List<TopDocument> MostAccessedDocuments { get; set; } = new();
     public List<CategoryOptimization> OptimizationSuggestions { get; set; } = new();
+    
+    // Embedding Queue Statistics
+    public int PendingEmbeddingsCount { get; set; }
+    public int ProcessingEmbeddingsCount { get; set; }
+    public int CompletedEmbeddingsCount { get; set; }
+    public int PendingChunksCount { get; set; }
+    public double EstimatedProcessingTimeMinutes { get; set; }
+    public DateTime? LastBatchProcessingTime { get; set; }
 }
 
 public class TopDocument
