@@ -489,8 +489,7 @@ public class DocumentsController : ControllerBase
         
         foreach (var chunk in chunks)
         {
-            var currentChunk = chunk; // Capture for closure
-            tasks.Add(GenerateSingleChunkEmbeddingAsync(currentChunk, documentId, semaphore));
+            tasks.Add(GenerateSingleChunkEmbeddingAsync(chunk, documentId, semaphore));
         }
         
         var results = await Task.WhenAll(tasks);
@@ -508,8 +507,8 @@ public class DocumentsController : ControllerBase
             var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
             if (chunkEmbedding != null)
             {
+                // ChunkEmbedding setter automatically sets EmbeddingDimension
                 chunk.ChunkEmbedding = chunkEmbedding;
-                chunk.EmbeddingDimension = chunkEmbedding.Length;
                 return true;
             }
             return false;
