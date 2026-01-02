@@ -529,75 +529,208 @@ FORMATO DELLA RISPOSTA:
 
     /// <summary>
     /// Fallback keyword search quando la ricerca semantica non trova risultati.
-    /// Cerca per nome file, numero documento, o parole chiave nel testo.
+    /// Cerca in: nome file, testo, tag, metadati, categoria, note.
+    /// Supporta query diverse tipo: "doc 775", "fattura n775", "documento 775 di Rossi"
     /// </summary>
     private async Task<List<RelevantDocumentResult>> FallbackKeywordSearch(string query, string userId, int topK)
     {
         try
         {
-            _logger.LogInformation("Executing fallback keyword search for query: {Query}", query);
+            _logger.LogInformation("Executing enhanced multi-field fallback search for query: {Query}", query);
             
             var queryLower = query.ToLower();
             var results = new List<RelevantDocumentResult>();
             
-            // Estrai numeri dalla query usando regex precompilato (es: "documento 775" -> 775)
+            // Estrai numeri dalla query (es: "documento 775", "fattura n775" -> "775")
             var numbers = NumberExtractorRegex.Matches(query)
                 .Select(m => m.Value)
                 .ToList();
             
-            // Ottimizzazione: Se ci sono numeri, cerca principalmente per numeri
-            // Altrimenti usa la query testuale completa
-            var useNumberSearch = numbers.Any();
+            // Estrai parole chiave significative (escludendo stop words comuni)
+            var stopWords = new HashSet<string> { "il", "lo", "la", "i", "gli", "le", "un", "uno", "una", 
+                "di", "da", "in", "con", "su", "per", "tra", "fra", "doc", "documento", "documenti",
+                "dammi", "trova", "cerca", "mostra", "voglio", "n", "nr", "num", "numero" };
             
-            // Cerca documenti per:
-            // 1. Nome file che contiene la query o numeri
-            // 2. Testo estratto che contiene le parole chiave
+            var keywords = query.ToLower()
+                .Split(new[] { ' ', ',', '.', ';', ':', '-', '_' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => !stopWords.Contains(w) && !numbers.Contains(w) && w.Length > 2)
+                .ToList();
             
-            IQueryable<Document> documentsQuery = _context.Documents
+            _logger.LogInformation("Extracted {NumCount} numbers and {KeywordCount} keywords from query", 
+                numbers.Count, keywords.Count);
+            
+            // Carica documenti con Include per Tags
+            var documentsQuery = _context.Documents
+                .Include(d => d.Tags)
                 .Where(d => d.OwnerId == userId);
             
-            if (useNumberSearch)
+            // Build query dinamica basata su cosa abbiamo estratto
+            if (numbers.Any() && keywords.Any())
             {
-                // Cerca principalmente per numeri (più efficiente)
-                var numberFilters = numbers.Select(num => 
-                    (Func<Document, bool>)(d => d.FileName.Contains(num) || 
-                                                (d.ExtractedText != null && d.ExtractedText.Contains(num)))).ToList();
+                // Query combinata: numero + keywords (es: "documento 775 di Rossi")
+                _logger.LogInformation("Using combined search: numbers + keywords");
                 
-                documentsQuery = documentsQuery.Where(d => 
-                    numbers.Any(num => d.FileName.Contains(num)) ||
-                    (d.ExtractedText != null && numbers.Any(num => d.ExtractedText.Contains(num))));
+                documentsQuery = documentsQuery.Where(d =>
+                    // Numero nel nome file o testo
+                    (numbers.Any(num => d.FileName.Contains(num) || 
+                                       (d.ExtractedText != null && d.ExtractedText.Contains(num)))) &&
+                    // E almeno una keyword in uno qualsiasi dei campi
+                    (keywords.Any(kw => 
+                        d.FileName.ToLower().Contains(kw) ||
+                        (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(kw)) ||
+                        (d.ActualCategory != null && d.ActualCategory.ToLower().Contains(kw)) ||
+                        (d.SuggestedCategory != null && d.SuggestedCategory.ToLower().Contains(kw)) ||
+                        (d.Notes != null && d.Notes.ToLower().Contains(kw)) ||
+                        (d.AITagsJson != null && d.AITagsJson.ToLower().Contains(kw)) ||
+                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.ToLower().Contains(kw))
+                    ))
+                );
+            }
+            else if (numbers.Any())
+            {
+                // Solo numeri (es: "775", "fattura 775", "n775")
+                _logger.LogInformation("Using number-only search");
+                
+                documentsQuery = documentsQuery.Where(d =>
+                    numbers.Any(num => 
+                        d.FileName.Contains(num) ||
+                        (d.ExtractedText != null && d.ExtractedText.Contains(num)) ||
+                        (d.AITagsJson != null && d.AITagsJson.Contains(num)) ||
+                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(num)) ||
+                        (d.Notes != null && d.Notes.Contains(num))
+                    )
+                );
+            }
+            else if (keywords.Any())
+            {
+                // Solo keywords (es: "fattura", "contratto rossi")
+                _logger.LogInformation("Using keyword-only search");
+                
+                documentsQuery = documentsQuery.Where(d =>
+                    keywords.Any(kw =>
+                        d.FileName.ToLower().Contains(kw) ||
+                        (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(kw)) ||
+                        (d.ActualCategory != null && d.ActualCategory.ToLower().Contains(kw)) ||
+                        (d.SuggestedCategory != null && d.SuggestedCategory.ToLower().Contains(kw)) ||
+                        (d.Notes != null && d.Notes.ToLower().Contains(kw)) ||
+                        (d.AITagsJson != null && d.AITagsJson.ToLower().Contains(kw)) ||
+                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.ToLower().Contains(kw))
+                    )
+                );
             }
             else
             {
-                // Cerca per testo (fallback)
-                documentsQuery = documentsQuery.Where(d => 
+                // Fallback generico: cerca query completa
+                _logger.LogInformation("Using full-text fallback search");
+                
+                documentsQuery = documentsQuery.Where(d =>
                     d.FileName.ToLower().Contains(queryLower) ||
-                    (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(queryLower)));
+                    (d.ExtractedText != null && d.ExtractedText.ToLower().Contains(queryLower)) ||
+                    (d.ActualCategory != null && d.ActualCategory.ToLower().Contains(queryLower)) ||
+                    (d.Notes != null && d.Notes.ToLower().Contains(queryLower)) ||
+                    (d.AITagsJson != null && d.AITagsJson.ToLower().Contains(queryLower)) ||
+                    (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.ToLower().Contains(queryLower))
+                );
             }
             
             var documents = await documentsQuery
-                .Take(topK)
+                .Take(topK * 2) // Prendi più documenti per poi rankare
                 .ToListAsync();
             
-            _logger.LogInformation("Fallback search found {Count} documents", documents.Count);
+            _logger.LogInformation("Fallback search found {Count} candidate documents", documents.Count);
+            
+            // Rankare i risultati in base a quanti campi matchano
+            var scoredDocs = new List<(Document doc, double score, string matchedFields)>();
             
             foreach (var doc in documents)
             {
-                // Cerca anche nei chunks per trovare il contenuto più rilevante
+                double score = 0;
+                var matchedFields = new List<string>();
+                
+                // Calcola score basato su dove è stato trovato il match
+                foreach (var num in numbers)
+                {
+                    if (doc.FileName.Contains(num, StringComparison.OrdinalIgnoreCase))
+                    {
+                        score += 0.15;
+                        matchedFields.Add("FileName");
+                    }
+                    if (doc.ExtractedText != null && doc.ExtractedText.Contains(num, StringComparison.OrdinalIgnoreCase))
+                    {
+                        score += 0.10;
+                        matchedFields.Add("Text");
+                    }
+                    if (doc.ExtractedMetadataJson != null && doc.ExtractedMetadataJson.Contains(num, StringComparison.OrdinalIgnoreCase))
+                    {
+                        score += 0.12;
+                        matchedFields.Add("Metadata");
+                    }
+                }
+                
+                foreach (var kw in keywords)
+                {
+                    if (doc.FileName.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    {
+                        score += 0.10;
+                        if (!matchedFields.Contains("FileName")) matchedFields.Add("FileName");
+                    }
+                    if (doc.ActualCategory != null && doc.ActualCategory.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    {
+                        score += 0.08;
+                        matchedFields.Add("Category");
+                    }
+                    if (doc.AITagsJson != null && doc.AITagsJson.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    {
+                        score += 0.07;
+                        matchedFields.Add("Tags");
+                    }
+                    if (doc.ExtractedText != null && doc.ExtractedText.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    {
+                        score += 0.05;
+                        if (!matchedFields.Contains("Text")) matchedFields.Add("Text");
+                    }
+                }
+                
+                // Bonus se ha Tags che matchano
+                if (doc.Tags.Any(t => keywords.Any(kw => t.Name.Contains(kw, StringComparison.OrdinalIgnoreCase))))
+                {
+                    score += 0.10;
+                    matchedFields.Add("DocumentTags");
+                }
+                
+                if (score > 0)
+                {
+                    scoredDocs.Add((doc, score, string.Join(", ", matchedFields.Distinct())));
+                }
+            }
+            
+            // Ordina per score e prendi top K
+            var topDocs = scoredDocs.OrderByDescending(x => x.score).Take(topK).ToList();
+            
+            _logger.LogInformation("Ranked and selected top {Count} documents", topDocs.Count);
+            
+            foreach (var (doc, score, matchedFields) in topDocs)
+            {
+                _logger.LogInformation("Document {FileName} (ID: {DocId}) - Score: {Score:F2}, Matched: {Fields}",
+                    doc.FileName, doc.Id, score, matchedFields);
+                
+                // Cerca chunk più rilevante
                 DocumentChunk? relevantChunk = null;
                 
-                if (useNumberSearch)
+                if (numbers.Any())
                 {
                     relevantChunk = await _context.DocumentChunks
                         .Where(c => c.DocumentId == doc.Id)
-                        .Where(c => numbers.Any(num => c.ChunkText.Contains(num)))
+                        .Where(c => numbers.Any(num => c.ChunkText.Contains(num, StringComparison.OrdinalIgnoreCase)))
                         .OrderBy(c => c.ChunkIndex)
                         .FirstOrDefaultAsync();
                 }
-                else
+                
+                if (relevantChunk == null && keywords.Any())
                 {
                     relevantChunk = await _context.DocumentChunks
-                        .Where(c => c.DocumentId == doc.Id && c.ChunkText.ToLower().Contains(queryLower))
+                        .Where(c => c.DocumentId == doc.Id)
+                        .Where(c => keywords.Any(kw => c.ChunkText.Contains(kw, StringComparison.OrdinalIgnoreCase)))
                         .OrderBy(c => c.ChunkIndex)
                         .FirstOrDefaultAsync();
                 }
@@ -607,7 +740,7 @@ FORMATO DELLA RISPOSTA:
                     DocumentId = doc.Id,
                     FileName = doc.FileName,
                     Category = doc.ActualCategory,
-                    SimilarityScore = FallbackSearchSimilarityScore, // Score fisso per keyword match
+                    SimilarityScore = Math.Min(FallbackSearchSimilarityScore + score, 0.95), // Max 0.95
                     RelevantChunk = relevantChunk?.ChunkText,
                     ChunkIndex = relevantChunk?.ChunkIndex,
                     ExtractedText = doc.ExtractedText
@@ -616,11 +749,13 @@ FORMATO DELLA RISPOSTA:
             
             if (results.Any())
             {
-                _logger.LogInformation("Fallback search successful: returning {Count} documents", results.Count);
+                _logger.LogInformation("Fallback search successful: returning {Count} documents with avg score {AvgScore:F2}", 
+                    results.Count, results.Average(r => r.SimilarityScore));
             }
             else
             {
-                _logger.LogWarning("Fallback search found no matching documents for query: {Query}", query);
+                _logger.LogWarning("Fallback search found no matching documents for query: {Query}. Extracted {NumCount} numbers, {KeywordCount} keywords", 
+                    query, numbers.Count, keywords.Count);
             }
             
             return results;
