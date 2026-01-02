@@ -41,8 +41,8 @@ public class HybridSearchServiceTests
         // Add test document with "Rossi Gilbo" in extracted text (matching the real PDF)
         var document = new Document
         {
-            FileName = "testdocupdat.pdf",
-            FilePath = "/test/testdocupdat.pdf",
+            FileName = "testdocudat.pdf",
+            FilePath = "/test/testdocudat.pdf",
             ContentType = "application/pdf",
             FileSize = 57923,
             ExtractedText = @"--- Page 1 ---
@@ -78,7 +78,7 @@ D.D.T. n° 5 del 10/01/2024",
         Assert.Single(results);
         
         var result = results[0];
-        Assert.Equal("testdocupdat.pdf", result.Document.FileName);
+        Assert.Equal("testdocudat.pdf", result.Document.FileName);
         Assert.True(result.TextScore > 0, "Text score should be greater than 0");
         Assert.Contains("Rossi", result.Document.ExtractedText, StringComparison.OrdinalIgnoreCase);
     }
@@ -91,8 +91,8 @@ D.D.T. n° 5 del 10/01/2024",
         
         var document = new Document
         {
-            FileName = "testdocupdat.pdf",
-            FilePath = "/test/testdocupdat.pdf",
+            FileName = "testdocudat.pdf",
+            FilePath = "/test/testdocudat.pdf",
             ContentType = "application/pdf",
             FileSize = 57923,
             ExtractedText = "Destinatario Rossi Gilbo Commercio Tessile",
@@ -117,7 +117,7 @@ D.D.T. n° 5 del 10/01/2024",
         // Assert
         Assert.NotEmpty(results);
         Assert.Single(results);
-        Assert.Equal("testdocupdat.pdf", results[0].Document.FileName);
+        Assert.Equal("testdocudat.pdf", results[0].Document.FileName);
     }
 
     [Fact]
@@ -128,8 +128,8 @@ D.D.T. n° 5 del 10/01/2024",
         
         var document = new Document
         {
-            FileName = "testdocupdat.pdf",
-            FilePath = "/test/testdocupdat.pdf",
+            FileName = "testdocudat.pdf",
+            FilePath = "/test/testdocudat.pdf",
             ContentType = "application/pdf",
             FileSize = 57923,
             ExtractedText = "Destinatario Rossi Gilbo",
@@ -150,7 +150,7 @@ D.D.T. n° 5 del 10/01/2024",
         // Assert
         Assert.NotEmpty(results);
         Assert.Single(results);
-        Assert.Equal("testdocupdat.pdf", results[0].Document.FileName);
+        Assert.Equal("testdocudat.pdf", results[0].Document.FileName);
     }
 
     [Fact]
