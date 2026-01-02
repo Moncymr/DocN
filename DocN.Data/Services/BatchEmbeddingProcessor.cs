@@ -58,9 +58,11 @@ public class BatchEmbeddingProcessor : BackgroundService
 
         try
         {
-            // Find documents without embeddings
+            // Find documents without embeddings OR without chunks
             var pendingDocuments = await context.Documents
-                .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null && !string.IsNullOrEmpty(d.ExtractedText))
+                .Where(d => !string.IsNullOrEmpty(d.ExtractedText) && 
+                           ((d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null) || 
+                            !context.DocumentChunks.Any(c => c.DocumentId == d.Id)))
                 .Take(10) // Process 10 at a time to avoid overload
                 .ToListAsync(cancellationToken);
 
@@ -330,7 +332,9 @@ public class BatchProcessingService : IBatchProcessingService
     public async Task ProcessAllPendingAsync()
     {
         var pendingDocuments = await _context.Documents
-            .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null && !string.IsNullOrEmpty(d.ExtractedText))
+            .Where(d => !string.IsNullOrEmpty(d.ExtractedText) && 
+                       ((d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null) || 
+                        !_context.DocumentChunks.Any(c => c.DocumentId == d.Id)))
             .Select(d => d.Id)
             .ToListAsync();
 
@@ -356,10 +360,14 @@ public class BatchProcessingService : IBatchProcessingService
         var docsWithoutEmbeddings = await _context.Documents
             .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null)
             .CountAsync();
+        
+        var docsWithoutChunks = await _context.Documents
+            .Where(d => !_context.DocumentChunks.Any(c => c.DocumentId == d.Id))
+            .CountAsync();
 
         var totalChunks = await _context.DocumentChunks.CountAsync();
         var chunksWithoutEmbeddings = await _context.DocumentChunks
-            .Where(c => c.ChunkEmbedding == null)
+            .Where(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null)
             .CountAsync();
 
         var docsWithEmbeddings = totalDocs - docsWithoutEmbeddings;
