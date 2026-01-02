@@ -191,9 +191,29 @@ public class DocumentsController : ControllerBase
                 var chunks = _chunkingService.ChunkDocument(document);
                 if (chunks.Any())
                 {
+                    // Generate embeddings for each chunk
+                    foreach (var chunk in chunks)
+                    {
+                        try
+                        {
+                            var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+                            if (chunkEmbedding != null)
+                            {
+                                chunk.ChunkEmbedding = chunkEmbedding;
+                                chunk.EmbeddingDimension = chunkEmbedding.Length;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {Id}", chunk.ChunkIndex, document.Id);
+                            // Continue with other chunks even if one fails
+                        }
+                    }
+                    
                     _context.DocumentChunks.AddRange(chunks);
                     await _context.SaveChangesAsync();
-                    _logger.LogInformation("Created {ChunkCount} chunks for document {Id}", chunks.Count, document.Id);
+                    _logger.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
+                        chunks.Count, document.Id, chunks.Count(c => c.ChunkEmbedding != null));
                 }
             }
 
@@ -283,13 +303,33 @@ public class DocumentsController : ControllerBase
                     .ToListAsync();
                 _context.DocumentChunks.RemoveRange(existingChunks);
 
-                // Create new chunks
+                // Create new chunks with embeddings
                 var newChunks = _chunkingService.ChunkDocument(existingDocument);
                 if (newChunks.Any())
                 {
+                    // Generate embeddings for each chunk
+                    foreach (var chunk in newChunks)
+                    {
+                        try
+                        {
+                            var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+                            if (chunkEmbedding != null)
+                            {
+                                chunk.ChunkEmbedding = chunkEmbedding;
+                                chunk.EmbeddingDimension = chunkEmbedding.Length;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {Id}", chunk.ChunkIndex, id);
+                            // Continue with other chunks even if one fails
+                        }
+                    }
+                    
                     _context.DocumentChunks.AddRange(newChunks);
                     await _context.SaveChangesAsync();
-                    _logger.LogInformation("Updated {ChunkCount} chunks for document {Id}", newChunks.Count, id);
+                    _logger.LogInformation("Updated {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
+                        newChunks.Count, id, newChunks.Count(c => c.ChunkEmbedding != null));
                 }
             }
 
