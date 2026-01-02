@@ -439,17 +439,12 @@ public class DocumentsController : ControllerBase
                     
                     _context.DocumentChunks.RemoveRange(existingChunks);
 
-                    // Create new chunks with embeddings
+                    // Create new chunks with embeddings using the same parallel processing helper
                     var newChunks = _chunkingService.ChunkDocument(document);
-                    foreach (var chunk in newChunks)
+                    if (newChunks.Any())
                     {
-                        var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
-                        if (chunkEmbedding != null)
-                        {
-                            chunk.ChunkEmbedding = chunkEmbedding;
-                            chunk.EmbeddingDimension = chunkEmbedding.Length;
-                        }
-                        _context.DocumentChunks.Add(chunk);
+                        await GenerateChunkEmbeddingsAsync(newChunks, document.Id);
+                        _context.DocumentChunks.AddRange(newChunks);
                     }
 
                     await _context.SaveChangesAsync();
@@ -476,24 +471,34 @@ public class DocumentsController : ControllerBase
 
     /// <summary>
     /// Helper method to generate embeddings for a list of document chunks
-    /// Uses parallel processing with limited concurrency for better performance
+    /// Uses parallel processing with limited concurrency and batching for better performance
     /// </summary>
     /// <param name="chunks">List of chunks to generate embeddings for</param>
     /// <param name="documentId">Document ID for logging purposes</param>
     /// <param name="maxConcurrency">Maximum number of concurrent embedding requests (default: 3)</param>
+    /// <param name="batchSize">Number of chunks to process in each batch (default: 20)</param>
     /// <returns>Number of chunks that successfully got embeddings</returns>
-    private async Task<int> GenerateChunkEmbeddingsAsync(List<DocumentChunk> chunks, int documentId, int maxConcurrency = 3)
+    private async Task<int> GenerateChunkEmbeddingsAsync(List<DocumentChunk> chunks, int documentId, int maxConcurrency = 3, int batchSize = 20)
     {
-        using var semaphore = new SemaphoreSlim(maxConcurrency);
-        var tasks = new List<Task<bool>>();
+        var successCount = 0;
         
-        foreach (var chunk in chunks)
+        // Process chunks in batches to avoid memory pressure with large documents
+        for (int i = 0; i < chunks.Count; i += batchSize)
         {
-            tasks.Add(GenerateSingleChunkEmbeddingAsync(chunk, documentId, semaphore));
+            var batch = chunks.Skip(i).Take(batchSize).ToList();
+            using var semaphore = new SemaphoreSlim(maxConcurrency);
+            var tasks = new List<Task<bool>>();
+            
+            foreach (var chunk in batch)
+            {
+                tasks.Add(GenerateSingleChunkEmbeddingAsync(chunk, documentId, semaphore));
+            }
+            
+            var results = await Task.WhenAll(tasks);
+            successCount += results.Count(r => r);
         }
         
-        var results = await Task.WhenAll(tasks);
-        return results.Count(r => r);
+        return successCount;
     }
 
     /// <summary>
