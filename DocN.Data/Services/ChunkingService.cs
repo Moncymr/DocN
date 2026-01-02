@@ -148,12 +148,16 @@ public class ChunkingService : IChunkingService
                 chunks.Add(chunkText);
             }
 
+            // If we've reached the end of the text, we're done
+            if (endPosition >= text.Length)
+                break;
+
             // Move position forward, accounting for overlap
             position = endPosition - overlap;
             
-            // Ensure we make progress
-            if (position <= 0 || position >= text.Length)
-                break;
+            // Ensure we make progress - position should be positive and less than endPosition
+            if (position <= 0)
+                position = endPosition;
         }
 
         return chunks;
