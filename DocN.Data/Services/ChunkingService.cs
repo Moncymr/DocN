@@ -153,11 +153,16 @@ public class ChunkingService : IChunkingService
                 break;
 
             // Move position forward, accounting for overlap
-            position = endPosition - overlap;
+            var newPosition = endPosition - overlap;
             
-            // Ensure we make progress - position should be positive and less than endPosition
-            if (position <= 0)
-                position = endPosition;
+            // Ensure we make forward progress - must move at least 1 character forward
+            if (newPosition <= position)
+            {
+                // If overlap is too large or we're not making progress, skip overlap and move to endPosition
+                newPosition = endPosition;
+            }
+            
+            position = newPosition;
         }
 
         return chunks;
