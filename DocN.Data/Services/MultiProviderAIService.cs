@@ -318,8 +318,12 @@ public class MultiProviderAIService : IMultiProviderAIService
                         // All fallback attempts failed
                         var errorMessage = $"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}";
                         
-                        // Check if any error mentions quota issues
-                        var hasQuotaIssue = errors.Any(e => e.Contains("Quota") || e.Contains("quota") || e.Contains("🚫"));
+                        // Check if any error mentions quota issues (using our formatted messages or raw API responses)
+                        var hasQuotaIssue = errors.Any(e => 
+                            e.Contains("Quota") || 
+                            e.Contains("quota") || 
+                            e.Contains("🚫") ||
+                            IsQuotaExceededError(e));
                         if (hasQuotaIssue)
                         {
                             errorMessage += "\n\n💡 Suggerimento: Uno o più provider hanno esaurito la quota. " +
@@ -603,8 +607,12 @@ public class MultiProviderAIService : IMultiProviderAIService
                 // All attempts failed
                 var errorMessage = $"Tutti i provider AI sono falliti. Errori: {string.Join("; ", errors)}";
                 
-                // Check if any error mentions quota issues
-                var hasQuotaIssue = errors.Any(e => e.Contains("Quota") || e.Contains("quota") || e.Contains("🚫"));
+                // Check if any error mentions quota issues (using our formatted messages or raw API responses)
+                var hasQuotaIssue = errors.Any(e => 
+                    e.Contains("Quota") || 
+                    e.Contains("quota") || 
+                    e.Contains("🚫") ||
+                    IsQuotaExceededError(e));
                 if (hasQuotaIssue)
                 {
                     errorMessage += "\n\n💡 Suggerimento: Uno o più provider hanno esaurito la quota. " +
@@ -1132,6 +1140,9 @@ Respond ONLY with valid JSON, no other comments.";
     /// </summary>
     private bool IsQuotaExceededError(string errorMessage)
     {
+        if (string.IsNullOrEmpty(errorMessage))
+            return false;
+            
         // Check for quota-related keywords in the error message
         var lowerMessage = errorMessage.ToLowerInvariant();
         return lowerMessage.Contains("quota exceeded") || 
