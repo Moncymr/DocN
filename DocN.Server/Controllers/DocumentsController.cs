@@ -482,11 +482,13 @@ public class DocumentsController : ControllerBase
     {
         var successCount = 0;
         
+        // Reuse semaphore across all batches for efficiency
+        using var semaphore = new SemaphoreSlim(maxConcurrency);
+        
         // Process chunks in batches to avoid memory pressure with large documents
         for (int i = 0; i < chunks.Count; i += batchSize)
         {
             var batch = chunks.Skip(i).Take(batchSize).ToList();
-            using var semaphore = new SemaphoreSlim(maxConcurrency);
             var tasks = new List<Task<bool>>();
             
             foreach (var chunk in batch)
@@ -504,6 +506,10 @@ public class DocumentsController : ControllerBase
     /// <summary>
     /// Generate embedding for a single chunk with semaphore-controlled concurrency
     /// </summary>
+    /// <param name="chunk">The document chunk to generate embedding for</param>
+    /// <param name="documentId">Document ID for logging purposes</param>
+    /// <param name="semaphore">Semaphore to control concurrency across multiple chunk operations</param>
+    /// <returns>True if embedding was successfully generated, false otherwise</returns>
     private async Task<bool> GenerateSingleChunkEmbeddingAsync(DocumentChunk chunk, int documentId, SemaphoreSlim semaphore)
     {
         await semaphore.WaitAsync();
