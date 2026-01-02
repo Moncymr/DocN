@@ -169,9 +169,9 @@ public class BatchEmbeddingProcessor : BackgroundService
 
         try
         {
-            // Find chunks without embeddings
+            // Find chunks without embeddings (pending status)
             var pendingChunks = await context.DocumentChunks
-                .Where(c => c.ChunkEmbedding == null)
+                .Where(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null)
                 .Take(20) // Process 20 chunks at a time
                 .ToListAsync(cancellationToken);
 
