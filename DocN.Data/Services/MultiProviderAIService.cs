@@ -316,7 +316,17 @@ public class MultiProviderAIService : IMultiProviderAIService
                         }
                         
                         // All fallback attempts failed
-                        throw new InvalidOperationException($"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}");
+                        var errorMessage = $"Tutti i provider di embedding sono falliti. Errori: {string.Join("; ", errors)}";
+                        
+                        // Check if any error mentions quota issues
+                        var hasQuotaIssue = errors.Any(e => e.Contains("Quota") || e.Contains("quota") || e.Contains("🚫"));
+                        if (hasQuotaIssue)
+                        {
+                            errorMessage += "\n\n💡 Suggerimento: Uno o più provider hanno esaurito la quota. " +
+                                           "Configura un provider alternativo con quota disponibile o attendi il reset della quota.";
+                        }
+                        
+                        throw new InvalidOperationException(errorMessage);
                     }
                     
                     // Fallback is disabled, throw the original exception
@@ -454,7 +464,29 @@ public class MultiProviderAIService : IMultiProviderAIService
             catch (System.Net.Http.HttpRequestException ex) when (
                 ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
-                // Let the retry logic handle this
+                // Check if this is a quota exceeded error (not just temporary rate limit)
+                if (IsQuotaExceededError(ex.Message))
+                {
+                    var modelName = config.GeminiEmbeddingModel ?? "text-embedding-004";
+                    await _logService.LogErrorAsync("Embedding", 
+                        $"❌ Quota Gemini esaurita per il modello '{modelName}'", 
+                        ex.Message, 
+                        stackTrace: ex.StackTrace);
+                    
+                    // Throw a more informative error that won't be retried
+                    throw new InvalidOperationException(
+                        $"🚫 Quota API Gemini esaurita per il modello embedding '{modelName}'. " +
+                        $"L'account ha superato i limiti gratuiti o a pagamento. " +
+                        $"Soluzioni:\n" +
+                        $"• Verifica il tuo piano e i dettagli di fatturazione su https://ai.google.dev/pricing\n" +
+                        $"• Monitora l'utilizzo su https://aistudio.google.com/app/apikey\n" +
+                        $"• Passa a un piano a pagamento o attendi il reset della quota\n" +
+                        $"• Configura un provider alternativo (OpenAI o Azure OpenAI) come fallback\n" +
+                        $"• Modello utilizzato: {modelName} (consigliato: text-embedding-004)\n" +
+                        $"Errore originale: {ex.Message}", ex);
+                }
+                
+                // Temporary rate limit - let the retry logic handle this
                 throw;
             }
             catch (Exception ex)
@@ -570,6 +602,15 @@ public class MultiProviderAIService : IMultiProviderAIService
                 
                 // All attempts failed
                 var errorMessage = $"Tutti i provider AI sono falliti. Errori: {string.Join("; ", errors)}";
+                
+                // Check if any error mentions quota issues
+                var hasQuotaIssue = errors.Any(e => e.Contains("Quota") || e.Contains("quota") || e.Contains("🚫"));
+                if (hasQuotaIssue)
+                {
+                    errorMessage += "\n\n💡 Suggerimento: Uno o più provider hanno esaurito la quota. " +
+                                   "Configura un provider alternativo con quota disponibile o attendi il reset della quota.";
+                }
+                
                 await _logService.LogErrorAsync("AI", "Tutti i fallback sono falliti", errorMessage);
                 throw new InvalidOperationException(errorMessage);
             }
@@ -650,7 +691,29 @@ public class MultiProviderAIService : IMultiProviderAIService
             catch (System.Net.Http.HttpRequestException ex) when (
                 ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
-                // Let the retry logic handle this
+                // Check if this is a quota exceeded error (not just temporary rate limit)
+                if (IsQuotaExceededError(ex.Message))
+                {
+                    var modelName = config.GeminiChatModel ?? "gemini-2.0-flash-exp";
+                    await _logService.LogErrorAsync("AI", 
+                        $"❌ Quota Gemini esaurita per il modello '{modelName}'", 
+                        ex.Message, 
+                        stackTrace: ex.StackTrace);
+                    
+                    // Throw a more informative error that won't be retried
+                    throw new InvalidOperationException(
+                        $"🚫 Quota API Gemini esaurita per il modello chat '{modelName}'. " +
+                        $"L'account ha superato i limiti gratuiti o a pagamento. " +
+                        $"Soluzioni:\n" +
+                        $"• Verifica il tuo piano e i dettagli di fatturazione su https://ai.google.dev/pricing\n" +
+                        $"• Monitora l'utilizzo su https://aistudio.google.com/app/apikey\n" +
+                        $"• Passa a un piano a pagamento o attendi il reset della quota\n" +
+                        $"• Configura un provider alternativo (OpenAI o Azure OpenAI) come fallback\n" +
+                        $"• Modello utilizzato: {modelName} (consigliati: gemini-2.0-flash-exp, gemini-1.5-flash)\n" +
+                        $"Errore originale: {ex.Message}", ex);
+                }
+                
+                // Temporary rate limit - let the retry logic handle this
                 throw;
             }
             catch (Exception ex)
@@ -1062,6 +1125,21 @@ Respond ONLY with valid JSON, no other comments.";
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Checks if the error is a quota exceeded error (not just temporary rate limit)
+    /// </summary>
+    private bool IsQuotaExceededError(string errorMessage)
+    {
+        // Check for quota-related keywords in the error message
+        var lowerMessage = errorMessage.ToLowerInvariant();
+        return lowerMessage.Contains("quota exceeded") || 
+               lowerMessage.Contains("current quota") ||
+               lowerMessage.Contains("billing details") ||
+               lowerMessage.Contains("limit: 0") ||
+               lowerMessage.Contains("free tier") ||
+               lowerMessage.Contains("free_tier");
     }
 
     /// <summary>
