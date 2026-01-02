@@ -149,39 +149,31 @@ public class BatchEmbeddingProcessor : BackgroundService
                     _logger.LogInformation("Created {ChunkCount} chunks for document {Id} - Status: Completed", 
                         chunks.Count, document.Id);
                 }
-                catch (DbUpdateException ex)
+                catch (Exception ex)
                 {
                     // Extract the inner exception details for better error reporting
-                    var innerMessage = ex.InnerException?.Message ?? ex.Message;
-                    
-                    // Check for vector dimension mismatch error
-                    if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(innerMessage))
+                    if (ex is DbUpdateException dbEx)
                     {
-                        _logger.LogError(ex, "Vector dimension mismatch for document {Id}: {FileName}", 
-                            document.Id, document.FileName);
-                        _logger.LogError("Database save failed with dimension mismatch. Original error: {Error}", innerMessage);
+                        var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
+                        
+                        // Check for vector dimension mismatch error
+                        if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(innerMessage))
+                        {
+                            _logger.LogError(ex, "Vector dimension mismatch for document {Id}: {FileName}", 
+                                document.Id, document.FileName);
+                            _logger.LogError("Database save failed with dimension mismatch. Original error: {Error}", innerMessage);
+                        }
+                        else
+                        {
+                            _logger.LogError(ex, "Database error processing document {Id}: {FileName}", 
+                                document.Id, document.FileName);
+                        }
                     }
                     else
                     {
-                        _logger.LogError(ex, "Database error processing document {Id}: {FileName}", 
+                        _logger.LogError(ex, "Error processing document {Id}: {FileName}", 
                             document.Id, document.FileName);
                     }
-                    
-                    // Reset status to Pending so it can be retried later
-                    try
-                    {
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
-                        await context.SaveChangesAsync(cancellationToken);
-                    }
-                    catch (Exception saveEx)
-                    {
-                        _logger.LogError(saveEx, "Failed to reset status for document {Id}", document.Id);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error processing document {Id}: {FileName}", 
-                        document.Id, document.FileName);
                     
                     // Reset status to Pending so it can be retried later
                     try
