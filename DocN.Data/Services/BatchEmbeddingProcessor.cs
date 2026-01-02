@@ -1,3 +1,4 @@
+using DocN.Data.Constants;
 using DocN.Data.Models;
 using DocN.Data.Utilities;
 using Microsoft.EntityFrameworkCore;
@@ -58,18 +59,17 @@ public class BatchEmbeddingProcessor : BackgroundService
 
         try
         {
-            // Find documents without embeddings OR without chunks
+            // Find documents with Pending status that need chunks created
             var pendingDocuments = await context.Documents
                 .Where(d => !string.IsNullOrEmpty(d.ExtractedText) && 
-                           ((d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null) || 
-                            !context.DocumentChunks.Any(c => c.DocumentId == d.Id)))
+                           d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending)
                 .Take(10) // Process 10 at a time to avoid overload
                 .ToListAsync(cancellationToken);
 
             if (!pendingDocuments.Any())
                 return;
 
-            _logger.LogInformation("Processing {Count} documents for embeddings", pendingDocuments.Count);
+            _logger.LogInformation("Processing {Count} documents with Pending status for chunk creation and embeddings", pendingDocuments.Count);
 
             foreach (var document in pendingDocuments)
             {
@@ -110,7 +110,16 @@ public class BatchEmbeddingProcessor : BackgroundService
                     {
                         _logger.LogWarning("No chunks created for document {Id}: {FileName}. ExtractedText length: {Length}", 
                             document.Id, document.FileName, document.ExtractedText?.Length ?? 0);
+                        
+                        // Mark as NotRequired if no chunks can be created
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
+                        await context.SaveChangesAsync(cancellationToken);
+                        continue;
                     }
+                    
+                    // Update status to Processing
+                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Processing;
+                    await context.SaveChangesAsync(cancellationToken);
                     
                     // Generate embeddings for chunks
                     foreach (var chunk in chunks)
@@ -133,9 +142,11 @@ public class BatchEmbeddingProcessor : BackgroundService
                         context.DocumentChunks.Add(chunk);
                     }
 
+                    // Mark as Completed after all chunks are created and embedded
+                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
                     await context.SaveChangesAsync(cancellationToken);
                     
-                    _logger.LogInformation("Created {ChunkCount} chunks for document {Id}", 
+                    _logger.LogInformation("Created {ChunkCount} chunks for document {Id} - Status: Completed", 
                         chunks.Count, document.Id);
                 }
                 catch (DbUpdateException ex)
@@ -155,11 +166,33 @@ public class BatchEmbeddingProcessor : BackgroundService
                         _logger.LogError(ex, "Database error processing document {Id}: {FileName}", 
                             document.Id, document.FileName);
                     }
+                    
+                    // Reset status to Pending so it can be retried later
+                    try
+                    {
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
+                        await context.SaveChangesAsync(cancellationToken);
+                    }
+                    catch (Exception saveEx)
+                    {
+                        _logger.LogError(saveEx, "Failed to reset status for document {Id}", document.Id);
+                    }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error processing document {Id}: {FileName}", 
                         document.Id, document.FileName);
+                    
+                    // Reset status to Pending so it can be retried later
+                    try
+                    {
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
+                        await context.SaveChangesAsync(cancellationToken);
+                    }
+                    catch (Exception saveEx)
+                    {
+                        _logger.LogError(saveEx, "Failed to reset status for document {Id}", document.Id);
+                    }
                 }
             }
         }
