@@ -103,12 +103,23 @@ public class BatchEmbeddingProcessor : BackgroundService
 
                     // Create chunks for the document
                     var chunks = chunkingService.ChunkDocument(document);
+                    _logger.LogInformation("ChunkDocument returned {ChunkCount} chunks for document {Id}", 
+                        chunks.Count, document.Id);
+                    
+                    if (chunks.Count == 0)
+                    {
+                        _logger.LogWarning("No chunks created for document {Id}: {FileName}. ExtractedText length: {Length}", 
+                            document.Id, document.FileName, document.ExtractedText?.Length ?? 0);
+                    }
                     
                     // Generate embeddings for chunks
                     foreach (var chunk in chunks)
                     {
                         if (cancellationToken.IsCancellationRequested)
                             break;
+
+                        _logger.LogDebug("Processing chunk {ChunkIndex} of document {DocumentId}", 
+                            chunk.ChunkIndex, document.Id);
 
                         var chunkEmbedding = await embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
                         if (chunkEmbedding != null)
