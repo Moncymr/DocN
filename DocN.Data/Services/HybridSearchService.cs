@@ -155,12 +155,19 @@ public class HybridSearchService : IHybridSearchService
     }
 
     /// <summary>
-    /// Perform full-text search
+    /// Perform full-text search with improved case-insensitive matching
     /// </summary>
     public async Task<List<SearchResult>> TextSearchAsync(string query, SearchOptions options)
     {
-        // Simple text search using LINQ (in production, use SQL Server Full-Text Search)
-        var keywords = query.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // Extract keywords from query
+        var keywords = query.Split(new[] { ' ', ',', '.', ';', ':', '-', '_' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(k => k.Length > 1) // Filter out single characters
+            .ToList();
+
+        if (!keywords.Any())
+        {
+            return new List<SearchResult>();
+        }
 
         var documentsQuery = _context.Documents.AsQueryable();
 
@@ -180,19 +187,44 @@ public class HybridSearchService : IHybridSearchService
             documentsQuery = documentsQuery.Where(d => d.Visibility == options.VisibilityFilter.Value);
         }
 
-        // Search in filename and extracted text
+        // Load documents with necessary fields
         var documents = await documentsQuery.ToListAsync();
 
         var results = new List<SearchResult>();
         foreach (var doc in documents)
         {
-            var text = $"{doc.FileName} {doc.ExtractedText}".ToLower();
-            var matchCount = keywords.Count(k => text.Contains(k));
+            // Count matches using case-insensitive comparison
+            int matchCount = 0;
+            double totalScore = 0;
+            
+            foreach (var keyword in keywords)
+            {
+                // Check in FileName
+                if (doc.FileName != null && doc.FileName.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchCount++;
+                    totalScore += 1.0; // Filename match is worth 1.0
+                }
+                
+                // Check in ExtractedText
+                if (doc.ExtractedText != null && doc.ExtractedText.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchCount++;
+                    totalScore += 0.8; // Text match is worth 0.8
+                }
+                
+                // Check in ActualCategory
+                if (doc.ActualCategory != null && doc.ActualCategory.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchCount++;
+                    totalScore += 0.5; // Category match is worth 0.5
+                }
+            }
             
             if (matchCount > 0)
             {
-                // Simple scoring: ratio of matching keywords
-                var score = (double)matchCount / keywords.Length;
+                // Normalize score: weighted average + ratio of matched keywords
+                var score = (totalScore / (keywords.Count * 1.0)) * ((double)matchCount / keywords.Count);
                 
                 results.Add(new SearchResult
                 {
