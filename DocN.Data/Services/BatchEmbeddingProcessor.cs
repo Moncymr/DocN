@@ -58,9 +58,11 @@ public class BatchEmbeddingProcessor : BackgroundService
 
         try
         {
-            // Find documents without embeddings
+            // Find documents without embeddings OR without chunks
             var pendingDocuments = await context.Documents
-                .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null && !string.IsNullOrEmpty(d.ExtractedText))
+                .Where(d => !string.IsNullOrEmpty(d.ExtractedText) && 
+                           ((d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null) || 
+                            !context.DocumentChunks.Any(c => c.DocumentId == d.Id)))
                 .Take(10) // Process 10 at a time to avoid overload
                 .ToListAsync(cancellationToken);
 
@@ -76,19 +78,27 @@ public class BatchEmbeddingProcessor : BackgroundService
 
                 try
                 {
-                    // Generate embedding for document
-                    var embedding = await embeddingService.GenerateEmbeddingAsync(document.ExtractedText);
-                    if (embedding != null)
+                    // Generate embedding for document only if it doesn't have one
+                    if (document.EmbeddingVector == null)
                     {
-                        document.EmbeddingVector = embedding;
-                        document.EmbeddingDimension = embedding.Length;
-                        
-                        // Log embedding info before saving
-                        _logger.LogInformation("Generated embedding for document {Id}: {FileName}", 
-                            document.Id, document.FileName);
-                        _logger.LogInformation("Embedding details - Length: {Length}, First 5 values: [{Values}]",
-                            embedding.Length, 
-                            string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6"))));
+                        var embedding = await embeddingService.GenerateEmbeddingAsync(document.ExtractedText);
+                        if (embedding != null)
+                        {
+                            document.EmbeddingVector = embedding;
+                            document.EmbeddingDimension = embedding.Length;
+                            
+                            // Log embedding info before saving
+                            _logger.LogInformation("Generated embedding for document {Id}: {FileName}", 
+                                document.Id, document.FileName);
+                            _logger.LogInformation("Embedding details - Length: {Length}, First 5 values: [{Values}]",
+                                embedding.Length, 
+                                string.Join(", ", embedding.Take(5).Select(v => v.ToString("F6"))));
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Document {Id} already has embedding, skipping embedding generation", 
+                            document.Id);
                     }
 
                     // Create chunks for the document
@@ -150,158 +160,49 @@ public class BatchEmbeddingProcessor : BackgroundService
 
     /// <summary>
     /// Process document chunks that don't have embeddings yet
-    /// Uses DocumentService to process chunks per document with batching and concurrency control
-    /// Also handles documents marked as "Pending" that don't have chunks created yet
     /// </summary>
     private async Task ProcessPendingChunksAsync(CancellationToken cancellationToken)
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var documentService = scope.ServiceProvider.GetService<IDocumentService>();
-        var chunkingService = scope.ServiceProvider.GetService<IChunkingService>();
-
-        if (documentService == null)
-        {
-            _logger.LogWarning("DocumentService not available for chunk processing");
-            return;
-        }
-        
-        if (chunkingService == null)
-        {
-            _logger.LogError("ChunkingService not available - chunks cannot be created! Check service registration in Program.cs");
-            return;
-        }
+        var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
 
         try
         {
-            // STEP 1: Find documents with ChunkEmbeddingStatus = "Pending" that need chunks created
-            var documentsNeedingChunks = await context.Documents
-                .Where(d => d.ChunkEmbeddingStatus == "Pending" && !string.IsNullOrEmpty(d.ExtractedText))
-                .Take(5) // Process 5 documents at a time
-                .ToListAsync(cancellationToken);
-
-            if (documentsNeedingChunks.Any())
-            {
-                _logger.LogInformation("Found {Count} documents needing chunk creation", documentsNeedingChunks.Count);
-
-                foreach (var document in documentsNeedingChunks)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-
-                    try
-                    {
-                        // Check if chunks already exist (shouldn't, but safety check)
-                        var existingChunkCount = await context.DocumentChunks
-                            .CountAsync(c => c.DocumentId == document.Id, cancellationToken);
-
-                        if (existingChunkCount > 0)
-                        {
-                            _logger.LogInformation("Document {DocumentId} already has {ChunkCount} chunks, skipping creation", 
-                                document.Id, existingChunkCount);
-                            continue;
-                        }
-                        
-                        _logger.LogInformation("Creating chunks for document {DocumentId}: {FileName} (ExtractedText length: {TextLength})", 
-                            document.Id, document.FileName, document.ExtractedText?.Length ?? 0);
-                        
-                        // Create chunks without embeddings first
-                        var chunks = chunkingService.ChunkDocument(document);
-                        
-                        _logger.LogInformation("ChunkingService returned {ChunkCount} chunks for document {DocumentId}", 
-                            chunks.Count, document.Id);
-                            
-                        if (chunks.Any())
-                        {
-                            context.DocumentChunks.AddRange(chunks);
-                            await context.SaveChangesAsync(cancellationToken);
-                            
-                            _logger.LogInformation("Created {ChunkCount} chunks for document {DocumentId}, will generate embeddings next", 
-                                chunks.Count, document.Id);
-                        }
-                        else
-                        {
-                            // No chunks created - mark as not required
-                            _logger.LogWarning("No chunks created for document {DocumentId}: {FileName} - marking as NotRequired", 
-                                document.Id, document.FileName);
-                            document.ChunkEmbeddingStatus = "NotRequired";
-                            await context.SaveChangesAsync(cancellationToken);
-                            continue;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error creating chunks for document {DocumentId}", document.Id);
-                    }
-                }
-            }
-
-            // STEP 2: Find documents that have chunks without embeddings
-            var documentsWithPendingChunks = await context.DocumentChunks
+            // Find chunks without embeddings (pending status)
+            var pendingChunks = await context.DocumentChunks
                 .Where(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null)
-                .Select(c => c.DocumentId)
-                .Distinct()
-                .Take(5) // Process 5 documents at a time
+                .Take(20) // Process 20 chunks at a time
                 .ToListAsync(cancellationToken);
 
-            if (!documentsWithPendingChunks.Any())
+            if (!pendingChunks.Any())
                 return;
 
-            _logger.LogInformation("Processing chunk embeddings for {Count} documents", documentsWithPendingChunks.Count);
+            _logger.LogInformation("Processing {Count} chunks for embeddings", pendingChunks.Count);
 
-            foreach (var documentId in documentsWithPendingChunks)
+            foreach (var chunk in pendingChunks)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
                 try
                 {
-                    var successCount = await documentService.GenerateChunkEmbeddingsForDocumentAsync(documentId);
-                    
-                    if (successCount == 0)
+                    var embedding = await embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+                    if (embedding != null)
                     {
-                        _logger.LogWarning("No embeddings generated for document {DocumentId}. Check if AI service is configured and available.", documentId);
+                        chunk.ChunkEmbedding = embedding;
+                        chunk.EmbeddingDimension = embedding.Length;
+                        _logger.LogDebug("Generated embedding for chunk {Id} of document {DocumentId}", 
+                            chunk.Id, chunk.DocumentId);
                     }
-                    else
-                    {
-                        _logger.LogInformation("Generated embeddings for {Count} chunks of document {DocumentId}", 
-                            successCount, documentId);
-                    }
-                }
-                catch (InvalidOperationException ex) when (ex.Message.Contains("Nessuna configurazione AI"))
-                {
-                    _logger.LogError(ex, "AI Configuration missing for document {DocumentId}. Please configure an AI provider in /config", documentId);
-                    
-                    // Update document with error status so user knows what's wrong
-                    try
-                    {
-                        var doc = await context.Documents.FindAsync(documentId);
-                        if (doc != null)
-                        {
-                            doc.ProcessingError = "Configurazione AI mancante. Configura un provider AI in /config";
-                            await context.SaveChangesAsync(cancellationToken);
-                        }
-                    }
-                    catch { /* Ignore errors updating error status */ }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing chunks for document {DocumentId}: {ErrorMessage}", 
-                        documentId, ex.Message);
-                    
-                    // Update document with error for user visibility
-                    try
-                    {
-                        var doc = await context.Documents.FindAsync(documentId);
-                        if (doc != null)
-                        {
-                            doc.ProcessingError = $"Errore generazione embeddings: {ex.Message}";
-                            await context.SaveChangesAsync(cancellationToken);
-                        }
-                    }
-                    catch { /* Ignore errors updating error status */ }
+                    _logger.LogError(ex, "Error processing chunk {Id}", chunk.Id);
                 }
             }
+
+            await context.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -439,7 +340,9 @@ public class BatchProcessingService : IBatchProcessingService
     public async Task ProcessAllPendingAsync()
     {
         var pendingDocuments = await _context.Documents
-            .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null && !string.IsNullOrEmpty(d.ExtractedText))
+            .Where(d => !string.IsNullOrEmpty(d.ExtractedText) && 
+                       ((d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null) || 
+                        !_context.DocumentChunks.Any(c => c.DocumentId == d.Id)))
             .Select(d => d.Id)
             .ToListAsync();
 
@@ -465,10 +368,14 @@ public class BatchProcessingService : IBatchProcessingService
         var docsWithoutEmbeddings = await _context.Documents
             .Where(d => d.EmbeddingVector768 == null && d.EmbeddingVector1536 == null)
             .CountAsync();
+        
+        var docsWithoutChunks = await _context.Documents
+            .Where(d => !_context.DocumentChunks.Any(c => c.DocumentId == d.Id))
+            .CountAsync();
 
         var totalChunks = await _context.DocumentChunks.CountAsync();
         var chunksWithoutEmbeddings = await _context.DocumentChunks
-            .Where(c => c.ChunkEmbedding == null)
+            .Where(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null)
             .CountAsync();
 
         var docsWithEmbeddings = totalDocs - docsWithoutEmbeddings;
