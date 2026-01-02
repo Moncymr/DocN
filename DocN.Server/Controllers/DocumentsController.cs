@@ -191,29 +191,13 @@ public class DocumentsController : ControllerBase
                 var chunks = _chunkingService.ChunkDocument(document);
                 if (chunks.Any())
                 {
-                    // Generate embeddings for each chunk
-                    foreach (var chunk in chunks)
-                    {
-                        try
-                        {
-                            var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
-                            if (chunkEmbedding != null)
-                            {
-                                chunk.ChunkEmbedding = chunkEmbedding;
-                                chunk.EmbeddingDimension = chunkEmbedding.Length;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {Id}", chunk.ChunkIndex, document.Id);
-                            // Continue with other chunks even if one fails
-                        }
-                    }
+                    // Generate embeddings for chunks using parallel processing
+                    var embeddedCount = await GenerateChunkEmbeddingsAsync(chunks, document.Id);
                     
                     _context.DocumentChunks.AddRange(chunks);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
-                        chunks.Count, document.Id, chunks.Count(c => c.ChunkEmbedding != null));
+                        chunks.Count, document.Id, embeddedCount);
                 }
             }
 
@@ -303,33 +287,16 @@ public class DocumentsController : ControllerBase
                     .ToListAsync();
                 _context.DocumentChunks.RemoveRange(existingChunks);
 
-                // Create new chunks with embeddings
+                // Create new chunks with embeddings using parallel processing
                 var newChunks = _chunkingService.ChunkDocument(existingDocument);
                 if (newChunks.Any())
                 {
-                    // Generate embeddings for each chunk
-                    foreach (var chunk in newChunks)
-                    {
-                        try
-                        {
-                            var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
-                            if (chunkEmbedding != null)
-                            {
-                                chunk.ChunkEmbedding = chunkEmbedding;
-                                chunk.EmbeddingDimension = chunkEmbedding.Length;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {Id}", chunk.ChunkIndex, id);
-                            // Continue with other chunks even if one fails
-                        }
-                    }
+                    var embeddedCount = await GenerateChunkEmbeddingsAsync(newChunks, id);
                     
                     _context.DocumentChunks.AddRange(newChunks);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Updated {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
-                        newChunks.Count, id, newChunks.Count(c => c.ChunkEmbedding != null));
+                        newChunks.Count, id, embeddedCount);
                 }
             }
 
@@ -505,5 +472,51 @@ public class DocumentsController : ControllerBase
             _logger.LogError(ex, "Error recreating all embeddings");
             return StatusCode(500, "An error occurred while recreating embeddings");
         }
+    }
+
+    /// <summary>
+    /// Helper method to generate embeddings for a list of document chunks
+    /// Uses parallel processing with limited concurrency for better performance
+    /// </summary>
+    /// <param name="chunks">List of chunks to generate embeddings for</param>
+    /// <param name="documentId">Document ID for logging purposes</param>
+    /// <param name="maxConcurrency">Maximum number of concurrent embedding requests (default: 3)</param>
+    /// <returns>Number of chunks that successfully got embeddings</returns>
+    private async Task<int> GenerateChunkEmbeddingsAsync(List<DocumentChunk> chunks, int documentId, int maxConcurrency = 3)
+    {
+        var semaphore = new SemaphoreSlim(maxConcurrency);
+        var tasks = new List<Task<bool>>();
+        
+        foreach (var chunk in chunks)
+        {
+            tasks.Add(Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    var chunkEmbedding = await _embeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
+                    if (chunkEmbedding != null)
+                    {
+                        chunk.ChunkEmbedding = chunkEmbedding;
+                        chunk.EmbeddingDimension = chunkEmbedding.Length;
+                        return true;
+                    }
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to generate embedding for chunk {ChunkIndex} of document {DocumentId}", 
+                        chunk.ChunkIndex, documentId);
+                    return false;
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }));
+        }
+        
+        var results = await Task.WhenAll(tasks);
+        return results.Count(r => r);
     }
 }
