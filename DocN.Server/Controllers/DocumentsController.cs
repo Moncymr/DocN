@@ -443,8 +443,10 @@ public class DocumentsController : ControllerBase
                     var newChunks = _chunkingService.ChunkDocument(document);
                     if (newChunks.Any())
                     {
-                        await GenerateChunkEmbeddingsAsync(newChunks, document.Id);
+                        var embeddedCount = await GenerateChunkEmbeddingsAsync(newChunks, document.Id);
                         _context.DocumentChunks.AddRange(newChunks);
+                        _logger.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
+                            newChunks.Count, document.Id, embeddedCount);
                     }
 
                     await _context.SaveChangesAsync();
@@ -458,7 +460,7 @@ public class DocumentsController : ControllerBase
                 }
             }
 
-            var message = $"Embeddings ricreati per {successCount} documenti. Errori: {errorCount}";
+            var message = $"Embeddings recreated for {successCount} documents. Errors: {errorCount}";
             _logger.LogInformation(message);
             return Ok(new { message, successCount, errorCount, totalDocuments = documents.Count });
         }
