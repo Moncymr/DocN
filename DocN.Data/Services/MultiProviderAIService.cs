@@ -699,12 +699,13 @@ public class MultiProviderAIService : IMultiProviderAIService
 
     public async Task<(string Category, string Reasoning, string Provider)> SuggestCategoryAsync(string fileName, string extractedText)
     {
-        var provider = GetCurrentChatProvider();
-        
         try
         {
             return await ExecuteWithTimeoutAsync(async (cancellationToken) =>
             {
+                // Get provider asynchronously to avoid deadlock
+                var provider = await GetCurrentChatProviderAsync();
+                
                 // Get existing categories from database
                 var existingCategories = await _context.Documents
                     .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
@@ -793,6 +794,7 @@ Rispondi in formato JSON:
             // Timeout occurred - return inferred category with timeout message
             await _logService.LogWarningAsync("Category", "Category suggestion timed out", tex.Message);
             var inferredCategory = InferCategoryFromFileNameOrContent(fileName, extractedText);
+            var provider = await GetCurrentChatProviderAsync();
             return (inferredCategory, 
                 $"⏱️ Timeout: L'analisi AI ha richiesto troppo tempo. Categoria inferita dal nome del file. {tex.Message}", 
                 provider);
@@ -801,6 +803,7 @@ Rispondi in formato JSON:
         {
             // Even on error, try to return something meaningful instead of "Uncategorized"
             var inferredCategory = InferCategoryFromFileNameOrContent(fileName, extractedText);
+            var provider = await GetCurrentChatProviderAsync();
             return (inferredCategory, $"Errore nell'analisi AI: {ex.Message}. Categoria inferita dal nome del file.", provider);
         }
     }
