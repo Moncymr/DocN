@@ -271,30 +271,41 @@ public class BatchEmbeddingProcessor : BackgroundService
 
             await context.SaveChangesAsync(cancellationToken);
             
-            // CRITICAL FIX: Update document status to Completed if all chunks now have embeddings
+            // Check if any documents now have all their chunks with embeddings and update their status
             var documentIds = pendingChunks.Select(c => c.DocumentId).Distinct().ToList();
-            foreach (var docId in documentIds)
+            var updatedDocuments = 0;
+            
+            foreach (var documentId in documentIds)
             {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+                    
+                var document = await context.Documents.FindAsync(new object[] { documentId }, cancellationToken);
+                if (document == null || document.ChunkEmbeddingStatus != ChunkEmbeddingStatus.Processing)
+                    continue;
+                
                 // Check if all chunks for this document now have embeddings
                 var allChunks = await context.DocumentChunks
-                    .Where(c => c.DocumentId == docId)
+                    .Where(c => c.DocumentId == documentId)
                     .ToListAsync(cancellationToken);
                 
-                var chunksWithoutEmbeddings = allChunks
-                    .Count(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null);
+                var chunksWithEmbeddings = allChunks.Count(c => 
+                    c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null);
                 
-                if (chunksWithoutEmbeddings == 0 && allChunks.Any())
+                if (allChunks.Count > 0 && chunksWithEmbeddings == allChunks.Count)
                 {
-                    // All chunks have embeddings - update document status
-                    var document = await context.Documents.FindAsync(new object[] { docId }, cancellationToken);
-                    if (document != null && document.ChunkEmbeddingStatus != ChunkEmbeddingStatus.Completed)
-                    {
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
-                        _logger.LogInformation("All {ChunkCount} chunks for document {DocumentId} now have embeddings - Status updated to Completed", 
-                            allChunks.Count, docId);
-                        await context.SaveChangesAsync(cancellationToken);
-                    }
+                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
+                    _logger.LogInformation("Document {Id} now has all {ChunkCount} chunks with embeddings - Status updated to Completed", 
+                        documentId, allChunks.Count);
+                    updatedDocuments++;
                 }
+            }
+            
+            // Save all document status updates in a single batch
+            if (updatedDocuments > 0)
+            {
+                await context.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Updated {Count} document(s) status to Completed", updatedDocuments);
             }
         }
         catch (Exception ex)
