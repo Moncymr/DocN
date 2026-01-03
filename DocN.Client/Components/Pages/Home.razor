@@ -301,6 +301,7 @@
             }
             else if (successCount == 0)
             {
+                // This can happen if embedding service returns null but doesn't throw exceptions
                 embeddingMessage = $"⚠️ Attenzione: Nessun embedding generato per {totalDocuments} documenti. Verifica la configurazione del provider AI.";
                 embeddingSuccess = false;
             }
@@ -320,9 +321,9 @@
         }
         catch (Exception ex)
         {
-            embeddingMessage = $"❌ Errore critico: {ex.Message}";
+            embeddingMessage = "❌ Errore critico durante la rigenerazione degli embeddings. Controlla i log per maggiori dettagli.";
             embeddingSuccess = false;
-            Logger.LogError(ex, "Error recreating all embeddings");
+            Logger.LogError(ex, "Critical error recreating all embeddings: {Message}", ex.Message);
         }
         finally
         {
