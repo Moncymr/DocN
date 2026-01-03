@@ -117,24 +117,46 @@
                     <div class="empty-icon">✨</div>
                     <h3>Nessun Alert Attivo</h3>
                     <p>Tutto funziona correttamente!</p>
+                    <button class="btn btn-info" @onclick="GenerateSampleAlerts" disabled="@isGeneratingSamples">
+                        @if (isGeneratingSamples)
+                        {
+                            <span>Generazione...</span>
+                        }
+                        else
+                        {
+                            <span>📊 Genera Alert di Esempio</span>
+                        }
+                    </button>
                 </div>
             }
         </div>
 
         <!-- Test Alert Section -->
         <div class="test-section">
-            <h3>🧪 Test Alert</h3>
-            <p>Invia un alert di test per verificare la configurazione</p>
-            <button class="btn btn-warning" @onclick="SendTestAlert" disabled="@isSendingTest">
-                @if (isSendingTest)
-                {
-                    <span>Invio...</span>
-                }
-                else
-                {
-                    <span>📤 Invia Test Alert</span>
-                }
-            </button>
+            <h3>🧪 Test & Demo</h3>
+            <p>Testa la funzionalità degli alert o genera esempi per vedere come funzionano</p>
+            <div class="test-buttons">
+                <button class="btn btn-warning" @onclick="SendTestAlert" disabled="@isSendingTest">
+                    @if (isSendingTest)
+                    {
+                        <span>Invio...</span>
+                    }
+                    else
+                    {
+                        <span>📤 Invia Test Alert</span>
+                    }
+                </button>
+                <button class="btn btn-info" @onclick="GenerateSampleAlerts" disabled="@isGeneratingSamples">
+                    @if (isGeneratingSamples)
+                    {
+                        <span>Generazione...</span>
+                    }
+                    else
+                    {
+                        <span>📊 Genera Alert di Esempio (5)</span>
+                    }
+                </button>
+            </div>
         </div>
     }
 </div>
@@ -142,6 +164,7 @@
 @code {
     private bool isLoading = true;
     private bool isSendingTest = false;
+    private bool isGeneratingSamples = false;
     private string? errorMessage;
     private List<AlertItem>? activeAlerts;
     private AlertStatistics? statistics;
@@ -246,6 +269,31 @@
         finally
         {
             isSendingTest = false;
+        }
+    }
+
+    private async Task GenerateSampleAlerts()
+    {
+        isGeneratingSamples = true;
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var response = await httpClient.PostAsync("api/alerts/generate-samples", null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await Task.Delay(1000);
+                await LoadData();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error generating sample alerts");
+            errorMessage = "Errore nella generazione degli alert di esempio. Verifica che il server sia in esecuzione.";
+        }
+        finally
+        {
+            isGeneratingSamples = false;
         }
     }
 
@@ -444,6 +492,13 @@
         padding: 2rem;
         margin: 2rem 0;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .test-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
     }
 
     .loading {

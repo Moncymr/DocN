@@ -140,6 +140,96 @@ public class AlertsController : ControllerBase
             return StatusCode(500, new { error = "Failed to send test alert" });
         }
     }
+
+    /// <summary>
+    /// Generate sample alerts for demonstration
+    /// </summary>
+    [HttpPost("generate-samples")]
+    public async Task<IActionResult> GenerateSampleAlerts(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var sampleAlerts = new List<Alert>
+            {
+                new Alert
+                {
+                    Name = "HighCPU",
+                    Description = "CPU usage è al 92% da 5 minuti",
+                    Severity = AlertSeverity.Critical,
+                    Source = "SystemMonitor",
+                    Labels = new Dictionary<string, object>
+                    {
+                        ["cpu_usage"] = 92.5,
+                        ["threshold"] = 90.0
+                    },
+                    Annotations = new Dictionary<string, object>
+                    {
+                        ["runbook"] = "docs/ALERTING_RUNBOOK.md#1-highcpu"
+                    }
+                },
+                new Alert
+                {
+                    Name = "HighLatency",
+                    Description = "Latenza API /api/search è 2.5s (P95)",
+                    Severity = AlertSeverity.Warning,
+                    Source = "APIMonitor",
+                    Labels = new Dictionary<string, object>
+                    {
+                        ["latency_ms"] = 2500,
+                        ["endpoint"] = "/api/search"
+                    }
+                },
+                new Alert
+                {
+                    Name = "LowRAGQuality",
+                    Description = "Confidence score RAG è sceso a 0.65 (soglia: 0.70)",
+                    Severity = AlertSeverity.Warning,
+                    Source = "RAGQualityMonitor",
+                    Labels = new Dictionary<string, object>
+                    {
+                        ["confidence_score"] = 0.65,
+                        ["threshold"] = 0.70
+                    }
+                },
+                new Alert
+                {
+                    Name = "HallucinationsDetected",
+                    Description = "Rilevate 3 potenziali allucinazioni nelle ultime 10 risposte",
+                    Severity = AlertSeverity.Warning,
+                    Source = "RAGQualityMonitor",
+                    Labels = new Dictionary<string, object>
+                    {
+                        ["hallucination_count"] = 3,
+                        ["total_responses"] = 10
+                    }
+                },
+                new Alert
+                {
+                    Name = "DatabaseConnectionSlow",
+                    Description = "Connessioni database > 500ms",
+                    Severity = AlertSeverity.Info,
+                    Source = "DatabaseMonitor"
+                }
+            };
+
+            foreach (var alert in sampleAlerts)
+            {
+                await _alertingService.SendAlertAsync(alert, cancellationToken);
+            }
+            
+            return Ok(new 
+            { 
+                message = "Sample alerts generated successfully", 
+                count = sampleAlerts.Count,
+                alerts = sampleAlerts.Select(a => new { a.Name, a.Severity, a.Description })
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating sample alerts");
+            return StatusCode(500, new { error = "Failed to generate sample alerts" });
+        }
+    }
 }
 
 public record AcknowledgeRequest(string AcknowledgedBy);
