@@ -28,7 +28,7 @@
             <a href="/upload" class="btn btn-secondary btn-large">
                 <span>📤 Carica Documento</span>
             </a>
-            <button @onclick="RecreateAllEmbeddings" class="btn btn-accent btn-large" disabled="@isRecreatingEmbeddings">
+            <button @onclick="ShowConfirmationDialog" class="btn btn-accent btn-large" disabled="@isRecreatingEmbeddings">
                 @if (isRecreatingEmbeddings)
                 {
                     <span>⏳ Rigenerazione in corso...</span>
@@ -39,6 +39,37 @@
                 }
             </button>
         </div>
+        
+        @if (showConfirmationDialog)
+        {
+            <div class="confirmation-overlay">
+                <div class="confirmation-dialog">
+                    <div class="confirmation-header">
+                        <h3>⚠️ Conferma Rigenerazione</h3>
+                    </div>
+                    <div class="confirmation-body">
+                        <p>Stai per rigenerare tutti gli embeddings per tutti i documenti nel database.</p>
+                        <p><strong>Questa operazione:</strong></p>
+                        <ul>
+                            <li>Rigenerera gli embeddings dei documenti</li>
+                            <li>Eliminera e ricreera tutti i chunks</li>
+                            <li>Rigenerera gli embeddings di tutti i chunks</li>
+                            <li>Può richiedere molto tempo (diversi minuti)</li>
+                            <li>Utilizzerà la tua quota API del provider AI configurato</li>
+                        </ul>
+                        <p>Sei sicuro di voler procedere?</p>
+                    </div>
+                    <div class="confirmation-footer">
+                        <button @onclick="CancelConfirmation" class="btn btn-secondary">
+                            ❌ Annulla
+                        </button>
+                        <button @onclick="ConfirmRecreateAllEmbeddings" class="btn btn-accent">
+                            ✅ Conferma e Procedi
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
         
         @if (isRecreatingEmbeddings && totalDocuments > 0)
         {
@@ -116,6 +147,7 @@
 
 @code {
     private bool isRecreatingEmbeddings = false;
+    private bool showConfirmationDialog = false;
     private string embeddingMessage = "";
     private bool embeddingSuccess = false;
     private int totalDocuments = 0;
@@ -124,6 +156,25 @@
     private int processedErrorCount = 0;
     private string currentDocumentName = "";
     private double progressPercentage => totalDocuments > 0 ? (double)currentDocument / totalDocuments * 100 : 0;
+
+    private void ShowConfirmationDialog()
+    {
+        showConfirmationDialog = true;
+        StateHasChanged();
+    }
+
+    private void CancelConfirmation()
+    {
+        showConfirmationDialog = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmRecreateAllEmbeddings()
+    {
+        showConfirmationDialog = false;
+        StateHasChanged();
+        await RecreateAllEmbeddings();
+    }
 
     private async Task RecreateAllEmbeddings()
     {
@@ -555,6 +606,117 @@
         font-size: 0.85rem;
         font-weight: 600;
         color: #ff6b35;
+    }
+
+    .confirmation-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        animation: fadeIn 0.3s ease-out;
+    }
+
+    .confirmation-dialog {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        animation: slideUp 0.3s ease-out;
+    }
+
+    @@keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .confirmation-header {
+        padding: 2rem 2rem 1rem 2rem;
+        border-bottom: 2px solid rgba(255, 107, 53, 0.2);
+    }
+
+    .confirmation-header h3 {
+        margin: 0;
+        color: #ff6b35;
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .confirmation-body {
+        padding: 2rem;
+        color: #333;
+    }
+
+    .confirmation-body p {
+        margin: 0 0 1rem 0;
+        line-height: 1.6;
+    }
+
+    .confirmation-body strong {
+        color: #ff6b35;
+        font-weight: 700;
+    }
+
+    .confirmation-body ul {
+        margin: 1rem 0;
+        padding-left: 1.5rem;
+    }
+
+    .confirmation-body li {
+        margin: 0.5rem 0;
+        line-height: 1.6;
+    }
+
+    .confirmation-footer {
+        padding: 1rem 2rem 2rem 2rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    .confirmation-footer .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        border: none;
+        transition: all 0.3s;
+    }
+
+    .confirmation-footer .btn-secondary {
+        background: #e0e0e0;
+        color: #666;
+    }
+
+    .confirmation-footer .btn-secondary:hover {
+        background: #d0d0d0;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .confirmation-footer .btn-accent {
+        background: linear-gradient(135deg, #f7931e 0%, #ff6b35 100%);
+        color: white;
+    }
+
+    .confirmation-footer .btn-accent:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(247, 147, 30, 0.4);
     }
 
     @@keyframes fadeIn {
