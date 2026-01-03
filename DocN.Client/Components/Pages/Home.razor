@@ -28,7 +28,7 @@
             <a href="/upload" class="btn btn-secondary btn-large">
                 <span>📤 Carica Documento</span>
             </a>
-            <button @onclick="ShowConfirmationDialog" class="btn btn-accent btn-large" disabled="@isRecreatingEmbeddings">
+            <button type="button" @onclick="ShowConfirmationDialog" class="btn btn-accent btn-large" disabled="@isRecreatingEmbeddings">
                 @if (isRecreatingEmbeddings)
                 {
                     <span>⏳ Rigenerazione in corso...</span>
@@ -60,10 +60,10 @@
                         <p>Sei sicuro di voler procedere?</p>
                     </div>
                     <div class="confirmation-footer">
-                        <button @onclick="CancelConfirmation" class="btn btn-secondary">
+                        <button type="button" @onclick="CancelConfirmation" class="btn btn-secondary">
                             ❌ Annulla
                         </button>
-                        <button @onclick="ConfirmRecreateAllEmbeddings" class="btn btn-accent">
+                        <button type="button" @onclick="ConfirmRecreateAllEmbeddings" class="btn btn-accent">
                             ✅ Conferma e Procedi
                         </button>
                     </div>
