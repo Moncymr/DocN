@@ -76,7 +76,7 @@
                     <div class="filter-item">
                         <label>Similarità Minima:</label>
                         <input type="range" @bind="minSimilarity" min="0.3" max="1.0" step="0.01" class="filter-range" />
-                        <span class="range-value">@minSimilarity.ToString("P0")</span>
+                        <span class="range-value">@((minSimilarity * 100).ToString("F0"))%</span>
                     </div>
                 </div>
             </details>
@@ -170,11 +170,11 @@
                     <h3>Nessun risultato trovato</h3>
                     @if (searchType == "vector")
                     {
-                        <p>La ricerca vettoriale non ha trovato documenti con similarità >= @minSimilarity.ToString("P0")</p>
+                        <p>La ricerca vettoriale non ha trovato documenti con similarità >= @((minSimilarity * 100).ToString("F0"))%</p>
                         <p>Suggerimenti:</p>
                         <ul class="suggestions-list">
                             <li>Verifica che i documenti siano stati elaborati con embedding (guarda la colonna "Embedding Status" nella pagina Documenti)</li>
-                            <li>Riduci ulteriormente la soglia di similarità nei filtri avanzati (ora: @minSimilarity.ToString("P0"))</li>
+                            <li>Riduci ulteriormente la soglia di similarità nei filtri avanzati (ora: @((minSimilarity * 100).ToString("F0"))%)</li>
                             <li>Prova con la ricerca ibrida o testuale che non richiedono embedding</li>
                             <li>Se cerchi per nome (es. "rossi"), la ricerca testuale potrebbe dare risultati migliori</li>
                         </ul>
