@@ -14,15 +14,15 @@
         <div class="header-left">
             <div class="chat-icon">💬</div>
             <div class="header-info">
-                <h1>Document Chat</h1>
-                <p class="subtitle">Ask questions about your uploaded documents</p>
+                <h1>Chat Documenti</h1>
+                <p class="subtitle">Fai domande sui tuoi documenti caricati</p>
             </div>
         </div>
         <div class="header-right">
             @if (currentConversationId.HasValue)
             {
                 <button class="btn-new-chat" @onclick="StartNewConversation">
-                    ➕ New Chat
+                    ➕ Nuova Chat
                 </button>
             }
             <button class="btn-toggle-sidebar" @onclick="ToggleSidebar">

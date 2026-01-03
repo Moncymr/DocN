@@ -25,27 +25,19 @@
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="search">
-                <span class="nav-emoji">🔍</span> Search
+                <span class="nav-emoji">🔍</span> Ricerca
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="chat">
-                <span class="nav-emoji">💬</span> Chat AI
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="agents">
-                <span class="nav-emoji">🤖</span> Agenti AI
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="agent-wizard">
-                <span class="nav-emoji">🧙</span> Crea Agente
-            </NavLink>
-        </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="chat">
+                        <span class="nav-emoji">💬</span> Chat AI
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="upload">
@@ -59,17 +51,21 @@
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="config">
-                <span class="nav-emoji">⚙️</span> Configurazione AI
-            </NavLink>
-        </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="config">
+                        <span class="nav-emoji">⚙️</span> Configurazione AI
+                    </NavLink>
+                </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="config/diagnostica">
-                <span class="nav-emoji">🔧</span> Diagnostica AI
-            </NavLink>
-        </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="config/diagnostica">
+                        <span class="nav-emoji">🔧</span> Diagnostica AI
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
 
         <div class="nav-footer">
         </div>
