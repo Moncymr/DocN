@@ -57,6 +57,10 @@ public class HybridSearchService : IHybridSearchService
     // Constants for vector search optimization
     private const int CandidateLimitMultiplier = 10; // Get 10x topK candidates for better results
     private const int MinCandidateLimit = 100; // Always get at least 100 candidates
+    
+    // SQL Server error codes for VECTOR type support detection
+    private const int SqlErrorInvalidColumnName = 207; // Invalid column name (VECTOR columns don't exist)
+    private const int SqlErrorInvalidDataType = 8116; // Argument data type is invalid (VECTOR type not recognized)
 
     public HybridSearchService(ApplicationDbContext context, IEmbeddingService embeddingService)
     {
@@ -111,10 +115,8 @@ public class HybridSearchService : IHybridSearchService
         catch (Microsoft.Data.SqlClient.SqlException sqlEx)
         {
             // Check if error is due to VECTOR type not being supported (older SQL Server version)
-            // SQL error numbers indicating VECTOR support is not available:
-            // - 207: Invalid column name (VECTOR columns don't exist in schema)
-            // - 8116: Argument data type is invalid for argument (VECTOR type not recognized)
-            bool isVectorNotSupported = sqlEx.Number == 207 || sqlEx.Number == 8116;
+            bool isVectorNotSupported = sqlEx.Number == SqlErrorInvalidColumnName || 
+                                       sqlEx.Number == SqlErrorInvalidDataType;
             
             if (isVectorNotSupported)
             {
@@ -256,6 +258,7 @@ public class HybridSearchService : IHybridSearchService
 
         var results = new List<SearchResult>();
 
+        // Note: Connection is managed by Entity Framework and will be disposed with the DbContext
         using var reader = await command.ExecuteReaderAsync();
         int rank = 1;
         while (await reader.ReadAsync())
