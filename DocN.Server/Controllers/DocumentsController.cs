@@ -58,48 +58,50 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
-    /// Ottiene lista completa di tutti i documenti ordinati per data upload (più recenti primi)
+    /// Ottiene lista paginata di documenti ordinati per data upload (più recenti primi)
     /// </summary>
-    /// <returns>Lista documenti con tutti i metadati eccetto i vettori embedding</returns>
-    /// <response code="200">Ritorna la lista dei documenti (può essere vuota)</response>
+    /// <param name="page">Numero pagina (default 1)</param>
+    /// <param name="pageSize">Documenti per pagina (default 20, max 100)</param>
+    /// <returns>Lista paginata documenti con metadati essenziali</returns>
+    /// <response code="200">Ritorna la lista paginata dei documenti</response>
     /// <response code="500">Errore interno del server durante recupero</response>
     /// <remarks>
-    /// Scopo: Fornire lista completa documenti per visualizzazione in UI o export
+    /// Scopo: Fornire lista paginata documenti per visualizzazione in UI
     /// 
     /// Comportamento:
-    /// - Recupera TUTTI i documenti (anche senza embeddings generati)
+    /// - Paginazione server-side per ottimizzare caricamento
     /// - Ordinamento decrescente per data upload
     /// - Include metadati: nome file, categoria, tag, dimensione, owner, etc.
-    /// - ESCLUDE vettori embedding per ottimizzazione performance
-    /// 
-    /// Output atteso:
-    /// - Array JSON di oggetti Document
-    /// - Ordinati da più recente a più vecchio
-    /// - Lista vuota se nessun documento presente
-    /// - Vettori embedding esclusi (non necessari per visualizzazione lista)
+    /// - ESCLUDE vettori embedding e testo estratto per ottimizzazione performance
     /// 
     /// Performance:
     /// - Query ottimizzata con proiezione per escludere embeddings (768-1536 floats per documento)
+    /// - ExtractedText escluso (può essere molto grande)
     /// - Indice su UploadedAt per ordinamento veloce
-    /// - Per grandi dataset (oltre 10k documenti), considerare paginazione
-    /// 
-    /// TODO (futuro):
-    /// - Aggiungere paginazione (page, pageSize)
-    /// - Aggiungere filtri (categoria, owner, dateRange)
-    /// - Aggiungere sorting configurabile
+    /// - Paginazione riduce drasticamente data transfer
     /// </remarks>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<Document>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<IEnumerable<Document>>> GetDocuments()
+    public async Task<ActionResult<IEnumerable<Document>>> GetDocuments(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            // PERFORMANCE FIX: Use projection to exclude embedding vectors which are not needed for list view
+            // Validate pagination parameters
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 100) pageSize = 100; // Max 100 items per page
+            
+            // PERFORMANCE FIX: Use projection to exclude embedding vectors
             // This significantly reduces data transfer and improves query speed
-            // Embedding vectors (768 or 1536 floats per document) are only needed for semantic search, not for listing
+            // Embedding vectors (768 or 1536 floats per document) are only needed for semantic search
+            // ExtractedText is included for client-side search functionality
             var documents = await _context.Documents
                 .OrderByDescending(d => d.UploadedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(d => new Document
                 {
                     Id = d.Id,
@@ -107,7 +109,7 @@ public class DocumentsController : ControllerBase
                     FilePath = d.FilePath,
                     ContentType = d.ContentType,
                     FileSize = d.FileSize,
-                    ExtractedText = d.ExtractedText,
+                    ExtractedText = d.ExtractedText, // Included for client-side search
                     SuggestedCategory = d.SuggestedCategory,
                     CategoryReasoning = d.CategoryReasoning,
                     ActualCategory = d.ActualCategory,
@@ -121,7 +123,7 @@ public class DocumentsController : ControllerBase
                     ChunkEmbeddingStatus = d.ChunkEmbeddingStatus,
                     Notes = d.Notes,
                     Visibility = d.Visibility,
-                    // Exclude EmbeddingVector768 and EmbeddingVector1536 - not needed for list view
+                    // EmbeddingVector768 and EmbeddingVector1536 excluded - not needed for list view
                     EmbeddingDimension = d.EmbeddingDimension,
                     UploadedAt = d.UploadedAt,
                     LastAccessedAt = d.LastAccessedAt,
@@ -131,13 +133,38 @@ public class DocumentsController : ControllerBase
                 })
                 .ToListAsync();
 
-            _logger.LogInformation("Retrieved {Count} documents (without embedding vectors for performance)", documents.Count);
+            _logger.LogInformation("Retrieved {Count} documents for page {Page} (pageSize: {PageSize})", 
+                documents.Count, page, pageSize);
             return Ok(documents);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving documents");
             return StatusCode(500, "An error occurred while retrieving documents");
+        }
+    }
+
+    /// <summary>
+    /// Ottiene il numero totale di documenti per supportare la paginazione
+    /// </summary>
+    /// <returns>Numero totale di documenti</returns>
+    /// <response code="200">Ritorna il conteggio totale</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpGet("count")]
+    [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<int>> GetDocumentsCount()
+    {
+        try
+        {
+            var count = await _context.Documents.CountAsync();
+            _logger.LogInformation("Total documents count: {Count}", count);
+            return Ok(count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error counting documents");
+            return StatusCode(500, "An error occurred while counting documents");
         }
     }
 
