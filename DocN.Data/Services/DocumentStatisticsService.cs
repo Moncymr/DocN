@@ -100,14 +100,31 @@ public class DocumentStatisticsService : IDocumentStatisticsService
         var completedCount = await _context.Documents
             .CountAsync(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Completed);
         
-        // Count chunks without embeddings
+        // Count chunks without embeddings - ONLY for documents that are Pending or Processing
+        // This ensures we only count chunks that are actively in the processing queue
         var pendingChunksCount = await _context.DocumentChunks
-            .CountAsync(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null);
+            .Include(c => c.Document)
+            .Where(c => (c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null) &&
+                       (c.Document!.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending || 
+                        c.Document!.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing))
+            .CountAsync();
+        
+        // For documents in Pending status that don't have any chunks yet, estimate their chunks
+        // Average document has ~15 chunks, but we need to count documents without any chunks
+        var documentsWithoutChunks = await _context.Documents
+            .Where(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending &&
+                       !_context.DocumentChunks.Any(c => c.DocumentId == d.Id))
+            .CountAsync();
+        
+        // Add estimated chunks for documents that haven't been chunked yet
+        const int AVG_CHUNKS_PER_DOC = 15;
+        var estimatedPendingChunks = documentsWithoutChunks * AVG_CHUNKS_PER_DOC;
+        var totalPendingChunks = pendingChunksCount + estimatedPendingChunks;
         
         // Calculate estimated processing time
         // Based on observations: ~2-4 seconds per chunk with Gemini
         // BatchEmbeddingProcessor processes 5 documents at a time every 30 seconds
-        var estimatedTimeMinutes = CalculateEstimatedProcessingTime(pendingCount, pendingChunksCount);
+        var estimatedTimeMinutes = CalculateEstimatedProcessingTime(pendingCount, totalPendingChunks);
         
         return new DocumentStatistics
         {
@@ -123,7 +140,7 @@ public class DocumentStatisticsService : IDocumentStatisticsService
             PendingEmbeddingsCount = pendingCount,
             ProcessingEmbeddingsCount = processingCount,
             CompletedEmbeddingsCount = completedCount,
-            PendingChunksCount = pendingChunksCount,
+            PendingChunksCount = totalPendingChunks,
             EstimatedProcessingTimeMinutes = estimatedTimeMinutes,
             LastBatchProcessingTime = DateTime.UtcNow // Will be updated by background processor in future
         };
