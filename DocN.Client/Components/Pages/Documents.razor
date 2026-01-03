@@ -1493,24 +1493,58 @@
     {
         isLoading = true;
         
-        // Load documents with the same page size as server (10 by default)
-        // For better performance, load only what's needed for the current view
-        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 1000); // Load all for filtering
-        totalDocuments = documents?.Count ?? 0;
-        
-        // Extract unique categories
-        if (documents != null)
+        try
         {
-            categories = documents
-                .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
-                .Select(d => d.ActualCategory!)
-                .Distinct()
-                .OrderBy(c => c)
-                .ToList();
+            // Check if we need to load all documents for filtering/search
+            bool needsAllDocuments = !string.IsNullOrEmpty(searchQuery) || 
+                                     !string.IsNullOrEmpty(selectedCategory);
+            
+            if (needsAllDocuments)
+            {
+                // Load all documents for client-side filtering
+                documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 1000);
+                totalDocuments = documents?.Count ?? 0;
+                
+                // Extract unique categories
+                if (documents != null)
+                {
+                    categories = documents
+                        .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
+                        .Select(d => d.ActualCategory!)
+                        .Distinct()
+                        .OrderBy(c => c)
+                        .ToList();
+                }
+                
+                ApplyFilters();
+            }
+            else
+            {
+                // Use server-side pagination for initial load (much faster!)
+                // Load only the current page
+                documents = await DocumentService.GetUserDocumentsAsync(currentUserId, currentPage, pageSize);
+                filteredDocuments = documents ?? new List<Document>();
+                
+                // Get total count from server
+                totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
+                totalPages = (int)Math.Ceiling((double)totalDocuments / pageSize);
+                
+                // Extract categories from loaded documents (limited set)
+                if (documents != null && documents.Any())
+                {
+                    categories = documents
+                        .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
+                        .Select(d => d.ActualCategory!)
+                        .Distinct()
+                        .OrderBy(c => c)
+                        .ToList();
+                }
+            }
         }
-        
-        ApplyFilters();
-        isLoading = false;
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private void ApplyFilters()
@@ -1559,16 +1593,17 @@
     private async Task HandleSearch()
     {
         currentPage = 1;
-        ApplyFilters();
-        await Task.CompletedTask;
+        // Reload documents to switch between server-side and client-side pagination
+        await LoadDocuments();
     }
 
-    private void ClearFilters()
+    private async Task ClearFilters()
     {
         searchQuery = string.Empty;
         selectedCategory = string.Empty;
         currentPage = 1;
-        ApplyFilters();
+        // Reload documents to switch back to server-side pagination
+        await LoadDocuments();
     }
 
     private void SetViewMode(string mode)
@@ -1646,8 +1681,17 @@
     private async Task GoToPage(int page)
     {
         currentPage = page;
-        ApplyFilters();
-        await Task.CompletedTask;
+        
+        // If no filters applied, reload from server (server-side pagination)
+        if (string.IsNullOrEmpty(searchQuery) && string.IsNullOrEmpty(selectedCategory))
+        {
+            await LoadDocuments();
+        }
+        else
+        {
+            // Client-side pagination with filters
+            ApplyFilters();
+        }
     }
 
     private async Task NextPage()
@@ -1655,9 +1699,18 @@
         if (currentPage < totalPages)
         {
             currentPage++;
-            ApplyFilters();
+            
+            // If no filters applied, reload from server (server-side pagination)
+            if (string.IsNullOrEmpty(searchQuery) && string.IsNullOrEmpty(selectedCategory))
+            {
+                await LoadDocuments();
+            }
+            else
+            {
+                // Client-side pagination with filters
+                ApplyFilters();
+            }
         }
-        await Task.CompletedTask;
     }
 
     private async Task PreviousPage()
@@ -1665,9 +1718,18 @@
         if (currentPage > 1)
         {
             currentPage--;
-            ApplyFilters();
+            
+            // If no filters applied, reload from server (server-side pagination)
+            if (string.IsNullOrEmpty(searchQuery) && string.IsNullOrEmpty(selectedCategory))
+            {
+                await LoadDocuments();
+            }
+            else
+            {
+                // Client-side pagination with filters
+                ApplyFilters();
+            }
         }
-        await Task.CompletedTask;
     }
 
     private string GetFileIcon(string fileName)
