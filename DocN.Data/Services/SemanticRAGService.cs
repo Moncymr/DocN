@@ -437,9 +437,37 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             {
                 return await SearchWithVectorDistanceAsync(queryEmbedding, userId, topK, minSimilarity);
             }
+            catch (Microsoft.Data.SqlClient.SqlException sqlEx)
+            {
+                // Check if error is due to VECTOR type not being supported (older SQL Server version)
+                // SQL error numbers indicating VECTOR support is not available:
+                // - 207: Invalid column name (VECTOR columns don't exist in schema)
+                // - 8116: Argument data type is invalid for argument (VECTOR type not recognized)
+                bool isVectorNotSupported = sqlEx.Number == 207 || sqlEx.Number == 8116;
+                
+                if (isVectorNotSupported)
+                {
+                    _logger.LogInformation(
+                        "SQL Server VECTOR_DISTANCE not available (SQL error {ErrorNumber}). " +
+                        "This requires SQL Server 2025+. Falling back to optimized in-memory calculation.",
+                        sqlEx.Number);
+                }
+                else
+                {
+                    _logger.LogWarning(sqlEx, "SQL error during VECTOR_DISTANCE search (error {ErrorNumber}), falling back to in-memory calculation", 
+                        sqlEx.Number);
+                }
+                // Fall through to optimized in-memory approach
+            }
+            catch (ArgumentException argEx)
+            {
+                // Unsupported embedding dimension - let this bubble up
+                _logger.LogError(argEx, "Unsupported embedding dimension: {Dimension}", queryEmbedding.Length);
+                throw;
+            }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "VECTOR_DISTANCE not available, using optimized in-memory calculation");
+                _logger.LogWarning(ex, "Unexpected error during VECTOR_DISTANCE search, falling back to in-memory calculation");
                 // Fall through to optimized in-memory approach
             }
 
@@ -581,6 +609,35 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
         int topK = 10,
         double minSimilarity = 0.7)
     {
+        // Determine which vector field to use based on embedding dimension
+        var embeddingDimension = queryEmbedding.Length;
+        string docVectorColumn;
+        string chunkVectorColumn;
+        
+        // Use whitelist approach for security - only allow known valid column names
+        if (embeddingDimension == Utilities.EmbeddingValidationHelper.SupportedDimension768)
+        {
+            docVectorColumn = "EmbeddingVector768";
+            chunkVectorColumn = "ChunkEmbedding768";
+        }
+        else if (embeddingDimension == Utilities.EmbeddingValidationHelper.SupportedDimension1536)
+        {
+            docVectorColumn = "EmbeddingVector1536";
+            chunkVectorColumn = "ChunkEmbedding1536";
+        }
+        else
+        {
+            throw new ArgumentException(
+                $"Unsupported embedding dimension: {embeddingDimension}. " +
+                $"Expected {Utilities.EmbeddingValidationHelper.SupportedDimension768} or " +
+                $"{Utilities.EmbeddingValidationHelper.SupportedDimension1536}.");
+        }
+        
+        // Column names are validated above from a whitelist, safe to use in SQL
+        // Security model: Column names come from compile-time constants (SupportedDimension768/1536)
+        // mapped to hardcoded strings. No user input or external data can reach the column name variables.
+        // This is a safe and common pattern for schema-level parameterization.
+
         // Serialize query embedding to JSON format (required for VECTOR type)
         var embeddingJson = System.Text.Json.JsonSerializer.Serialize(queryEmbedding);
 
@@ -593,11 +650,11 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
                     d.FileName,
                     d.ActualCategory,
                     d.ExtractedText,
-                    CAST(VECTOR_DISTANCE('cosine', d.EmbeddingVector, CAST(@queryEmbedding AS VECTOR({VectorDimension}))) AS FLOAT) AS SimilarityScore
+                    CAST(VECTOR_DISTANCE('cosine', d.{docVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) AS FLOAT) AS SimilarityScore
                 FROM Documents d
                 WHERE d.OwnerId = @userId
-                    AND d.EmbeddingVector IS NOT NULL
-                    AND VECTOR_DISTANCE('cosine', d.EmbeddingVector, CAST(@queryEmbedding AS VECTOR({VectorDimension}))) >= @minSimilarity
+                    AND d.{docVectorColumn} IS NOT NULL
+                    AND VECTOR_DISTANCE('cosine', d.{docVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) >= @minSimilarity
                 ORDER BY SimilarityScore DESC
             ),
             ChunkScores AS (
@@ -607,12 +664,12 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
                     d.ActualCategory,
                     dc.ChunkText,
                     dc.ChunkIndex,
-                    CAST(VECTOR_DISTANCE('cosine', dc.ChunkEmbedding, CAST(@queryEmbedding AS VECTOR({VectorDimension}))) AS FLOAT) AS SimilarityScore
+                    CAST(VECTOR_DISTANCE('cosine', dc.{chunkVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) AS FLOAT) AS SimilarityScore
                 FROM DocumentChunks dc
                 INNER JOIN Documents d ON dc.DocumentId = d.Id
                 WHERE d.OwnerId = @userId
-                    AND dc.ChunkEmbedding IS NOT NULL
-                    AND VECTOR_DISTANCE('cosine', dc.ChunkEmbedding, CAST(@queryEmbedding AS VECTOR({VectorDimension}))) >= @minSimilarity
+                    AND dc.{chunkVectorColumn} IS NOT NULL
+                    AND VECTOR_DISTANCE('cosine', dc.{chunkVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) >= @minSimilarity
                 ORDER BY SimilarityScore DESC
             )
             SELECT 
@@ -701,7 +758,9 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             }
         }
 
-        _logger.LogInformation("VECTOR_DISTANCE search found {Count} results", results.Count);
+        _logger.LogInformation(
+            "✅ SQL Server VECTOR_DISTANCE search completed successfully using {VectorField} ({Dimension} dimensions): found {Count} results above {MinSim:P0} threshold", 
+            docVectorColumn, embeddingDimension, results.Count, minSimilarity);
         return results;
     }
 
