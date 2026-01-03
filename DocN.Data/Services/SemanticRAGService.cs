@@ -461,9 +461,11 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             }
             catch (ArgumentException argEx)
             {
-                // Unsupported embedding dimension - let this bubble up
-                _logger.LogError(argEx, "Unsupported embedding dimension: {Dimension}", queryEmbedding.Length);
-                throw;
+                // Unsupported embedding dimension (not 768 or 1536) - fall back to in-memory calculation
+                // which can handle any dimension size
+                _logger.LogInformation(argEx, "VECTOR_DISTANCE requires 768 or 1536 dimensions, got {Dimension}. Falling back to in-memory calculation.", 
+                    queryEmbedding.Length);
+                // Fall through to optimized in-memory approach
             }
             catch (Exception ex)
             {
