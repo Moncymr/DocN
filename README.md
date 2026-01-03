@@ -180,6 +180,7 @@ Vedi [TESSERACT_SETUP.md](TESSERACT_SETUP.md) per dettagli.
 - [**ANALISI_SISTEMA_RAG_AZIENDALE_IDEALE.md**](ANALISI_SISTEMA_RAG_AZIENDALE_IDEALE.md) - 🏆 Sistema RAG Ideale 2026
 - [**ANALISI_IMPLEMENTAZIONE_DOCN.md**](ANALISI_IMPLEMENTAZIONE_DOCN.md) - 🔍 Analisi Dettagliata DocN v2.0
 - [**GAP_ANALYSIS_E_RACCOMANDAZIONI.md**](GAP_ANALYSIS_E_RACCOMANDAZIONI.md) - 📈 Gap Analysis & Roadmap
+- [**PROSSIME_FASI.md**](PROSSIME_FASI.md) - 🚀 Prossime Fasi di Sviluppo (Quick Reference)
 
 ### Guide Rapide
 - [**GUIDA_CONFIGURAZIONE_GEMINI.md**](GUIDA_CONFIGURAZIONE_GEMINI.md) - 🇮🇹 Guida completa configurazione Gemini (italiano)
@@ -369,7 +370,7 @@ Gli embeddings vengono elaborati in background per non rallentare il caricamento
 
 ## 🗺️ Roadmap
 
-Vedi [ENTERPRISE_RAG_ROADMAP.md](ENTERPRISE_RAG_ROADMAP.md) per le funzionalità pianificate.
+Vedi [PROSSIME_FASI.md](PROSSIME_FASI.md) per il piano dettagliato delle prossime fasi di sviluppo.
 
 ### Prossimi Rilasci
 
