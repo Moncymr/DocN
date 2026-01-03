@@ -102,6 +102,14 @@ public interface IDocumentService
     /// <param name="documentId">ID del documento</param>
     /// <returns>Numero di chunks con embeddings generati con successo</returns>
     Task<int> GenerateChunkEmbeddingsForDocumentAsync(int documentId);
+    
+    /// <summary>
+    /// Elimina un documento se l'utente è il proprietario.
+    /// </summary>
+    /// <param name="documentId">ID del documento da eliminare</param>
+    /// <param name="userId">ID dell'utente richiedente (deve essere il proprietario)</param>
+    /// <returns>True se eliminazione riuscita, false altrimenti</returns>
+    Task<bool> DeleteDocumentAsync(int documentId, string userId);
 }
 
 /// <summary>
@@ -811,5 +819,99 @@ public class DocumentService : IDocumentService
             successCount, chunksWithoutEmbeddings.Count, documentId);
         
         return successCount;
+    }
+    
+    /// <summary>
+    /// Elimina un documento se l'utente è il proprietario.
+    /// </summary>
+    /// <param name="documentId">ID del documento da eliminare</param>
+    /// <param name="userId">ID dell'utente richiedente</param>
+    /// <returns>True se eliminazione riuscita, false se negato o errore</returns>
+    /// <remarks>
+    /// Scopo: Eliminare documento con controllo ownership.
+    /// Logica: Solo owner può eliminare, rimuove document + chunks + similar documents + file fisico.
+    /// Output: Boolean successo operazione.
+    /// </remarks>
+    public async Task<bool> DeleteDocumentAsync(int documentId, string userId)
+    {
+        try
+        {
+            var document = await _context.Documents.FindAsync(documentId);
+            
+            if (document == null)
+                return false;
+
+            // SECURITY CHECK: Only document owner can delete
+            if (!string.IsNullOrEmpty(document.OwnerId))
+            {
+                // Document has an owner - check authorization
+                if (string.IsNullOrEmpty(userId) || document.OwnerId != userId)
+                {
+                    _logger?.LogWarning("User {UserId} attempted to delete document {DocumentId} owned by {OwnerId}", 
+                        userId ?? "anonymous", documentId, document.OwnerId);
+                    return false;
+                }
+            }
+            else
+            {
+                // Document has no owner - could be legacy data or system-created
+                // Only allow deletion if user is authenticated (basic check)
+                if (string.IsNullOrEmpty(userId))
+                {
+                    _logger?.LogWarning("Anonymous user attempted to delete document {DocumentId} with no owner", documentId);
+                    return false;
+                }
+            }
+
+            // Delete associated chunks first
+            var chunks = await _context.DocumentChunks
+                .Where(c => c.DocumentId == documentId)
+                .ToListAsync();
+            
+            if (chunks.Any())
+            {
+                _context.DocumentChunks.RemoveRange(chunks);
+            }
+
+            // Delete associated similar documents relationships
+            var similarDocuments = await _context.SimilarDocuments
+                .Where(sd => sd.SourceDocumentId == documentId || sd.SimilarDocumentId == documentId)
+                .ToListAsync();
+            
+            if (similarDocuments.Any())
+            {
+                _context.SimilarDocuments.RemoveRange(similarDocuments);
+            }
+
+            // Delete the document
+            _context.Documents.Remove(document);
+            await _context.SaveChangesAsync();
+
+            // Try to delete the physical file (if it exists)
+            if (!string.IsNullOrEmpty(document.FilePath) && File.Exists(document.FilePath))
+            {
+                try
+                {
+                    File.Delete(document.FilePath);
+                    _logger?.LogInformation("Deleted physical file for document {DocumentId}: {FilePath}", 
+                        documentId, document.FilePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Could not delete physical file for document {DocumentId}: {FilePath}", 
+                        documentId, document.FilePath);
+                    // Continue even if file deletion fails - document is already removed from DB
+                }
+            }
+
+            _logger?.LogInformation("User {UserId} deleted document {DocumentId} - {FileName}", 
+                userId, documentId, document.FileName);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error deleting document {DocumentId}", documentId);
+            return false;
+        }
     }
 }
