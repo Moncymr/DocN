@@ -258,6 +258,9 @@ public class BatchEmbeddingProcessor : BackgroundService
             _logger.LogInformation("Processing {Count} chunks for embeddings ({ProcessingDocs} from Processing docs, {PendingDocs} from Pending docs)", 
                 pendingChunks.Count, processingDocCount, pendingDocCount);
 
+            var successfulEmbeddings = 0;
+            var failedEmbeddings = 0;
+
             foreach (var chunk in pendingChunks)
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -270,23 +273,39 @@ public class BatchEmbeddingProcessor : BackgroundService
                     {
                         chunk.ChunkEmbedding = embedding;
                         chunk.EmbeddingDimension = embedding.Length;
+                        successfulEmbeddings++;
                         _logger.LogDebug("Generated embedding for chunk {Id} of document {DocumentId}", 
                             chunk.Id, chunk.DocumentId);
                     }
                     else
                     {
+                        failedEmbeddings++;
                         _logger.LogWarning("Embedding generation returned null for chunk {Id} of document {DocumentId}", 
                             chunk.Id, chunk.DocumentId);
                     }
                 }
                 catch (Exception ex)
                 {
+                    failedEmbeddings++;
                     _logger.LogError(ex, "Error processing chunk {Id} of document {DocumentId}: {Error}", 
                         chunk.Id, chunk.DocumentId, ex.Message);
                 }
             }
+            
+            _logger.LogInformation("Embedding generation complete: {Success} successful, {Failed} failed out of {Total} chunks", 
+                successfulEmbeddings, failedEmbeddings, pendingChunks.Count);
 
-            await context.SaveChangesAsync(cancellationToken);
+            try
+            {
+                var savedCount = await context.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Successfully saved {Count} chunk embedding(s) to database (SaveChanges returned {SavedCount})", 
+                    pendingChunks.Count, savedCount);
+            }
+            catch (Exception saveEx)
+            {
+                _logger.LogError(saveEx, "CRITICAL: Failed to save chunk embeddings to database. Changes were not persisted!");
+                throw; // Re-throw to be caught by outer exception handler
+            }
             
             // Check if any documents now have all their chunks with embeddings and update their status
             var documentIds = pendingChunks.Select(c => c.DocumentId).Distinct().ToList();
@@ -313,28 +332,30 @@ public class BatchEmbeddingProcessor : BackgroundService
                     continue;
                 }
                 
-                // Check if all chunks for this document now have embeddings
-                var allChunks = await context.DocumentChunks
+                // Count chunks directly in database to get accurate count (avoid EF Core cache issues)
+                var totalChunks = await context.DocumentChunks
                     .Where(c => c.DocumentId == documentId)
-                    .ToListAsync(cancellationToken);
-                
-                var chunksWithEmbeddings = allChunks.Count(c => 
-                    c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null);
+                    .CountAsync(cancellationToken);
+                    
+                var chunksWithEmbeddings = await context.DocumentChunks
+                    .Where(c => c.DocumentId == documentId && 
+                               (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
+                    .CountAsync(cancellationToken);
                 
                 _logger.LogInformation("Document {DocumentId}: {CompletedChunks}/{TotalChunks} chunks have embeddings", 
-                    documentId, chunksWithEmbeddings, allChunks.Count);
+                    documentId, chunksWithEmbeddings, totalChunks);
                 
-                if (allChunks.Count > 0 && chunksWithEmbeddings == allChunks.Count)
+                if (totalChunks > 0 && chunksWithEmbeddings == totalChunks)
                 {
                     document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
                     _logger.LogInformation("✅ Document {Id}: {FileName} now has all {ChunkCount} chunks with embeddings - Status updated to Completed", 
-                        documentId, document.FileName, allChunks.Count);
+                        documentId, document.FileName, totalChunks);
                     updatedDocuments++;
                 }
                 else if (chunksWithEmbeddings > 0)
                 {
                     _logger.LogInformation("Document {DocumentId} still has {PendingCount} chunks without embeddings, will retry in next cycle", 
-                        documentId, allChunks.Count - chunksWithEmbeddings);
+                        documentId, totalChunks - chunksWithEmbeddings);
                 }
             }
             
