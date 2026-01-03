@@ -11,6 +11,10 @@ public class RetrievalAgent : IRetrievalAgent
     private readonly ApplicationDbContext _context;
     private readonly IHybridSearchService _searchService;
     private readonly IEmbeddingService _embeddingService;
+    
+    // Configuration constants for chunk retrieval performance tuning
+    private const int MaxChunksToEvaluate = 1000;  // Maximum chunks to load into memory
+    private const int ChunkOverfetchMultiplier = 100;  // Multiplier for topK to ensure good recall
 
     public string Name => "RetrievalAgent";
     public string Description => "Retrieves relevant documents and document chunks using hybrid search";
@@ -61,9 +65,12 @@ public class RetrievalAgent : IRetrievalAgent
 
         // Apply reasonable limit to prevent loading too many chunks into memory
         // We retrieve more than topK to ensure we have enough candidates after similarity filtering
-        // Limit to 1000 chunks maximum to prevent performance issues
-        var maxChunksToEvaluate = Math.Min(1000, topK * 100);
-        var chunks = await chunksQuery.Take(maxChunksToEvaluate).ToListAsync();
+        // Order by Id for consistent ordering (could be optimized with created timestamp if available)
+        var maxChunksToEvaluate = Math.Min(MaxChunksToEvaluate, topK * ChunkOverfetchMultiplier);
+        var chunks = await chunksQuery
+            .OrderByDescending(c => c.Id)  // Get most recent chunks first for better relevance
+            .Take(maxChunksToEvaluate)
+            .ToListAsync();
 
         // Calculate similarity scores
         var scoredChunks = new List<(DocumentChunk chunk, double score)>();
