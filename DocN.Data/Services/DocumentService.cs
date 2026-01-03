@@ -617,7 +617,7 @@ public class DocumentService : IDocumentService
                     {
                         existingDocument.Tags.Add(new DocumentTag
                         {
-                            Name = tag.Name!,
+                            Name = tag.Name,
                             Document = existingDocument
                         });
                     }

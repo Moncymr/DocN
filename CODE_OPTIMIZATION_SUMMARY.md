@@ -1,7 +1,7 @@
 # Code Optimization and Improvements Summary
 
-**Data:** 3 Gennaio 2026  
-**Progetto:** DocN - Sistema RAG Documentale Aziendale
+**Date:** January 3, 2026  
+**Project:** DocN - Enterprise RAG Document Management System
 
 ## 📋 Panoramica
 

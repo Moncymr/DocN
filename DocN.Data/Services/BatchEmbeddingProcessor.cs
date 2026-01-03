@@ -81,7 +81,7 @@ public class BatchEmbeddingProcessor : BackgroundService
                     // Generate embedding for document only if it doesn't have one
                     if (document.EmbeddingVector == null && !string.IsNullOrWhiteSpace(document.ExtractedText))
                     {
-                        var embedding = await embeddingService.GenerateEmbeddingAsync(document.ExtractedText!);
+                        var embedding = await embeddingService.GenerateEmbeddingAsync(document.ExtractedText);
                         if (embedding != null)
                         {
                             document.EmbeddingVector = embedding;
