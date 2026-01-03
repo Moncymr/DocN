@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DocN.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251227115401_AddDocumentMetadataFields")]
-    partial class AddDocumentMetadataFields
+    [Migration("20260103172002_MakeReferencedDocumentIdsNullable")]
+    partial class MakeReferencedDocumentIdsNullable
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -33,6 +33,12 @@ namespace DocN.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AzureOpenAIChatModel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AzureOpenAIEmbeddingModel")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("AzureOpenAIEndpoint")
                         .HasColumnType("nvarchar(max)");
 
@@ -42,6 +48,18 @@ namespace DocN.Data.Migrations
 
                     b.Property<string>("ChatDeploymentName")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ChatModelName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ChatProvider")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ChunkOverlap")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ChunkSize")
+                        .HasColumnType("int");
 
                     b.Property<string>("ConfigurationName")
                         .IsRequired()
@@ -60,6 +78,27 @@ namespace DocN.Data.Migrations
                     b.Property<string>("EmbeddingModel")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("EmbeddingModelName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("EmbeddingsProvider")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("EnableChunking")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableFallback")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("GeminiApiKey")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("GeminiChatModel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("GeminiEmbeddingModel")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -69,6 +108,27 @@ namespace DocN.Data.Migrations
                     b.Property<int>("MaxTokensForContext")
                         .HasColumnType("int");
 
+                    b.Property<string>("OpenAIApiKey")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OpenAIChatModel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OpenAIEmbeddingModel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProviderApiKey")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProviderEndpoint")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ProviderType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RAGProvider")
+                        .HasColumnType("int");
+
                     b.Property<double>("SimilarityThreshold")
                         .HasColumnType("float");
 
@@ -76,12 +136,346 @@ namespace DocN.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<int?>("TagExtractionProvider")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
                     b.ToTable("AIConfigurations");
+                });
+
+            modelBuilder.Entity("DocN.Data.Models.AgentConfiguration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AgentType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CacheTTLSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("CanAnswer")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanClassifyDocuments")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanExtractTags")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanRetrieveDocuments")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("CanSummarize")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CategoryFilter")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CustomInstructions")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("EmbeddingModelName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("EnableCitation")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableConversationHistory")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableParallelRetrieval")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableStreaming")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("FallbackProvider")
+                        .HasColumnType("int");
+
+                    b.Property<double>("HybridSearchAlpha")
+                        .HasColumnType("float");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MaxConversationHistoryMessages")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxDocumentsToRetrieve")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxTokensForContext")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxTokensForResponse")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ModelName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OwnerId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("PrimaryProvider")
+                        .HasColumnType("int");
+
+                    b.Property<double>("SimilarityThreshold")
+                        .HasColumnType("float");
+
+                    b.Property<string>("SystemPrompt")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TagFilter")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<double>("Temperature")
+                        .HasColumnType("float");
+
+                    b.Property<int?>("TemplateId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TenantId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UsageCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("UseHybridSearch")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("VisibilityFilter")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentType");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("TemplateId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "IsActive");
+
+                    b.ToTable("AgentConfigurations");
+                });
+
+            modelBuilder.Entity("DocN.Data.Models.AgentTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AgentType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ConfigurationGuide")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DefaultParametersJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("DefaultSystemPrompt")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ExampleQuery")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExampleResponse")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsBuiltIn")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OwnerId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("RecommendedModel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("RecommendedProvider")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UsageCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentType");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("IsBuiltIn");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("AgentTemplates");
+                });
+
+            modelBuilder.Entity("DocN.Data.Models.AgentUsageLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AgentConfigurationId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CompletionTokens")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DocumentsRetrieved")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsError")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ModelUsed")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PromptTokens")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProviderUsed")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Query")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double?>("RelevanceScore")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Response")
+                        .HasMaxLength(2147483647)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<TimeSpan>("RetrievalTime")
+                        .HasColumnType("time");
+
+                    b.Property<long>("RetrievalTimeTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<TimeSpan>("SynthesisTime")
+                        .HasColumnType("time");
+
+                    b.Property<long>("SynthesisTimeTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("TenantId")
+                        .HasColumnType("int");
+
+                    b.Property<TimeSpan>("TotalTime")
+                        .HasColumnType("time");
+
+                    b.Property<long>("TotalTimeTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("TotalTokens")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserFeedbackComment")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool?>("UserFeedbackPositive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentConfigurationId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("AgentConfigurationId", "CreatedAt");
+
+                    b.ToTable("AgentUsageLogs");
                 });
 
             modelBuilder.Entity("DocN.Data.Models.ApplicationUser", b =>
@@ -169,6 +563,85 @@ namespace DocN.Data.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("DocN.Data.Models.AuditLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<string>("ResourceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("TenantId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Action");
+
+                    b.HasIndex("ResourceType");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Action", "Timestamp");
+
+                    b.HasIndex("ResourceType", "ResourceId");
+
+                    b.HasIndex("UserId", "Timestamp");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("DocN.Data.Models.Conversation", b =>
                 {
                     b.Property<int>("Id")
@@ -238,6 +711,9 @@ namespace DocN.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("ChunkEmbeddingStatus")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -245,7 +721,16 @@ namespace DocN.Data.Migrations
                     b.Property<string>("DetectedLanguage")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("EmbeddingVector")
+                    b.Property<int?>("EmbeddingDimension")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EmbeddingVector1536")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EmbeddingVector768")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExtractedMetadataJson")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ExtractedText")
@@ -321,7 +806,10 @@ namespace DocN.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("ChunkEmbedding")
+                    b.Property<string>("ChunkEmbedding1536")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ChunkEmbedding768")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ChunkIndex")
@@ -335,6 +823,9 @@ namespace DocN.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<int>("DocumentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("EmbeddingDimension")
                         .HasColumnType("int");
 
                     b.Property<int>("EndPosition")
@@ -413,6 +904,57 @@ namespace DocN.Data.Migrations
                     b.ToTable("DocumentTags");
                 });
 
+            modelBuilder.Entity("DocN.Data.Models.LogEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("StackTrace")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("Category", "Timestamp");
+
+                    b.HasIndex("UserId", "Timestamp");
+
+                    b.ToTable("LogEntries");
+                });
+
             modelBuilder.Entity("DocN.Data.Models.Message", b =>
                 {
                     b.Property<int>("Id")
@@ -434,8 +976,9 @@ namespace DocN.Data.Migrations
                     b.Property<string>("Metadata")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ReferencedDocumentIds")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("ReferencedDocumentIdsJson")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ReferencedDocumentIds");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -458,6 +1001,49 @@ namespace DocN.Data.Migrations
                     b.HasIndex("Timestamp");
 
                     b.ToTable("Messages");
+                });
+
+            modelBuilder.Entity("DocN.Data.Models.SimilarDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AnalyzedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ChunkIndex")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RelevantChunk")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("SimilarDocumentId")
+                        .HasColumnType("int");
+
+                    b.Property<double>("SimilarityScore")
+                        .HasColumnType("float");
+
+                    b.Property<int>("SourceDocumentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SimilarDocumentId");
+
+                    b.HasIndex("SourceDocumentId");
+
+                    b.HasIndex("SourceDocumentId", "Rank");
+
+                    b.HasIndex("SourceDocumentId", "SimilarityScore");
+
+                    b.ToTable("SimilarDocuments");
                 });
 
             modelBuilder.Entity("DocN.Data.Models.Tenant", b =>
@@ -626,6 +1212,65 @@ namespace DocN.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("DocN.Data.Models.AgentConfiguration", b =>
+                {
+                    b.HasOne("DocN.Data.Models.ApplicationUser", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DocN.Data.Models.AgentTemplate", "Template")
+                        .WithMany("Agents")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DocN.Data.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Owner");
+
+                    b.Navigation("Template");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("DocN.Data.Models.AgentTemplate", b =>
+                {
+                    b.HasOne("DocN.Data.Models.ApplicationUser", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("DocN.Data.Models.AgentUsageLog", b =>
+                {
+                    b.HasOne("DocN.Data.Models.AgentConfiguration", "AgentConfiguration")
+                        .WithMany()
+                        .HasForeignKey("AgentConfigurationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DocN.Data.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DocN.Data.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AgentConfiguration");
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("DocN.Data.Models.ApplicationUser", b =>
                 {
                     b.HasOne("DocN.Data.Models.Tenant", "Tenant")
@@ -634,6 +1279,23 @@ namespace DocN.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("DocN.Data.Models.AuditLog", b =>
+                {
+                    b.HasOne("DocN.Data.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DocN.Data.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("DocN.Data.Models.Conversation", b =>
@@ -652,7 +1314,7 @@ namespace DocN.Data.Migrations
                     b.HasOne("DocN.Data.Models.ApplicationUser", "Owner")
                         .WithMany("Documents")
                         .HasForeignKey("OwnerId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("DocN.Data.Models.Tenant", "Tenant")
                         .WithMany("Documents")
@@ -716,6 +1378,25 @@ namespace DocN.Data.Migrations
                     b.Navigation("Conversation");
                 });
 
+            modelBuilder.Entity("DocN.Data.Models.SimilarDocument", b =>
+                {
+                    b.HasOne("DocN.Data.Models.Document", "SimilarDocumentRef")
+                        .WithMany()
+                        .HasForeignKey("SimilarDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DocN.Data.Models.Document", "SourceDocument")
+                        .WithMany()
+                        .HasForeignKey("SourceDocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SimilarDocumentRef");
+
+                    b.Navigation("SourceDocument");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -765,6 +1446,11 @@ namespace DocN.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("DocN.Data.Models.AgentTemplate", b =>
+                {
+                    b.Navigation("Agents");
                 });
 
             modelBuilder.Entity("DocN.Data.Models.ApplicationUser", b =>

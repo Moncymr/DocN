@@ -291,7 +291,7 @@ namespace DocN.Data.Migrations
                     ConversationId = table.Column<int>(type: "int", nullable: false),
                     Role = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     Content = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    ReferencedDocumentIds = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ReferencedDocumentIds = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsError = table.Column<bool>(type: "bit", nullable: false),
                     Metadata = table.Column<string>(type: "nvarchar(max)", nullable: true),
