@@ -3,12 +3,14 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.JSInterop
 @using DocN.Data.Constants
+@using Microsoft.Extensions.DependencyInjection
 @inject IDocumentService DocumentService
 @inject IDocumentStatisticsService StatisticsService
 @inject IFileProcessingService FileProcessingService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject IServiceScopeFactory ScopeFactory
 @rendermode InteractiveServer
 @implements IDisposable
 
@@ -1480,6 +1482,8 @@
     // Auto-refresh for processing documents
     private System.Threading.Timer? refreshTimer;
     private bool hasProcessingDocuments = false;
+    private readonly SemaphoreSlim _refreshSemaphore = new SemaphoreSlim(1, 1);
+    private bool _isRefreshing = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1530,18 +1534,68 @@
             refreshTimer?.Dispose();
             refreshTimer = new System.Threading.Timer(async _ =>
             {
-                await InvokeAsync(async () =>
+                // Prevent concurrent executions
+                if (_isRefreshing || !await _refreshSemaphore.WaitAsync(0))
+                    return;
+
+                try
                 {
-                    await LoadDocuments();
-                    StateHasChanged();
+                    _isRefreshing = true;
                     
-                    // If no more processing documents, stop the timer
-                    if (!hasProcessingDocuments)
+                    await InvokeAsync(async () =>
                     {
-                        refreshTimer?.Dispose();
-                        refreshTimer = null;
-                    }
-                });
+                        try
+                        {
+                            // Create a new scope to get a fresh DbContext instance
+                            using var scope = ScopeFactory.CreateScope();
+                            var scopedDocumentService = scope.ServiceProvider.GetRequiredService<IDocumentService>();
+                            
+                            // Load documents using the scoped service
+                            var docs = await scopedDocumentService.GetUserDocumentsAsync(currentUserId, 1, 200);
+                            var total = await scopedDocumentService.GetTotalDocumentCountAsync(currentUserId);
+                            
+                            // Update component state
+                            documents = docs;
+                            totalDocuments = total;
+                            
+                            // Extract unique categories
+                            if (documents != null)
+                            {
+                                categories = documents
+                                    .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
+                                    .Select(d => d.ActualCategory!)
+                                    .Distinct()
+                                    .OrderBy(c => c)
+                                    .ToList();
+                                
+                                // Check if any documents are still being processed
+                                hasProcessingDocuments = documents.Any(d => 
+                                    d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending || 
+                                    d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing);
+                            }
+                            
+                            ApplyFilters();
+                            StateHasChanged();
+                            
+                            // If no more processing documents, stop the timer
+                            if (!hasProcessingDocuments)
+                            {
+                                refreshTimer?.Dispose();
+                                refreshTimer = null;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log error but don't crash the component
+                            Console.WriteLine($"Error refreshing documents: {ex.Message}");
+                        }
+                    });
+                }
+                finally
+                {
+                    _isRefreshing = false;
+                    _refreshSemaphore.Release();
+                }
             }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
         }
     }
@@ -1549,6 +1603,7 @@
     public void Dispose()
     {
         refreshTimer?.Dispose();
+        _refreshSemaphore?.Dispose();
     }
 
     private void ApplyFilters()
