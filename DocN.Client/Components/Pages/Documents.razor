@@ -1514,12 +1514,15 @@
             isLoading = true;
             StateHasChanged(); // Force UI update to show loading state
             
-            // Load reasonable batch size instead of all 1000 documents
-            // This improves performance significantly
-            documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 200);
+            // Use proper pagination - only load documents for current page
+            // This respects the pageSize setting (default 20)
+            documents = await DocumentService.GetUserDocumentsAsync(currentUserId, currentPage, pageSize);
             totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
             
-            // Extract unique categories
+            // Calculate total pages for pagination
+            totalPages = (int)Math.Ceiling((double)totalDocuments / pageSize);
+            
+            // Extract unique categories from loaded documents
             if (documents != null)
             {
                 categories = documents
@@ -1572,13 +1575,14 @@
                             using var scope = ScopeFactory.CreateScope();
                             var scopedDocumentService = scope.ServiceProvider.GetRequiredService<IDocumentService>();
                             
-                            // Load documents using the scoped service
-                            var docs = await scopedDocumentService.GetUserDocumentsAsync(currentUserId, 1, 200);
+                            // Load documents using the scoped service with proper pagination
+                            var docs = await scopedDocumentService.GetUserDocumentsAsync(currentUserId, currentPage, pageSize);
                             var total = await scopedDocumentService.GetTotalDocumentCountAsync(currentUserId);
                             
                             // Update component state
                             documents = docs;
                             totalDocuments = total;
+                            totalPages = (int)Math.Ceiling((double)totalDocuments / pageSize);
                             
                             // Extract unique categories
                             if (documents != null)
@@ -1630,11 +1634,15 @@
 
     private void ApplyFilters()
     {
-        if (documents == null) return;
+        if (documents == null) 
+        {
+            filteredDocuments = new List<Document>();
+            return;
+        }
 
         var filtered = documents.AsEnumerable();
 
-        // Search filter
+        // Search filter (client-side on current page)
         if (!string.IsNullOrEmpty(searchQuery))
         {
             filtered = filtered.Where(d => 
@@ -1643,13 +1651,13 @@
                 (d.ExtractedText?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
-        // Category filter
+        // Category filter (client-side on current page)
         if (!string.IsNullOrEmpty(selectedCategory))
         {
             filtered = filtered.Where(d => d.ActualCategory == selectedCategory);
         }
 
-        // Sort
+        // Sort (client-side on current page)
         filtered = sortBy switch
         {
             "date-desc" => filtered.OrderByDescending(d => d.UploadedAt),
@@ -1661,29 +1669,23 @@
             _ => filtered.OrderByDescending(d => d.UploadedAt)
         };
 
-        // Pagination
-        var allFiltered = filtered.ToList();
-        totalPages = (int)Math.Ceiling((double)allFiltered.Count / pageSize);
-        
-        filteredDocuments = allFiltered
-            .Skip((currentPage - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
+        // Since we're loading from server with pagination, just display what we loaded
+        filteredDocuments = filtered.ToList();
     }
 
     private async Task HandleSearch()
     {
+        // When searching, reload from server starting at page 1
         currentPage = 1;
-        ApplyFilters();
-        await Task.CompletedTask;
+        await LoadDocuments();
     }
 
-    private void ClearFilters()
+    private async Task ClearFilters()
     {
         searchQuery = string.Empty;
         selectedCategory = string.Empty;
         currentPage = 1;
-        ApplyFilters();
+        await LoadDocuments();
     }
 
     private void SetViewMode(string mode)
@@ -1761,8 +1763,7 @@
     private async Task GoToPage(int page)
     {
         currentPage = page;
-        ApplyFilters();
-        await Task.CompletedTask;
+        await LoadDocuments();
     }
 
     private async Task NextPage()
@@ -1770,9 +1771,8 @@
         if (currentPage < totalPages)
         {
             currentPage++;
-            ApplyFilters();
+            await LoadDocuments();
         }
-        await Task.CompletedTask;
     }
 
     private async Task PreviousPage()
@@ -1780,9 +1780,8 @@
         if (currentPage > 1)
         {
             currentPage--;
-            ApplyFilters();
+            await LoadDocuments();
         }
-        await Task.CompletedTask;
     }
 
     private string GetFileIcon(string fileName)
