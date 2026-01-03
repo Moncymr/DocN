@@ -1483,31 +1483,31 @@
         currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         
         currentPage = Page > 0 ? Page : 1;
-        await LoadDocuments();
         
-        // Check if there's a document ID in the query string to open
+        // Check if there's a document ID in the query string to open FIRST
         var uri = new Uri(Navigation.Uri);
         var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
         var docIdStr = query["id"];
         
         if (!string.IsNullOrEmpty(docIdStr) && int.TryParse(docIdStr, out int docId))
         {
-            // Find and open the document
-            var doc = documents?.FirstOrDefault(d => d.Id == docId);
-            if (doc != null)
+            // If opening a specific document via share link, load it directly without loading all documents
+            var specificDoc = await DocumentService.GetDocumentAsync(docId, currentUserId);
+            if (specificDoc != null)
             {
-                ViewDocumentDetails(doc);
-            }
-            else
-            {
-                // Document not in current page, try to load it directly
-                var specificDoc = await DocumentService.GetDocumentAsync(docId, currentUserId);
-                if (specificDoc != null)
-                {
-                    ViewDocumentDetails(specificDoc);
-                }
+                // Create minimal document list for display
+                documents = new List<Document> { specificDoc };
+                totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
+                ViewDocumentDetails(specificDoc);
+                isLoading = false;
+                
+                // Don't start periodic refresh for single document view
+                return;
             }
         }
+        
+        // Normal page load - load documents list
+        await LoadDocuments();
         
         // Start periodic refresh for status updates
         _ = StartPeriodicRefresh();
@@ -1587,8 +1587,8 @@
     {
         isLoading = true;
         
-        // Load a reasonable amount for initial view
-        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, pageSize * 5);
+        // Optimize: Load only what's needed for the current page (20 documents, not 100)
+        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, pageSize);
         totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
         
         // Extract unique categories
