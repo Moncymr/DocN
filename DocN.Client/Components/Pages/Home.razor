@@ -252,12 +252,10 @@
                         processedSuccessCount++;
                     }
 
-                    // Delete existing chunks and recreate them
-                    var existingChunks = await DbContext.DocumentChunks
+                    // Delete existing chunks - use ExecuteDelete to avoid loading vector columns
+                    await DbContext.DocumentChunks
                         .Where(c => c.DocumentId == docInfo.Id)
-                        .ToListAsync();
-                    
-                    DbContext.DocumentChunks.RemoveRange(existingChunks);
+                        .ExecuteDeleteAsync();
 
                     // Create new chunks with embeddings
                     var newChunks = ChunkingService.ChunkDocument(document);
