@@ -13,13 +13,16 @@ namespace DocN.Server.Controllers;
 public class SearchController : ControllerBase
 {
     private readonly IHybridSearchService _searchService;
+    private readonly IEmbeddingService _embeddingService;
     private readonly ILogger<SearchController> _logger;
 
     public SearchController(
         IHybridSearchService searchService,
+        IEmbeddingService embeddingService,
         ILogger<SearchController> logger)
     {
         _searchService = searchService;
+        _embeddingService = embeddingService;
         _logger = logger;
     }
 
@@ -186,9 +189,7 @@ public class SearchController : ControllerBase
 
     private async Task<float[]?> GetQueryEmbeddingAsync(string query)
     {
-        // This is a simplified implementation
-        // In production, inject IEmbeddingService and use it
-        return null;
+        return await _embeddingService.GenerateEmbeddingAsync(query);
     }
 }
 

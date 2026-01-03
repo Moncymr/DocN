@@ -90,13 +90,210 @@ public class HybridSearchService : IHybridSearchService
     }
 
     /// <summary>
-    /// Perform vector similarity search with database optimization
+    /// Perform vector similarity search with database optimization using VECTOR_DISTANCE when available
     /// </summary>
     public async Task<List<SearchResult>> VectorSearchAsync(float[] queryEmbedding, SearchOptions options)
     {
         // Check if using SQL Server for optimization
         var isSqlServer = _context.Database.IsSqlServer();
         
+        if (!isSqlServer)
+        {
+            // For non-SQL Server (e.g., in-memory testing), use fallback
+            return await VectorSearchInMemoryAsync(queryEmbedding, options);
+        }
+
+        // Try to use SQL Server VECTOR_DISTANCE if available (SQL Server 2025+)
+        try
+        {
+            return await VectorSearchWithVectorDistanceAsync(queryEmbedding, options);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException sqlEx)
+        {
+            // Check if error is due to VECTOR type not being supported (older SQL Server version)
+            // SQL error numbers indicating VECTOR support is not available:
+            // - 207: Invalid column name (VECTOR columns don't exist in schema)
+            // - 8116: Argument data type is invalid for argument (VECTOR type not recognized)
+            bool isVectorNotSupported = sqlEx.Number == 207 || sqlEx.Number == 8116;
+            
+            if (isVectorNotSupported)
+            {
+                // Fall back to in-memory calculation
+                return await VectorSearchInMemoryAsync(queryEmbedding, options);
+            }
+            else
+            {
+                // Re-throw other SQL exceptions
+                throw;
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Unsupported embedding dimension (not 768 or 1536) - fall back to in-memory calculation
+            return await VectorSearchInMemoryAsync(queryEmbedding, options);
+        }
+        catch (Exception)
+        {
+            // For unexpected errors, fall back to in-memory calculation
+            return await VectorSearchInMemoryAsync(queryEmbedding, options);
+        }
+    }
+
+    /// <summary>
+    /// Perform vector similarity search using SQL Server VECTOR_DISTANCE function
+    /// This provides optimal performance by computing similarity at the database level
+    /// </summary>
+    private async Task<List<SearchResult>> VectorSearchWithVectorDistanceAsync(float[] queryEmbedding, SearchOptions options)
+    {
+        // Determine which vector field to use based on embedding dimension
+        var embeddingDimension = queryEmbedding.Length;
+        string docVectorColumn;
+        
+        // Use whitelist approach for security - only allow known valid column names
+        if (embeddingDimension == Utilities.EmbeddingValidationHelper.SupportedDimension768)
+        {
+            docVectorColumn = "EmbeddingVector768";
+        }
+        else if (embeddingDimension == Utilities.EmbeddingValidationHelper.SupportedDimension1536)
+        {
+            docVectorColumn = "EmbeddingVector1536";
+        }
+        else
+        {
+            throw new ArgumentException(
+                $"Unsupported embedding dimension: {embeddingDimension}. " +
+                $"Expected {Utilities.EmbeddingValidationHelper.SupportedDimension768} or " +
+                $"{Utilities.EmbeddingValidationHelper.SupportedDimension1536}.");
+        }
+        
+        // Serialize query embedding to JSON format (required for VECTOR type)
+        var embeddingJson = System.Text.Json.JsonSerializer.Serialize(queryEmbedding);
+
+        // Build WHERE clause dynamically based on filters
+        var whereConditions = new List<string> { $"d.{docVectorColumn} IS NOT NULL" };
+        
+        if (!string.IsNullOrEmpty(options.OwnerId))
+        {
+            whereConditions.Add("d.OwnerId = @ownerId");
+        }
+        
+        if (!string.IsNullOrEmpty(options.CategoryFilter))
+        {
+            whereConditions.Add("d.ActualCategory = @categoryFilter");
+        }
+        
+        if (options.VisibilityFilter.HasValue)
+        {
+            whereConditions.Add("d.Visibility = @visibilityFilter");
+        }
+        
+        whereConditions.Add($"VECTOR_DISTANCE('cosine', d.{docVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) >= @minSimilarity");
+        
+        var whereClause = string.Join(" AND ", whereConditions);
+
+        // Use raw SQL with VECTOR_DISTANCE function
+        var sql = $@"
+            SELECT TOP (@topK)
+                d.Id,
+                d.FileName,
+                d.FilePath,
+                d.ContentType,
+                d.FileSize,
+                d.ExtractedText,
+                d.ActualCategory,
+                d.UploadedAt,
+                d.OwnerId,
+                d.Visibility,
+                CAST(VECTOR_DISTANCE('cosine', d.{docVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) AS FLOAT) AS SimilarityScore
+            FROM Documents d
+            WHERE {whereClause}
+            ORDER BY SimilarityScore DESC";
+
+        // Execute the query
+        using var command = _context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = sql;
+        
+        var embeddingParam = command.CreateParameter();
+        embeddingParam.ParameterName = "@queryEmbedding";
+        embeddingParam.Value = embeddingJson;
+        command.Parameters.Add(embeddingParam);
+        
+        var topKParam = command.CreateParameter();
+        topKParam.ParameterName = "@topK";
+        topKParam.Value = options.TopK * 2; // Return 2x TopK for fusion
+        command.Parameters.Add(topKParam);
+        
+        var minSimParam = command.CreateParameter();
+        minSimParam.ParameterName = "@minSimilarity";
+        minSimParam.Value = options.MinSimilarity;
+        command.Parameters.Add(minSimParam);
+        
+        if (!string.IsNullOrEmpty(options.OwnerId))
+        {
+            var ownerIdParam = command.CreateParameter();
+            ownerIdParam.ParameterName = "@ownerId";
+            ownerIdParam.Value = options.OwnerId;
+            command.Parameters.Add(ownerIdParam);
+        }
+        
+        if (!string.IsNullOrEmpty(options.CategoryFilter))
+        {
+            var categoryParam = command.CreateParameter();
+            categoryParam.ParameterName = "@categoryFilter";
+            categoryParam.Value = options.CategoryFilter;
+            command.Parameters.Add(categoryParam);
+        }
+        
+        if (options.VisibilityFilter.HasValue)
+        {
+            var visibilityParam = command.CreateParameter();
+            visibilityParam.ParameterName = "@visibilityFilter";
+            visibilityParam.Value = (int)options.VisibilityFilter.Value;
+            command.Parameters.Add(visibilityParam);
+        }
+
+        await _context.Database.OpenConnectionAsync();
+
+        var results = new List<SearchResult>();
+
+        using var reader = await command.ExecuteReaderAsync();
+        int rank = 1;
+        while (await reader.ReadAsync())
+        {
+            var doc = new Document
+            {
+                Id = reader.GetInt32(0),
+                FileName = reader.GetString(1),
+                FilePath = reader.GetString(2),
+                ContentType = reader.GetString(3),
+                FileSize = reader.GetInt64(4),
+                ExtractedText = reader.IsDBNull(5) ? null : reader.GetString(5),
+                ActualCategory = reader.IsDBNull(6) ? null : reader.GetString(6),
+                UploadedAt = reader.GetDateTime(7),
+                OwnerId = reader.GetString(8),
+                Visibility = (DocumentVisibility)reader.GetInt32(9)
+            };
+            var score = reader.GetDouble(10);
+
+            results.Add(new SearchResult
+            {
+                Document = doc,
+                VectorScore = score,
+                TextScore = 0,
+                CombinedScore = score,
+                VectorRank = rank++
+            });
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Fallback vector search using in-memory cosine similarity calculation
+    /// Used when VECTOR_DISTANCE is not available (older SQL Server or in-memory database)
+    /// </summary>
+    private async Task<List<SearchResult>> VectorSearchInMemoryAsync(float[] queryEmbedding, SearchOptions options)
+    {
         // Build query with filters
         // Query the actual mapped fields: EmbeddingVector768 or EmbeddingVector1536
         var documentsQuery = _context.Documents
@@ -119,7 +316,7 @@ public class HybridSearchService : IHybridSearchService
         }
 
         // Optimize: Limit candidates before loading into memory
-        var candidateLimit = isSqlServer ? Math.Max(options.TopK * CandidateLimitMultiplier, MinCandidateLimit) : int.MaxValue;
+        var candidateLimit = Math.Max(options.TopK * CandidateLimitMultiplier, MinCandidateLimit);
         documentsQuery = documentsQuery.OrderByDescending(d => d.UploadedAt).Take(candidateLimit);
 
         var documents = await documentsQuery.ToListAsync();
