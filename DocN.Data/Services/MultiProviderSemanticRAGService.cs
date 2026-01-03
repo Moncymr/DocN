@@ -210,8 +210,9 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             }
 
             // Get all documents with embeddings for the user
+            // Note: EmbeddingVector is a computed property, so we check the actual DB fields
             var documents = await _context.Documents
-                .Where(d => d.OwnerId == userId && d.EmbeddingVector != null)
+                .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
                 .ToListAsync();
 
             _logger.LogInformation("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
