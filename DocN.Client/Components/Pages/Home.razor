@@ -1,6 +1,7 @@
 ﻿@page "/"
 @using DocN.Data
 @using DocN.Data.Services
+@using DocN.Data.Constants
 @using Microsoft.EntityFrameworkCore
 @inject DocArcContext DbContext
 @inject DocN.Data.Services.IEmbeddingService EmbeddingService
@@ -45,6 +46,12 @@
                 <div class="progress-text">
                     🔄 Rigenerando documento @currentDocument di @totalDocuments
                 </div>
+                @if (!string.IsNullOrEmpty(currentDocumentName))
+                {
+                    <div class="progress-document-name">
+                        📄 @currentDocumentName
+                    </div>
+                }
                 <div class="progress-bar-container">
                     <div class="progress-bar" style="width: @progressPercentage%"></div>
                 </div>
@@ -115,6 +122,7 @@
     private int currentDocument = 0;
     private int processedSuccessCount = 0;
     private int processedErrorCount = 0;
+    private string currentDocumentName = "";
     private double progressPercentage => totalDocuments > 0 ? (double)currentDocument / totalDocuments * 100 : 0;
 
     private async Task RecreateAllEmbeddings()
@@ -124,6 +132,7 @@
         embeddingSuccess = false;
         totalDocuments = 0;
         currentDocument = 0;
+        currentDocumentName = "";
         processedSuccessCount = 0;
         processedErrorCount = 0;
         StateHasChanged();
@@ -147,6 +156,7 @@
             foreach (var document in documents)
             {
                 currentDocument++;
+                currentDocumentName = document.FileName ?? $"Documento #{document.Id}";
                 
                 try
                 {
@@ -155,6 +165,7 @@
                     if (embedding != null)
                     {
                         document.EmbeddingVector = embedding;
+                        document.EmbeddingDimension = embedding.Length; // Fix: Set embedding dimension
                         successCount++;
                         processedSuccessCount++;
                     }
@@ -168,32 +179,56 @@
 
                     // Create new chunks with embeddings
                     var newChunks = ChunkingService.ChunkDocument(document);
+                    int chunksEmbedded = 0;
                     foreach (var chunk in newChunks)
                     {
                         var chunkEmbedding = await EmbeddingService.GenerateEmbeddingAsync(chunk.ChunkText);
                         if (chunkEmbedding != null)
                         {
                             chunk.ChunkEmbedding = chunkEmbedding;
+                            // ChunkEmbedding setter automatically sets EmbeddingDimension
+                            chunksEmbedded++;
                         }
                         DbContext.DocumentChunks.Add(chunk);
                     }
 
+                    // Update chunk embedding status
+                    if (newChunks.Count == 0)
+                    {
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
+                    }
+                    else if (chunksEmbedded == newChunks.Count)
+                    {
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
+                    }
+                    else if (chunksEmbedded > 0)
+                    {
+                        // Some chunks have embeddings but not all - mark as pending for retry
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
+                    }
+                    else
+                    {
+                        // No chunks have embeddings
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
+                    }
+
                     await DbContext.SaveChangesAsync();
-                    Logger.LogInformation("Recreated embeddings for document {Id}: {FileName}", 
-                        document.Id, document.FileName);
+                    Logger.LogInformation("Recreated embeddings for document {Id}: {FileName} - {ChunksEmbedded}/{TotalChunks} chunks embedded", 
+                        document.Id, document.FileName, chunksEmbedded, newChunks.Count);
                 }
                 catch (Exception ex)
                 {
                     errorCount++;
                     processedErrorCount++;
-                    Logger.LogError(ex, "Error recreating embeddings for document {Id}", document.Id);
+                    Logger.LogError(ex, "Error recreating embeddings for document {Id}: {FileName}", 
+                        document.Id, document.FileName);
                 }
                 
                 // Update UI once per document (after all processing is complete)
                 StateHasChanged();
             }
 
-            embeddingMessage = $"✅ Embeddings ricreati per {successCount} documenti. Errori: {errorCount}";
+            embeddingMessage = $"✅ Embeddings e chunks ricreati per {successCount} documenti. Errori: {errorCount}";
             embeddingSuccess = true;
             Logger.LogInformation("Completed recreation of embeddings: {SuccessCount} successful, {ErrorCount} errors", 
                 successCount, errorCount);
@@ -354,8 +389,17 @@
         font-size: 1.1rem;
         font-weight: 700;
         color: #ff6b35;
+        margin-bottom: 0.5rem;
+        text-align: center;
+    }
+    
+    .progress-document-name {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #666;
         margin-bottom: 1rem;
         text-align: center;
+        font-style: italic;
     }
     
     .progress-bar-container {
