@@ -419,6 +419,15 @@ public class DocumentService : IDocumentService
         {
             try
             {
+                // Detach any existing tracked entities to avoid conflicts on retry
+                var trackedEntries = _context.ChangeTracker.Entries<Document>()
+                    .Where(e => e.State != EntityState.Detached)
+                    .ToList();
+                foreach (var entry in trackedEntries)
+                {
+                    entry.State = EntityState.Detached;
+                }
+                
                 // Determine which embedding field is populated and validate
                 float[]? embeddingToValidate = null;
                 
