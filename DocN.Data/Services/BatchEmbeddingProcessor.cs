@@ -273,6 +273,8 @@ public class BatchEmbeddingProcessor : BackgroundService
             
             // Check if any documents now have all their chunks with embeddings and update their status
             var documentIds = pendingChunks.Select(c => c.DocumentId).Distinct().ToList();
+            var updatedDocuments = 0;
+            
             foreach (var documentId in documentIds)
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -295,8 +297,15 @@ public class BatchEmbeddingProcessor : BackgroundService
                     document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
                     _logger.LogInformation("Document {Id} now has all {ChunkCount} chunks with embeddings - Status updated to Completed", 
                         documentId, allChunks.Count);
-                    await context.SaveChangesAsync(cancellationToken);
+                    updatedDocuments++;
                 }
+            }
+            
+            // Save all document status updates in a single batch
+            if (updatedDocuments > 0)
+            {
+                await context.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Updated {Count} document(s) status to Completed", updatedDocuments);
             }
         }
         catch (Exception ex)
