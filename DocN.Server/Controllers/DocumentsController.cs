@@ -61,23 +61,25 @@ public class DocumentsController : ControllerBase
     /// Ottiene lista paginata di documenti ordinati per data upload (più recenti primi)
     /// </summary>
     /// <param name="page">Numero pagina (default 1)</param>
-    /// <param name="pageSize">Documenti per pagina (default 20, max 100)</param>
+    /// <param name="pageSize">Documenti per pagina (default 10, max 100)</param>
     /// <returns>Lista paginata documenti con metadati essenziali</returns>
     /// <response code="200">Ritorna la lista paginata dei documenti</response>
     /// <response code="500">Errore interno del server durante recupero</response>
     /// <remarks>
-    /// Scopo: Fornire lista paginata documenti per visualizzazione in UI
+    /// Scopo: Fornire lista paginata documenti per visualizzazione in UI con caricamento asincrono
     /// 
     /// Comportamento:
     /// - Paginazione server-side per ottimizzare caricamento
     /// - Ordinamento decrescente per data upload
     /// - Include metadati: nome file, categoria, tag, dimensione, owner, testo estratto
     /// - ESCLUDE solo vettori embedding per ottimizzazione performance
+    /// - Caricamento asincrono con 10 documenti per pagina di default
     /// 
     /// Performance:
     /// - Query ottimizzata con proiezione per escludere embeddings (768-1536 floats per documento)
     /// - Indice su UploadedAt per ordinamento veloce
     /// - Paginazione riduce drasticamente data transfer
+    /// - Page size ridotto a 10 per caricamento più veloce
     /// 
     /// Note:
     /// - ExtractedText è incluso per supportare ricerca client-side
@@ -88,13 +90,13 @@ public class DocumentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<Document>>> GetDocuments(
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 10)
     {
         try
         {
             // Validate pagination parameters
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
+            if (pageSize < 1) pageSize = 10;
             if (pageSize > 100) pageSize = 100; // Max 100 items per page
             
             // PERFORMANCE FIX: Use projection to exclude embedding vectors
