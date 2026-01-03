@@ -178,26 +178,6 @@ builder.Services.AddDbContext<DocArcContext>(options =>
     }
 });
 
-// Add DbContextFactory for services that need their own context (like LogService)
-// Using AddPooledDbContextFactory with explicit options to avoid singleton/scoped conflict
-builder.Services.AddPooledDbContextFactory<ApplicationDbContext>((serviceProvider, options) =>
-{
-    options.UseSqlServer(connectionString, sqlServerOptions =>
-    {
-        // Enable retry on transient failures
-        sqlServerOptions.EnableRetryOnFailure(
-            maxRetryCount: 5,
-            maxRetryDelay: TimeSpan.FromSeconds(30),
-            errorNumbersToAdd: null);
-    });
-
-    if (builder.Environment.IsDevelopment())
-    {
-        options.EnableSensitiveDataLogging();
-        options.EnableDetailedErrors();
-    }
-});
-
 // Identity & Authentication
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {

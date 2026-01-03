@@ -1,15 +1,16 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using DocN.Data.Models;
 
 namespace DocN.Data.Services;
 
 public class LogService : ILogService
 {
-    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
+    private readonly IServiceProvider _serviceProvider;
 
-    public LogService(IDbContextFactory<ApplicationDbContext> contextFactory)
+    public LogService(IServiceProvider serviceProvider)
     {
-        _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
     public async Task LogInfoAsync(string category, string message, string? details = null, string? userId = null, string? fileName = null)
@@ -36,8 +37,9 @@ public class LogService : ILogService
     {
         try
         {
-            // Create a new context for this operation to avoid tracking conflicts
-            await using var context = await _contextFactory.CreateDbContextAsync();
+            // Create a new scope and get a fresh DbContext for this operation to avoid tracking conflicts
+            using var scope = _serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             
             if (context?.LogEntries == null)
             {
@@ -72,7 +74,9 @@ public class LogService : ILogService
     {
         try
         {
-            await using var context = await _contextFactory.CreateDbContextAsync();
+            // Create a new scope and get a fresh DbContext
+            using var scope = _serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             
             if (context?.LogEntries == null)
             {
@@ -115,7 +119,9 @@ public class LogService : ILogService
     {
         try
         {
-            await using var context = await _contextFactory.CreateDbContextAsync();
+            // Create a new scope and get a fresh DbContext
+            using var scope = _serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             
             if (context == null)
             {
