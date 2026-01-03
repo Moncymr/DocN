@@ -212,7 +212,7 @@
         try
         {
             var httpClient = HttpClientFactory.CreateClient("BackendAPI");
-            dashboard = await httpClient.GetFromJsonAsync<DashboardData>("api/rag-quality/dashboard");
+            dashboard = await httpClient.GetFromJsonAsync<DashboardData>("api/ragquality/dashboard");
         }
         catch (Exception ex)
         {
