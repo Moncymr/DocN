@@ -58,57 +58,116 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
-    /// Ottiene lista completa di tutti i documenti ordinati per data upload (più recenti primi)
+    /// Ottiene lista paginata di documenti ordinati per data upload (più recenti primi)
     /// </summary>
-    /// <returns>Lista documenti con tutti i metadati</returns>
-    /// <response code="200">Ritorna la lista dei documenti (può essere vuota)</response>
+    /// <param name="page">Numero pagina (default 1)</param>
+    /// <param name="pageSize">Documenti per pagina (default 20, max 100)</param>
+    /// <returns>Lista paginata documenti con metadati essenziali</returns>
+    /// <response code="200">Ritorna la lista paginata dei documenti</response>
     /// <response code="500">Errore interno del server durante recupero</response>
     /// <remarks>
-    /// Scopo: Fornire lista completa documenti per visualizzazione in UI o export
+    /// Scopo: Fornire lista paginata documenti per visualizzazione in UI
     /// 
     /// Comportamento:
-    /// - Recupera TUTTI i documenti (anche senza embeddings generati)
+    /// - Paginazione server-side per ottimizzare caricamento
     /// - Ordinamento decrescente per data upload
-    /// - Include metadati: nome file, categoria, tag, dimensione, owner, etc.
-    /// 
-    /// Output atteso:
-    /// - Array JSON di oggetti Document
-    /// - Ordinati da più recente a più vecchio
-    /// - Lista vuota [] se nessun documento presente
-    /// 
-    /// FIX IMPORTANTE:
-    /// - Versione corrente ritorna TUTTI i documenti indipendentemente da presenza embeddings
-    /// - Fix precedente: documenti senza vettori non venivano mostrati
+    /// - Include metadati: nome file, categoria, tag, dimensione, owner, testo estratto
+    /// - ESCLUDE solo vettori embedding per ottimizzazione performance
     /// 
     /// Performance:
-    /// - Query ottimizzata con indice su UploadedAt
-    /// - Per grandi dataset (>10k documenti), considerare paginazione
+    /// - Query ottimizzata con proiezione per escludere embeddings (768-1536 floats per documento)
+    /// - Indice su UploadedAt per ordinamento veloce
+    /// - Paginazione riduce drasticamente data transfer
     /// 
-    /// TODO (futuro):
-    /// - Aggiungere paginazione (page, pageSize)
-    /// - Aggiungere filtri (categoria, owner, dateRange)
-    /// - Aggiungere sorting configurabile
+    /// Note:
+    /// - ExtractedText è incluso per supportare ricerca client-side
+    /// - Per documenti con testi molto lunghi, considerare endpoint dedicato
     /// </remarks>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<Document>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<IEnumerable<Document>>> GetDocuments()
+    public async Task<ActionResult<IEnumerable<Document>>> GetDocuments(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            // KEY FIX: Return all documents regardless of whether Vector field is populated
-            // This addresses the issue where documents without vectors were not being shown
+            // Validate pagination parameters
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 100) pageSize = 100; // Max 100 items per page
+            
+            // PERFORMANCE FIX: Use projection to exclude embedding vectors
+            // This significantly reduces data transfer and improves query speed
+            // Embedding vectors (768 or 1536 floats per document) are only needed for semantic search
+            // ExtractedText is included for client-side search functionality
             var documents = await _context.Documents
                 .OrderByDescending(d => d.UploadedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(d => new Document
+                {
+                    Id = d.Id,
+                    FileName = d.FileName,
+                    FilePath = d.FilePath,
+                    ContentType = d.ContentType,
+                    FileSize = d.FileSize,
+                    ExtractedText = d.ExtractedText, // Included for client-side search
+                    SuggestedCategory = d.SuggestedCategory,
+                    CategoryReasoning = d.CategoryReasoning,
+                    ActualCategory = d.ActualCategory,
+                    AITagsJson = d.AITagsJson,
+                    AIAnalysisDate = d.AIAnalysisDate,
+                    ExtractedMetadataJson = d.ExtractedMetadataJson,
+                    PageCount = d.PageCount,
+                    DetectedLanguage = d.DetectedLanguage,
+                    ProcessingStatus = d.ProcessingStatus,
+                    ProcessingError = d.ProcessingError,
+                    ChunkEmbeddingStatus = d.ChunkEmbeddingStatus,
+                    Notes = d.Notes,
+                    Visibility = d.Visibility,
+                    // EmbeddingVector768 and EmbeddingVector1536 excluded - not needed for list view
+                    EmbeddingDimension = d.EmbeddingDimension,
+                    UploadedAt = d.UploadedAt,
+                    LastAccessedAt = d.LastAccessedAt,
+                    AccessCount = d.AccessCount,
+                    OwnerId = d.OwnerId,
+                    TenantId = d.TenantId
+                })
                 .ToListAsync();
 
-            _logger.LogInformation("Retrieved {Count} documents", documents.Count);
+            _logger.LogInformation("Retrieved {Count} documents for page {Page} (pageSize: {PageSize})", 
+                documents.Count, page, pageSize);
             return Ok(documents);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving documents");
             return StatusCode(500, "An error occurred while retrieving documents");
+        }
+    }
+
+    /// <summary>
+    /// Ottiene il numero totale di documenti per supportare la paginazione
+    /// </summary>
+    /// <returns>Numero totale di documenti</returns>
+    /// <response code="200">Ritorna il conteggio totale</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpGet("count")]
+    [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<int>> GetDocumentsCount()
+    {
+        try
+        {
+            var count = await _context.Documents.CountAsync();
+            _logger.LogInformation("Total documents count: {Count}", count);
+            return Ok(count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error counting documents");
+            return StatusCode(500, "An error occurred while counting documents");
         }
     }
 
@@ -135,7 +194,7 @@ public class DocumentsController : ControllerBase
     /// 
     /// Performance:
     /// - Query ottimizzata con ricerca per chiave primaria (molto veloce)
-    /// - Tipicamente <10ms
+    /// - Tipicamente meno di 10ms
     /// 
     /// Sicurezza:
     /// - TODO: Aggiungere controllo autorizzazione (solo owner o admin possono accedere)
