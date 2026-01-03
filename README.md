@@ -175,6 +175,12 @@ Vedi [TESSERACT_SETUP.md](TESSERACT_SETUP.md) per dettagli.
 
 ## 📚 Documentazione
 
+### 🎯 Analisi Sistema RAG (NUOVO)
+- [**RIEPILOGO_ANALISI_RAG.md**](RIEPILOGO_ANALISI_RAG.md) - 📊 Executive Summary per Decision Makers
+- [**ANALISI_SISTEMA_RAG_AZIENDALE_IDEALE.md**](ANALISI_SISTEMA_RAG_AZIENDALE_IDEALE.md) - 🏆 Sistema RAG Ideale 2026
+- [**ANALISI_IMPLEMENTAZIONE_DOCN.md**](ANALISI_IMPLEMENTAZIONE_DOCN.md) - 🔍 Analisi Dettagliata DocN v2.0
+- [**GAP_ANALYSIS_E_RACCOMANDAZIONI.md**](GAP_ANALYSIS_E_RACCOMANDAZIONI.md) - 📈 Gap Analysis & Roadmap
+
 ### Guide Rapide
 - [**GUIDA_CONFIGURAZIONE_GEMINI.md**](GUIDA_CONFIGURAZIONE_GEMINI.md) - 🇮🇹 Guida completa configurazione Gemini (italiano)
 - [**docs/EMBEDDING_QUEUE_MONITORING.md**](docs/EMBEDDING_QUEUE_MONITORING.md) - 🇮🇹 Monitoraggio coda embeddings e troubleshooting
