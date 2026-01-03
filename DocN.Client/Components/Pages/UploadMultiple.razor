@@ -28,7 +28,8 @@
 @using DocN.Data.Services
 @using DocN.Data.Utilities
 @using DocN.Data.Models
-@inject IDocumentService DocumentService
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider ServiceProvider
 @inject IMultiProviderAIService AIService
 @inject IFileProcessingService FileProcessingService
 @inject ISemanticRAGService SemanticRAGService
@@ -1217,6 +1218,10 @@
         
         try
         {
+            // Create a new scope for this file processing to avoid DbContext concurrency issues
+            using var scope = ServiceProvider.CreateScope();
+            var documentService = scope.ServiceProvider.GetRequiredService<IDocumentService>();
+            
             // Update status
             status.Status = "Processing";
             status.StatusMessage = "Elaborazione in corso...";
@@ -1396,7 +1401,7 @@
             }
 
             // Save to database
-            await DocumentService.CreateDocumentAsync(document, generateChunkEmbeddingsImmediately);
+            await documentService.CreateDocumentAsync(document, generateChunkEmbeddingsImmediately);
 
             // Success
             status.Status = "Completed";
