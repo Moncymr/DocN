@@ -405,6 +405,15 @@ builder.Services.AddScoped<IMultiProviderAIService, MultiProviderAIService>();
 // Register Audit Service for GDPR/SOC2 compliance
 builder.Services.AddScoped<IAuditService, AuditService>();
 
+// Register Alerting and Monitoring Services
+builder.Services.AddScoped<IAlertingService, AlertingService>();
+builder.Services.AddScoped<IRAGQualityService, RAGQualityService>();
+builder.Services.AddScoped<IRAGASMetricsService, RAGASMetricsService>();
+
+// Configure AlertManager settings
+builder.Services.Configure<DocN.Core.AI.Configuration.AlertManagerConfiguration>(
+    builder.Configuration.GetSection("AlertManager"));
+
 // ════════════════════════════════════════════════════════════════════════════════
 // RAG Provider Registration - Inizializzazione automatica via Dependency Injection
 // ════════════════════════════════════════════════════════════════════════════════
@@ -522,6 +531,9 @@ app.UseSwaggerUI(options =>
 // Add Security Headers Middleware
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
+// Add Alert Metrics Middleware for monitoring
+app.UseMiddleware<AlertMetricsMiddleware>();
+
 // Add Rate Limiting
 app.UseRateLimiter();
 
@@ -546,6 +558,12 @@ app.MapControllers();
 // Add Prometheus-compatible metrics endpoint via OpenTelemetry
 app.UseOpenTelemetryPrometheusScrapingEndpoint();
 Log.Information("OpenTelemetry Prometheus metrics endpoint available at /metrics");
+
+// Add custom metrics endpoint for alert system
+app.MapGet("/api/metrics/alerts", () =>
+{
+    return Results.Ok(AlertMetricsMiddleware.GetMetrics());
+}).WithTags("Monitoring");
 
 // Add comprehensive health check endpoints
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
