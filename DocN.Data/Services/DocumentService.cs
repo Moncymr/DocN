@@ -608,17 +608,20 @@ public class DocumentService : IDocumentService
         if (existingDocument.Tags != null)
         {
             existingDocument.Tags.Clear();
-        }
         
-        if (document.Tags != null)
-        {
-            foreach (var tag in document.Tags)
+            if (document.Tags != null)
             {
-                existingDocument.Tags.Add(new DocumentTag
+                foreach (var tag in document.Tags)
                 {
-                    Name = tag.Name,
-                    Document = existingDocument
-                });
+                    if (!string.IsNullOrWhiteSpace(tag?.Name))
+                    {
+                        existingDocument.Tags.Add(new DocumentTag
+                        {
+                            Name = tag.Name!,
+                            Document = existingDocument
+                        });
+                    }
+                }
             }
         }
 

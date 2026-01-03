@@ -1921,7 +1921,7 @@
                     
                     embeddingGenerated = embedding != null && embedding.Length > 0;
                     
-                    if (embeddingGenerated)
+                    if (embeddingGenerated && embedding != null)
                     {
                         embeddingError = null;
                         
@@ -2289,16 +2289,16 @@ Statistics: Mean={mean:F8}, StdDev={stdDev:F8}, Min={min:F8}, Max={max:F8}, Sum=
                             await LogService.LogInfoAsync("Metadata", "AI metadata extraction completed", 
                                 $"Extracted {extractedMetadata.Count} metadata fields: {metadataList}",
                                 userId: currentUserId, 
-                                fileName: selectedFile.Name);
+                                fileName: selectedFile?.Name ?? "Unknown");
                         }
                         else
                         {
                             metadataExtractionSucceeded = false;
                             metadataExtractionError = "⚠️ L'AI non ha estratto metadati dal documento. Possibili cause: il documento non contiene metadati strutturati (es. fattura, contratto), il contenuto è troppo breve, o errore del provider AI.";
                             await LogService.LogWarningAsync("Metadata", "No metadata extracted by AI", 
-                                $"AI Provider: {aiConfig.ChatProvider?.ToString() ?? "Unknown"}, File: {selectedFile?.Name}, Text length: {extractedText?.Length ?? 0} chars",
+                                $"AI Provider: {aiConfig.ChatProvider?.ToString() ?? "Unknown"}, File: {selectedFile?.Name ?? "Unknown"}, Text length: {extractedText?.Length ?? 0} chars",
                                 userId: currentUserId, 
-                                fileName: selectedFile.Name);
+                                fileName: selectedFile?.Name ?? "Unknown");
                         }
                     }
                 }

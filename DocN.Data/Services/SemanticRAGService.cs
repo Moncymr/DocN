@@ -30,7 +30,7 @@ public class SemanticRAGService : ISemanticRAGService
     // Semantic Kernel Agents for RAG pipeline
     private ChatCompletionAgent? _retrievalAgent;
     private ChatCompletionAgent? _synthesisAgent;
-    private AgentGroupChat? _agentChat;
+    // Note: _agentChat is reserved for future multi-agent pipeline implementation
 
     // Constants for vector search optimization
     private const int CandidateLimitMultiplier = 10; // Get 10x topK candidates for better results
@@ -933,6 +933,12 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
                 Temperature = 0.7,
                 TopP = 0.9
             };
+
+            if (_chatService == null)
+            {
+                _logger.LogError("Chat service not available");
+                return "Chat service is not configured. Please check AI provider configuration.";
+            }
 
             var result = await _chatService.GetChatMessageContentAsync(
                 chatHistory, settings, _kernel);
