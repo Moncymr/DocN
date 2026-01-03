@@ -355,6 +355,78 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
+    /// Elimina un documento esistente
+    /// </summary>
+    /// <param name="id">ID del documento da eliminare</param>
+    /// <returns>Result dell'operazione</returns>
+    /// <response code="204">Documento eliminato con successo</response>
+    /// <response code="404">Documento non trovato</response>
+    /// <response code="500">Errore interno del server</response>
+    [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> DeleteDocument(int id)
+    {
+        try
+        {
+            var document = await _context.Documents.FindAsync(id);
+
+            if (document == null)
+            {
+                return NotFound($"Document with ID {id} not found");
+            }
+
+            // Delete associated chunks first
+            var chunks = await _context.DocumentChunks
+                .Where(c => c.DocumentId == id)
+                .ToListAsync();
+            
+            if (chunks.Any())
+            {
+                _context.DocumentChunks.RemoveRange(chunks);
+            }
+
+            // Delete associated similar documents relationships
+            var similarDocuments = await _context.SimilarDocuments
+                .Where(sd => sd.SourceDocumentId == id || sd.SimilarDocumentId == id)
+                .ToListAsync();
+            
+            if (similarDocuments.Any())
+            {
+                _context.SimilarDocuments.RemoveRange(similarDocuments);
+            }
+
+            // Delete the document
+            _context.Documents.Remove(document);
+            await _context.SaveChangesAsync();
+
+            // Try to delete the physical file (if it exists)
+            if (!string.IsNullOrEmpty(document.FilePath) && System.IO.File.Exists(document.FilePath))
+            {
+                try
+                {
+                    System.IO.File.Delete(document.FilePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not delete physical file for document {Id}: {FilePath}", 
+                        id, document.FilePath);
+                    // Continue even if file deletion fails - document is already removed from DB
+                }
+            }
+
+            _logger.LogInformation("Deleted document {Id} - {FileName}", id, document.FileName);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting document {Id}", id);
+            return StatusCode(500, "An error occurred while deleting the document");
+        }
+    }
+
+    /// <summary>
     /// Ottiene tutte le categorie uniche dei documenti
     /// </summary>
     /// <returns>Lista delle categorie disponibili</returns>

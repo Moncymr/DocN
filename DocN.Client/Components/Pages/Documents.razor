@@ -9,7 +9,9 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject HttpClient Http
 @rendermode InteractiveServer
+@implements IDisposable
 
 <PageTitle>Documents - DocN</PageTitle>
 
@@ -1483,14 +1485,75 @@
         
         currentPage = Page > 0 ? Page : 1;
         await LoadDocuments();
+        
+        // Start periodic refresh for status updates
+        _ = StartPeriodicRefresh();
+    }
+    
+    private System.Threading.CancellationTokenSource? _refreshCancellation;
+    
+    private async Task StartPeriodicRefresh()
+    {
+        _refreshCancellation = new System.Threading.CancellationTokenSource();
+        
+        while (!_refreshCancellation.Token.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), _refreshCancellation.Token);
+            
+            try
+            {
+                // Only refresh if there are documents in Processing status
+                if (documents?.Any(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing || 
+                                       d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending) == true)
+                {
+                    await RefreshDocumentStatuses();
+                }
+            }
+            catch (Exception)
+            {
+                // Ignore refresh errors
+            }
+        }
+    }
+    
+    private async Task RefreshDocumentStatuses()
+    {
+        if (documents == null || !documents.Any()) return;
+        
+        // Get updated documents
+        var updatedDocuments = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 1000);
+        
+        if (updatedDocuments != null && documents != null)
+        {
+            // Update status for each document
+            foreach (var doc in documents)
+            {
+                var updated = updatedDocuments.FirstOrDefault(d => d.Id == doc.Id);
+                if (updated != null)
+                {
+                    doc.ChunkEmbeddingStatus = updated.ChunkEmbeddingStatus;
+                }
+            }
+            
+            // Trigger re-render
+            StateHasChanged();
+        }
+    }
+    
+    public void Dispose()
+    {
+        _refreshCancellation?.Cancel();
+        _refreshCancellation?.Dispose();
     }
 
     private async Task LoadDocuments()
     {
         isLoading = true;
         
-        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 1000); // Load all for filtering
-        totalDocuments = documents?.Count ?? 0;
+        // Use proper pagination - only load current page size
+        var pageToLoad = searchQuery.Length > 0 || !string.IsNullOrEmpty(selectedCategory) ? 1000 : pageSize * 3;
+        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, pageToLoad);
+        totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
         
         // Extract unique categories
         if (documents != null)
@@ -1590,17 +1653,24 @@
     {
         try
         {
-            var fileBytes = await DocumentService.DownloadDocumentAsync(doc.Id, currentUserId);
-            if (fileBytes != null)
+            // Call the download endpoint directly
+            var response = await Http.GetAsync($"/documents/{doc.Id}/download");
+            
+            if (response.IsSuccessStatusCode)
             {
+                var fileBytes = await response.Content.ReadAsByteArrayAsync();
                 await JSRuntime.InvokeVoidAsync("downloadFile", doc.FileName, Convert.ToBase64String(fileBytes));
                 await StatisticsService.UpdateDocumentAccessAsync(doc.Id);
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Errore durante il download del documento.");
             }
         }
         catch (Exception ex)
         {
-            // Handle error
             Console.WriteLine($"Error downloading: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", "Errore durante il download del documento.");
         }
     }
 
@@ -1622,13 +1692,32 @@
 
     private async Task DeleteDocument(Document doc)
     {
-        // Confirm deletion
-        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Sei sicuro di voler eliminare '{doc.FileName}'?");
-        if (confirmed)
+        try
         {
-            // TODO: Implement delete
-            await LoadDocuments();
-            CloseDetailsPanel();
+            // Confirm deletion
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Sei sicuro di voler eliminare '{doc.FileName}'?");
+            if (!confirmed)
+                return;
+            
+            // Call delete endpoint
+            var response = await Http.DeleteAsync($"/documents/{doc.Id}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Documento eliminato con successo!");
+                await LoadDocuments();
+                CloseDetailsPanel();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await JSRuntime.InvokeVoidAsync("alert", $"Errore durante l'eliminazione: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", "Errore durante l'eliminazione del documento.");
         }
     }
 
