@@ -173,6 +173,37 @@ Scarica e installa da: https://github.com/UB-Mannheim/tesseract/wiki
 
 Vedi [TESSERACT_SETUP.md](TESSERACT_SETUP.md) per dettagli.
 
+## 📊 Monitoring & Alerting
+
+DocN include un sistema completo di monitoring e alerting:
+
+### Prometheus & OpenTelemetry
+- **Metrics Endpoint**: `/metrics` (formato Prometheus)
+- **Health Checks**: `/health`, `/health/ready`, `/health/live`
+- **Distributed Tracing**: Integrazione OpenTelemetry con Jaeger/Zipkin
+- **Custom Metrics**: `/api/metrics/alerts`
+
+### Alerting System
+- **Prometheus AlertManager**: Integrazione nativa
+- **Alert Routing**: Email, Slack, Webhook, PagerDuty, Opsgenie
+- **Alert Rules**: CPU, memoria, latenza, error rate configurabili
+- **Escalation Policies**: Basate su severity (Critical, Warning, Info)
+- **Alert Dashboard**: `/api/alerts/active` e `/api/alerts/statistics`
+
+### RAG Quality Monitoring
+- **Automatic Verification**: Cross-reference con documenti source
+- **Confidence Scoring**: Score per statement con threshold configurabili
+- **Hallucination Detection**: Rilevamento automatico di contenuti non supportati
+- **Citation Verification**: Verifica citazioni nelle risposte
+- **RAGAS Metrics**: Faithfulness, Relevancy, Context Precision/Recall
+- **Quality Dashboard**: `/api/rag-quality/dashboard`
+- **A/B Testing**: Framework per testing configurazioni RAG
+
+**📚 Guide Complete**:
+- [Alerting Runbook](docs/ALERTING_RUNBOOK.md) - Procedures per gestione alert
+- [RAG Quality Guide](docs/RAG_QUALITY_GUIDE.md) - Guida qualità RAG e RAGAS
+- [Monitoring Integration](docs/MONITORING_INTEGRATION_GUIDE.md) - Setup Prometheus, Grafana, Slack
+
 ## 📚 Documentazione
 
 ### 🎯 Analisi Sistema RAG (NUOVO)
@@ -185,6 +216,9 @@ Vedi [TESSERACT_SETUP.md](TESSERACT_SETUP.md) per dettagli.
 ### Guide Rapide
 - [**GUIDA_CONFIGURAZIONE_GEMINI.md**](GUIDA_CONFIGURAZIONE_GEMINI.md) - 🇮🇹 Guida completa configurazione Gemini (italiano)
 - [**docs/EMBEDDING_QUEUE_MONITORING.md**](docs/EMBEDDING_QUEUE_MONITORING.md) - 🇮🇹 Monitoraggio coda embeddings e troubleshooting
+- [**docs/ALERTING_RUNBOOK.md**](docs/ALERTING_RUNBOOK.md) - 🚨 Runbook gestione alert e monitoring
+- [**docs/RAG_QUALITY_GUIDE.md**](docs/RAG_QUALITY_GUIDE.md) - ✅ Guida qualità RAG e RAGAS metrics
+- [**docs/MONITORING_INTEGRATION_GUIDE.md**](docs/MONITORING_INTEGRATION_GUIDE.md) - 📊 Integrazione Prometheus, Grafana, Slack
 
 ### Documentazione Avanzata
 - [**ENTERPRISE_RAG_ROADMAP.md**](ENTERPRISE_RAG_ROADMAP.md) - Roadmap funzionalità enterprise
