@@ -25,14 +25,17 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
     
-    <!-- Distributed Tracing -->
+    <!-- Distributed Tracing - Updated to fix vulnerabilities and version constraints -->
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.10.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
     <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.10.0-beta.1" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.1" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.10.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.10.0-beta.1" />
+    
+    <!-- Fix security vulnerability: Override OpenTelemetry.Api from transitive dependency -->
+    <PackageReference Include="OpenTelemetry.Api" Version="1.11.2" />
     
     <!-- Metrics -->
     <PackageReference Include="App.Metrics.AspNetCore" Version="4.3.0" />

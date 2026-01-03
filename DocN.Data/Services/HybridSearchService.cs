@@ -270,10 +270,10 @@ public class HybridSearchService : IHybridSearchService
                 FilePath = reader.GetString(2),
                 ContentType = reader.GetString(3),
                 FileSize = reader.GetInt64(4),
-                ExtractedText = reader.IsDBNull(5) ? null : reader.GetString(5),
+                ExtractedText = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
                 ActualCategory = reader.IsDBNull(6) ? null : reader.GetString(6),
                 UploadedAt = reader.GetDateTime(7),
-                OwnerId = reader.GetString(8),
+                OwnerId = reader.IsDBNull(8) ? string.Empty : reader.GetString(8),
                 Visibility = (DocumentVisibility)reader.GetInt32(9)
             };
             var score = reader.GetDouble(10);
