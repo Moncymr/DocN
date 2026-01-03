@@ -25,7 +25,11 @@ namespace DocN.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Revert to NOT NULL (though this would cause issues with existing data)
+            // Update NULL values to empty string before changing constraint
+            migrationBuilder.Sql(
+                "UPDATE Messages SET ReferencedDocumentIds = '' WHERE ReferencedDocumentIds IS NULL");
+            
+            // Revert to NOT NULL (though this would cause issues with user messages)
             migrationBuilder.AlterColumn<string>(
                 name: "ReferencedDocumentIds",
                 table: "Messages",
