@@ -179,7 +179,8 @@ builder.Services.AddDbContext<DocArcContext>(options =>
 });
 
 // Add DbContextFactory for services that need their own context (like LogService)
-builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+// Using AddPooledDbContextFactory with explicit options to avoid singleton/scoped conflict
+builder.Services.AddPooledDbContextFactory<ApplicationDbContext>((serviceProvider, options) =>
 {
     options.UseSqlServer(connectionString, sqlServerOptions =>
     {
