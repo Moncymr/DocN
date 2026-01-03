@@ -142,9 +142,8 @@ public class SynthesisAgent : ISynthesisAgent
                 var docChunks = groupedChunks[i].OrderBy(c => c.ChunkIndex).ToList();
                 var firstChunk = docChunks.First();
                 
-                // Load document info if available
-                var document = await _context.Documents.FindAsync(firstChunk.DocumentId);
-                var docName = document?.FileName ?? $"Document {firstChunk.DocumentId}";
+                // Use already loaded Document navigation property to avoid N+1 query
+                var docName = firstChunk.Document?.FileName ?? $"Document {firstChunk.DocumentId}";
                 
                 contextBuilder.AppendLine($"Source {i + 1}: {docName}");
                 
