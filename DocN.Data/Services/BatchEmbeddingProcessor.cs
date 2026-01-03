@@ -27,14 +27,17 @@ public class BatchEmbeddingProcessor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Batch Embedding Processor started");
+        _logger.LogInformation("Batch Embedding Processor started - will run every {Interval} seconds", 
+            _processingInterval.TotalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                _logger.LogDebug("=== Starting batch processing cycle ===");
                 await ProcessPendingDocumentsAsync(stoppingToken);
                 await ProcessPendingChunksAsync(stoppingToken);
+                _logger.LogDebug("=== Batch processing cycle complete ===");
             }
             catch (Exception ex)
             {
@@ -59,6 +62,26 @@ public class BatchEmbeddingProcessor : BackgroundService
 
         try
         {
+            // First, log the overall status distribution to help diagnose issues
+            var statusStats = await context.Documents
+                .GroupBy(d => d.ChunkEmbeddingStatus)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+            
+            _logger.LogInformation("Document status distribution: {Stats}", 
+                string.Join(", ", statusStats.Select(s => $"{s.Status}={s.Count}")));
+            
+            // Count documents with Pending status but no ExtractedText
+            var pendingWithoutText = await context.Documents
+                .CountAsync(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending && 
+                                string.IsNullOrEmpty(d.ExtractedText), cancellationToken);
+            
+            if (pendingWithoutText > 0)
+            {
+                _logger.LogWarning("{Count} documents have Pending status but no ExtractedText (will be skipped)", 
+                    pendingWithoutText);
+            }
+            
             // Find documents with Pending status that need chunks created
             var pendingDocuments = await context.Documents
                 .Where(d => !string.IsNullOrEmpty(d.ExtractedText) && 
@@ -67,7 +90,10 @@ public class BatchEmbeddingProcessor : BackgroundService
                 .ToListAsync(cancellationToken);
 
             if (!pendingDocuments.Any())
+            {
+                _logger.LogDebug("No Pending documents found to process (this is normal if all docs are Processing or Completed)");
                 return;
+            }
 
             _logger.LogInformation("Processing {Count} documents with Pending status for chunk creation and embeddings", pendingDocuments.Count);
 
@@ -236,6 +262,19 @@ public class BatchEmbeddingProcessor : BackgroundService
 
         try
         {
+            // First, log overall statistics about chunks needing processing
+            var totalChunksWithoutEmbeddings = await context.DocumentChunks
+                .CountAsync(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null, cancellationToken);
+            
+            if (totalChunksWithoutEmbeddings == 0)
+            {
+                _logger.LogDebug("No chunks without embeddings found");
+                return;
+            }
+            
+            _logger.LogInformation("Found {TotalChunks} total chunks without embeddings, processing up to 50", 
+                totalChunksWithoutEmbeddings);
+            
             // Find chunks without embeddings - prioritize chunks from Processing documents
             // This ensures documents in Processing status get completed first
             // Note: OrderByDescending on boolean is acceptable for current scale (50 chunks per batch)
@@ -250,7 +289,11 @@ public class BatchEmbeddingProcessor : BackgroundService
                 .ToListAsync(cancellationToken);
 
             if (!pendingChunks.Any())
+            {
+                _logger.LogWarning("Query returned 0 chunks but {TotalChunks} chunks without embeddings exist. Possible query issue!", 
+                    totalChunksWithoutEmbeddings);
                 return;
+            }
 
             // Log statistics about what we're processing
             var processingDocCount = pendingChunks.Count(c => c.Document!.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing);
