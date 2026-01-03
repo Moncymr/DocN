@@ -1520,26 +1520,40 @@
     {
         if (documents == null || !documents.Any()) return;
         
-        // Get updated documents
-        var updatedDocuments = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 1000);
+        // Get IDs of documents that need status updates
+        var pendingDocIds = documents
+            .Where(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing || 
+                       d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending)
+            .Select(d => d.Id)
+            .ToList();
         
-        if (updatedDocuments != null && documents != null)
+        if (!pendingDocIds.Any()) return;
+        
+        // Only fetch the specific documents that need updates, not all 1000
+        try
         {
-            // Update status for each document
-            foreach (var doc in documents)
+            foreach (var docId in pendingDocIds)
             {
-                var updated = updatedDocuments.FirstOrDefault(d => d.Id == doc.Id);
-                if (updated != null)
+                var response = await Http.GetFromJsonAsync<Document>($"/documents/{docId}");
+                if (response != null)
                 {
-                    doc.ChunkEmbeddingStatus = updated.ChunkEmbeddingStatus;
+                    var doc = documents.FirstOrDefault(d => d.Id == docId);
+                    if (doc != null)
+                    {
+                        doc.ChunkEmbeddingStatus = response.ChunkEmbeddingStatus;
+                    }
                 }
             }
             
             // Trigger re-render
             StateHasChanged();
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing document statuses: {ex.Message}");
+        }
     }
-    
+
     public void Dispose()
     {
         _refreshCancellation?.Cancel();
@@ -1550,9 +1564,8 @@
     {
         isLoading = true;
         
-        // Use proper pagination - only load current page size
-        var pageToLoad = searchQuery.Length > 0 || !string.IsNullOrEmpty(selectedCategory) ? 1000 : pageSize * 3;
-        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, pageToLoad);
+        // Load a reasonable amount for initial view
+        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, pageSize * 5);
         totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
         
         // Extract unique categories

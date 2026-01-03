@@ -355,13 +355,17 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
-    /// Elimina un documento esistente
+    /// Elimina un documento esistente con tutte le relazioni associate
     /// </summary>
     /// <param name="id">ID del documento da eliminare</param>
     /// <returns>Result dell'operazione</returns>
     /// <response code="204">Documento eliminato con successo</response>
     /// <response code="404">Documento non trovato</response>
     /// <response code="500">Errore interno del server</response>
+    /// <remarks>
+    /// TODO: Add authorization check to ensure only document owner can delete
+    /// Note: Physical file deletion happens after DB commit - orphaned files may exist if deletion fails
+    /// </remarks>
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
