@@ -71,14 +71,17 @@ public class DocumentsController : ControllerBase
     /// Comportamento:
     /// - Paginazione server-side per ottimizzare caricamento
     /// - Ordinamento decrescente per data upload
-    /// - Include metadati: nome file, categoria, tag, dimensione, owner, etc.
-    /// - ESCLUDE vettori embedding e testo estratto per ottimizzazione performance
+    /// - Include metadati: nome file, categoria, tag, dimensione, owner, testo estratto
+    /// - ESCLUDE solo vettori embedding per ottimizzazione performance
     /// 
     /// Performance:
     /// - Query ottimizzata con proiezione per escludere embeddings (768-1536 floats per documento)
-    /// - ExtractedText escluso (può essere molto grande)
     /// - Indice su UploadedAt per ordinamento veloce
     /// - Paginazione riduce drasticamente data transfer
+    /// 
+    /// Note:
+    /// - ExtractedText è incluso per supportare ricerca client-side
+    /// - Per documenti con testi molto lunghi, considerare endpoint dedicato
     /// </remarks>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<Document>), StatusCodes.Status200OK)]
