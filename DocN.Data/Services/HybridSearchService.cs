@@ -9,7 +9,7 @@ namespace DocN.Data.Services;
 public class SearchOptions
 {
     public int TopK { get; set; } = 10;
-    public double MinSimilarity { get; set; } = 0.7;
+    public double MinSimilarity { get; set; } = 0.5;
     public string? CategoryFilter { get; set; }
     public string? OwnerId { get; set; }
     public DocumentVisibility? VisibilityFilter { get; set; }

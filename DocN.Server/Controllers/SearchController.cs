@@ -52,7 +52,7 @@ public class SearchController : ControllerBase
             var options = new SearchOptions
             {
                 TopK = request.TopK ?? 10,
-                MinSimilarity = request.MinSimilarity ?? 0.7,
+                MinSimilarity = request.MinSimilarity ?? 0.5,
                 CategoryFilter = request.CategoryFilter,
                 OwnerId = request.UserId,
                 VisibilityFilter = request.VisibilityFilter
@@ -61,9 +61,12 @@ public class SearchController : ControllerBase
             var results = await _searchService.SearchAsync(request.Query, options);
             var elapsedTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
 
+            // Truncate query for logging to prevent sensitive data exposure
+            var logQuery = request.Query.Length > 50 ? request.Query.Substring(0, 47) + "..." : request.Query;
+
             _logger.LogInformation(
                 "Hybrid search completed for query '{Query}' - Found {Count} results in {Time}ms",
-                request.Query, results.Count, elapsedTime);
+                logQuery, results.Count, elapsedTime);
 
             return Ok(new SearchResponse
             {
@@ -107,7 +110,7 @@ public class SearchController : ControllerBase
             var options = new SearchOptions
             {
                 TopK = request.TopK ?? 10,
-                MinSimilarity = request.MinSimilarity ?? 0.7,
+                MinSimilarity = request.MinSimilarity ?? 0.5,
                 CategoryFilter = request.CategoryFilter,
                 OwnerId = request.UserId
             };
@@ -121,6 +124,13 @@ public class SearchController : ControllerBase
 
             var results = await _searchService.VectorSearchAsync(embedding, options);
             var elapsedTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
+
+            // Truncate query for logging to prevent sensitive data exposure
+            var logQuery = request.Query.Length > 50 ? request.Query.Substring(0, 47) + "..." : request.Query;
+            
+            _logger.LogInformation(
+                "Vector search completed for query '{Query}' - Found {Count} results in {Time}ms (MinSimilarity: {MinSim}, UserId: {UserId})",
+                logQuery, results.Count, elapsedTime, options.MinSimilarity, request.UserId ?? "none");
 
             return Ok(new SearchResponse
             {
