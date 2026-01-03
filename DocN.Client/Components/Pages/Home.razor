@@ -202,16 +202,16 @@
         {
             Logger.LogInformation("Starting recreation of all embeddings");
 
-            // Get all documents - use AsNoTracking to avoid EF Core type mapping issues with vector columns
+            // Get all documents - use anonymous type to completely avoid Document entity type
             var documents = await DbContext.Documents
                 .AsNoTracking()
                 .Where(d => !string.IsNullOrEmpty(d.ExtractedText))
-                .Select(d => new Document
+                .Select(d => new
                 {
-                    Id = d.Id,
-                    FileName = d.FileName,
-                    ExtractedText = d.ExtractedText,
-                    ChunkEmbeddingStatus = d.ChunkEmbeddingStatus
+                    d.Id,
+                    d.FileName,
+                    d.ExtractedText,
+                    d.ChunkEmbeddingStatus
                 })
                 .ToListAsync();
 
@@ -288,7 +288,13 @@
                         .ExecuteDeleteAsync();
 
                     // Create new chunks with embeddings
-                    var newChunks = ChunkingService.ChunkDocument(docInfo);
+                    // Create a minimal Document object for chunking (only needs Id and ExtractedText)
+                    var docForChunking = new Document 
+                    { 
+                        Id = docInfo.Id, 
+                        ExtractedText = docInfo.ExtractedText 
+                    };
+                    var newChunks = ChunkingService.ChunkDocument(docForChunking);
                     int chunksEmbedded = 0;
                     foreach (var chunk in newChunks)
                     {
