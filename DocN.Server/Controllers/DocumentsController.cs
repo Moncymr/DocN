@@ -360,14 +360,17 @@ public class DocumentsController : ControllerBase
     /// <param name="id">ID del documento da eliminare</param>
     /// <returns>Result dell'operazione</returns>
     /// <response code="204">Documento eliminato con successo</response>
+    /// <response code="403">Utente non autorizzato (solo il proprietario può eliminare)</response>
     /// <response code="404">Documento non trovato</response>
     /// <response code="500">Errore interno del server</response>
     /// <remarks>
-    /// TODO: Add authorization check to ensure only document owner can delete
+    /// Security: Only document owner can delete the document
     /// Note: Physical file deletion happens after DB commit - orphaned files may exist if deletion fails
+    /// Consider: Implement cleanup job for orphaned files
     /// </remarks>
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteDocument(int id)
@@ -379,6 +382,31 @@ public class DocumentsController : ControllerBase
             if (document == null)
             {
                 return NotFound($"Document with ID {id} not found");
+            }
+
+            // SECURITY CHECK: Only document owner can delete
+            // Get current user ID from claims (assuming user is authenticated)
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            if (!string.IsNullOrEmpty(document.OwnerId))
+            {
+                // Document has an owner - check authorization
+                if (string.IsNullOrEmpty(currentUserId) || document.OwnerId != currentUserId)
+                {
+                    _logger.LogWarning("User {UserId} attempted to delete document {DocumentId} owned by {OwnerId}", 
+                        currentUserId ?? "anonymous", id, document.OwnerId);
+                    return StatusCode(403, "Only the document owner can delete this document");
+                }
+            }
+            else
+            {
+                // Document has no owner - could be legacy data or system-created
+                // Only allow deletion if user is authenticated (basic check)
+                if (string.IsNullOrEmpty(currentUserId))
+                {
+                    _logger.LogWarning("Anonymous user attempted to delete document {DocumentId} with no owner", id);
+                    return StatusCode(403, "Authentication required to delete documents");
+                }
             }
 
             // Delete associated chunks first
@@ -420,7 +448,8 @@ public class DocumentsController : ControllerBase
                 }
             }
 
-            _logger.LogInformation("Deleted document {Id} - {FileName}", id, document.FileName);
+            _logger.LogInformation("User {UserId} deleted document {Id} - {FileName}", 
+                currentUserId, id, document.FileName);
             return NoContent();
         }
         catch (Exception ex)
