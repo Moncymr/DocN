@@ -789,54 +789,31 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
                 .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
                 .ToListAsync();
 
-            _logger.LogInformation("=== SIMILARITY SEARCH DEBUG ===");
-            _logger.LogInformation("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
-            _logger.LogInformation("Minimum similarity threshold: {Threshold:P0}", minSimilarity);
-            
-            // Log query embedding details for debugging
-            _logger.LogInformation("Query embedding - Length: {Length}", queryEmbedding.Length);
-            _logger.LogInformation("Query embedding - First 10 values: [{Values}]",
-                string.Join(", ", queryEmbedding.Take(10).Select(v => v.ToString("F8"))));
-            _logger.LogInformation("Query embedding - Last 10 values: [{Values}]",
-                string.Join(", ", queryEmbedding.Skip(Math.Max(0, queryEmbedding.Length - 10)).Select(v => v.ToString("F8"))));
+            _logger.LogDebug("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
+            _logger.LogDebug("Query embedding dimension: {Length}", queryEmbedding.Length);
 
             // Calculate similarity scores for documents
             var scoredDocs = new List<(Document doc, double score)>();
-            int comparisonCount = 0;
             foreach (var doc in documents)
             {
                 // Use the EmbeddingVector property getter which returns the populated field
                 var docEmbedding = doc.EmbeddingVector;
                 if (docEmbedding == null)
                 {
-                    _logger.LogWarning("Document {FileName} (ID: {Id}) has NULL embedding vector - skipping", doc.FileName, doc.Id);
+                    _logger.LogDebug("Document {FileName} (ID: {Id}) has NULL embedding vector - skipping", doc.FileName, doc.Id);
                     continue;
                 }
 
-                comparisonCount++;
-                _logger.LogInformation("--- Comparison #{Count}: Document {FileName} (ID: {Id}) ---", comparisonCount, doc.FileName, doc.Id);
-                _logger.LogInformation("  Document embedding - Length: {Length}", docEmbedding.Length);
-                _logger.LogInformation("  Document embedding - First 10 values: [{Values}]",
-                    string.Join(", ", docEmbedding.Take(10).Select(v => v.ToString("F8"))));
-                _logger.LogInformation("  Document embedding - Last 10 values: [{Values}]",
-                    string.Join(", ", docEmbedding.Skip(Math.Max(0, docEmbedding.Length - 10)).Select(v => v.ToString("F8"))));
-
                 var similarity = CalculateCosineSimilarity(queryEmbedding, docEmbedding);
-                _logger.LogInformation("  Calculated similarity: {Similarity} ({SimilarityPercent:P2})", similarity, similarity);
                 
                 if (similarity >= minSimilarity)
                 {
-                    _logger.LogInformation("  ✓ MATCH - Above threshold! Adding to results.");
+                    _logger.LogDebug("Document {FileName} similarity: {Similarity:P2}", doc.FileName, similarity);
                     scoredDocs.Add((doc, similarity));
-                }
-                else
-                {
-                    _logger.LogInformation("  ✗ NO MATCH - Below threshold of {Threshold:P0}", minSimilarity);
                 }
             }
 
-            _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
-            _logger.LogInformation("=== END SIMILARITY SEARCH DEBUG ===");
+            _logger.LogDebug("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
 
             // Get chunks for better precision
             // Query the actual mapped fields: ChunkEmbedding768 or ChunkEmbedding1536
