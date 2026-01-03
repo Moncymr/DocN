@@ -5,11 +5,11 @@ namespace DocN.Data.Services;
 
 public class LogService : ILogService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
 
-    public LogService(ApplicationDbContext context)
+    public LogService(IDbContextFactory<ApplicationDbContext> contextFactory)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
     }
 
     public async Task LogInfoAsync(string category, string message, string? details = null, string? userId = null, string? fileName = null)
@@ -36,7 +36,10 @@ public class LogService : ILogService
     {
         try
         {
-            if (_context?.LogEntries == null)
+            // Create a new context for this operation to avoid tracking conflicts
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            
+            if (context?.LogEntries == null)
             {
                 Console.WriteLine($"[LOG SERVICE ERROR] Database context or LogEntries is null - Cannot log: [{level}] {category}: {message}");
                 return;
@@ -54,8 +57,8 @@ public class LogService : ILogService
                 StackTrace = stackTrace
             };
 
-            _context.LogEntries.Add(logEntry);
-            await _context.SaveChangesAsync();
+            context.LogEntries.Add(logEntry);
+            await context.SaveChangesAsync();
         }
         catch (Exception ex)
         {
@@ -67,59 +70,71 @@ public class LogService : ILogService
 
     public async Task<List<LogEntry>> GetLogsAsync(string? category = null, string? userId = null, DateTime? fromDate = null, int maxRecords = 100)
     {
-        if (_context?.LogEntries == null)
+        try
         {
-            Console.WriteLine("[LOG SERVICE ERROR] Database context or LogEntries is null");
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            
+            if (context?.LogEntries == null)
+            {
+                Console.WriteLine("[LOG SERVICE ERROR] Database context or LogEntries is null");
+                return new List<LogEntry>();
+            }
+
+            var query = context.LogEntries.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                query = query.Where(l => l.Category == category);
+            }
+
+            // Only filter by userId if it's not null or empty
+            // This ensures we don't filter for empty string which would match nothing
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                query = query.Where(l => l.UserId == userId);
+            }
+
+            if (fromDate.HasValue)
+            {
+                query = query.Where(l => l.Timestamp >= fromDate.Value);
+            }
+
+            return await query
+                .OrderByDescending(l => l.Timestamp)
+                .Take(maxRecords)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[LOG SERVICE ERROR] Exception in GetLogsAsync: {ex.Message}\n{ex.StackTrace}");
             return new List<LogEntry>();
         }
-
-        var query = _context.LogEntries.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(category))
-        {
-            query = query.Where(l => l.Category == category);
-        }
-
-        // Only filter by userId if it's not null or empty
-        // This ensures we don't filter for empty string which would match nothing
-        if (!string.IsNullOrWhiteSpace(userId))
-        {
-            query = query.Where(l => l.UserId == userId);
-        }
-
-        if (fromDate.HasValue)
-        {
-            query = query.Where(l => l.Timestamp >= fromDate.Value);
-        }
-
-        return await query
-            .OrderByDescending(l => l.Timestamp)
-            .Take(maxRecords)
-            .ToListAsync();
     }
 
     public async Task<List<LogEntry>> GetUploadLogsAsync(string? userId = null, DateTime? fromDate = null, int maxRecords = 100)
     {
         try
         {
-            if (_context == null)
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            
+            if (context == null)
             {
                 Console.WriteLine("[LOG SERVICE ERROR] Database context is null in GetUploadLogsAsync");
                 return new List<LogEntry>();
             }
             
-            if (_context.LogEntries == null)
+            if (context.LogEntries == null)
             {
                 Console.WriteLine("[LOG SERVICE ERROR] LogEntries DbSet is null in GetUploadLogsAsync");
                 return new List<LogEntry>();
             }
 
-            var uploadCategories = new[] { "Upload", "Embedding", "AI", "Tag", "Metadata", "Category", "SimilaritySearch", "OCR" };
+            var uploadCategories = new[] { "Upload", "Embedding", "AI", "Tag", "Metadata", "Category", "SimilaritySearch", "OCR", "UploadMultiple" };
             
             Console.WriteLine($"[LOG SERVICE] Building query - Categories: [{string.Join(", ", uploadCategories)}]");
             Console.WriteLine($"[LOG SERVICE] Filters - UserId: '{userId ?? "(ALL)"}', FromDate: {fromDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "(ALL TIME)"}");
             
-            var query = _context.LogEntries
+            var query = context.LogEntries
                 .Where(l => uploadCategories.Contains(l.Category));
 
             // Only filter by userId if it's not null or empty
@@ -149,7 +164,7 @@ public class LogService : ILogService
             if (result.Count == 0)
             {
                 // Debug: Check if there are ANY logs in the database
-                var totalLogsCount = await _context.LogEntries.CountAsync();
+                var totalLogsCount = await context.LogEntries.CountAsync();
                 Console.WriteLine($"[LOG SERVICE] Total logs in database: {totalLogsCount}");
                 
                 if (totalLogsCount > 0)
@@ -157,7 +172,7 @@ public class LogService : ILogService
                     // Check logs by category
                     foreach (var cat in uploadCategories)
                     {
-                        var catCount = await _context.LogEntries.Where(l => l.Category == cat).CountAsync();
+                        var catCount = await context.LogEntries.Where(l => l.Category == cat).CountAsync();
                         if (catCount > 0)
                         {
                             Console.WriteLine($"[LOG SERVICE] Category '{cat}': {catCount} logs");
@@ -167,7 +182,7 @@ public class LogService : ILogService
                     // Check if there are logs for this user
                     if (!string.IsNullOrWhiteSpace(userId))
                     {
-                        var userLogsCount = await _context.LogEntries.Where(l => l.UserId == userId).CountAsync();
+                        var userLogsCount = await context.LogEntries.Where(l => l.UserId == userId).CountAsync();
                         Console.WriteLine($"[LOG SERVICE] Logs for userId '{userId}': {userLogsCount}");
                     }
                 }

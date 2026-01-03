@@ -297,6 +297,21 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     }
 });
 
+// Add DbContextFactory for services that need their own context (like LogService)
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+                        ?? builder.Configuration.GetConnectionString("DocArc");
+    if (!string.IsNullOrEmpty(connectionString))
+    {
+        options.UseSqlServer(connectionString);
+    }
+    else
+    {
+        options.UseInMemoryDatabase("DocArc");
+    }
+});
+
 // ════════════════════════════════════════════════════════════════════════════════
 // Semantic Kernel Configuration - LOADED FROM DATABASE ONLY
 // ════════════════════════════════════════════════════════════════════════════════
