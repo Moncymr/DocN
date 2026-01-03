@@ -1690,10 +1690,20 @@
         try
         {
             var fileBytes = await DocumentService.DownloadDocumentAsync(doc.Id, currentUserId);
-            if (fileBytes != null)
+            if (fileBytes != null && fileBytes.Length > 0)
             {
                 await JSRuntime.InvokeVoidAsync("downloadFile", doc.FileName, Convert.ToBase64String(fileBytes));
-                await StatisticsService.UpdateDocumentAccessAsync(doc.Id);
+                
+                // Update statistics (don't block on this)
+                try
+                {
+                    await StatisticsService.UpdateDocumentAccessAsync(doc.Id);
+                }
+                catch (Exception statsEx)
+                {
+                    Console.WriteLine($"Warning: Could not update statistics: {statsEx.Message}");
+                    // Continue - download succeeded even if statistics failed
+                }
             }
             else
             {
@@ -1702,8 +1712,9 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error downloading: {ex.Message}");
-            await JSRuntime.InvokeVoidAsync("alert", "Errore durante il download del documento.");
+            Console.WriteLine($"Error downloading document {doc.Id}: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Errore durante il download del documento: {ex.Message}");
         }
     }
 
