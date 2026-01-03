@@ -262,9 +262,18 @@
                         }
                         
                         // Convert float array to string representation for SQL
-                        var vectorString = "[" + string.Join(",", embedding.Select(f => f.ToString("G17", System.Globalization.CultureInfo.InvariantCulture))) + "]";
+                        // Using StringBuilder for better performance with large arrays
+                        var sb = new System.Text.StringBuilder("[");
+                        for (int i = 0; i < embedding.Length; i++)
+                        {
+                            if (i > 0) sb.Append(',');
+                            sb.Append(embedding[i].ToString("G17", System.Globalization.CultureInfo.InvariantCulture));
+                        }
+                        sb.Append(']');
+                        var vectorString = sb.ToString();
                         
                         // Execute raw SQL to update the vector field
+                        // Field names are hardcoded from validated enum above - no SQL injection risk
                         await DbContext.Database.ExecuteSqlRawAsync(
                             $"UPDATE Documents SET {vectorFieldName} = CAST(@p0 AS VECTOR({dimension})), {otherVectorFieldName} = NULL, EmbeddingDimension = @p1 WHERE Id = @p2",
                             vectorString, dimension, docInfo.Id);
