@@ -71,24 +71,33 @@
             </div>
         }
         
-        @if (isRecreatingEmbeddings && totalDocuments > 0)
+        @if (isRecreatingEmbeddings)
         {
             <div class="progress-container">
-                <div class="progress-text">
-                    🔄 Rigenerando documento @currentDocument di @totalDocuments
-                </div>
-                @if (!string.IsNullOrEmpty(currentDocumentName))
+                @if (totalDocuments > 0)
                 {
-                    <div class="progress-document-name">
-                        📄 @currentDocumentName
+                    <div class="progress-text">
+                        🔄 Rigenerando documento @currentDocument di @totalDocuments
+                    </div>
+                    @if (!string.IsNullOrEmpty(currentDocumentName))
+                    {
+                        <div class="progress-document-name">
+                            📄 @currentDocumentName
+                        </div>
+                    }
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" style="width: @progressPercentage%"></div>
+                    </div>
+                    <div class="progress-stats">
+                        ✅ Successi: @processedSuccessCount | ❌ Errori: @processedErrorCount
                     </div>
                 }
-                <div class="progress-bar-container">
-                    <div class="progress-bar" style="width: @progressPercentage%"></div>
-                </div>
-                <div class="progress-stats">
-                    ✅ Successi: @processedSuccessCount | ❌ Errori: @processedErrorCount
-                </div>
+                else
+                {
+                    <div class="progress-text">
+                        🔄 Ricerca documenti in corso...
+                    </div>
+                }
             </div>
         }
         
@@ -279,14 +288,39 @@
                 StateHasChanged();
             }
 
-            embeddingMessage = $"✅ Embeddings e chunks ricreati per {successCount} documenti. Errori: {errorCount}";
-            embeddingSuccess = true;
-            Logger.LogInformation("Completed recreation of embeddings: {SuccessCount} successful, {ErrorCount} errors", 
-                successCount, errorCount);
+            // Provide informative feedback based on results
+            if (totalDocuments == 0)
+            {
+                embeddingMessage = "ℹ️ Nessun documento con testo estratto trovato nel database.";
+                embeddingSuccess = false;
+            }
+            else if (successCount == 0 && errorCount > 0)
+            {
+                embeddingMessage = $"❌ Errore: Tutti i {totalDocuments} documenti hanno fallito la rigenerazione. Verifica la configurazione del provider AI.";
+                embeddingSuccess = false;
+            }
+            else if (successCount == 0)
+            {
+                embeddingMessage = $"⚠️ Attenzione: Nessun embedding generato per {totalDocuments} documenti. Verifica la configurazione del provider AI.";
+                embeddingSuccess = false;
+            }
+            else if (errorCount > 0)
+            {
+                embeddingMessage = $"⚠️ Completato con errori: Embeddings e chunks ricreati per {successCount}/{totalDocuments} documenti. Errori: {errorCount}";
+                embeddingSuccess = false;
+            }
+            else
+            {
+                embeddingMessage = $"✅ Successo! Embeddings e chunks ricreati per tutti i {successCount} documenti.";
+                embeddingSuccess = true;
+            }
+            
+            Logger.LogInformation("Completed recreation of embeddings: {SuccessCount} successful, {ErrorCount} errors out of {TotalDocuments} documents", 
+                successCount, errorCount, totalDocuments);
         }
         catch (Exception ex)
         {
-            embeddingMessage = $"❌ Errore: {ex.Message}";
+            embeddingMessage = $"❌ Errore critico: {ex.Message}";
             embeddingSuccess = false;
             Logger.LogError(ex, "Error recreating all embeddings");
         }
