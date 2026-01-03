@@ -238,6 +238,8 @@ public class BatchEmbeddingProcessor : BackgroundService
         {
             // Find chunks without embeddings - prioritize chunks from Processing documents
             // This ensures documents in Processing status get completed first
+            // Note: OrderByDescending on boolean is acceptable for current scale (50 chunks per batch)
+            // If performance becomes an issue, can split into two separate queries with UNION
             var pendingChunks = await context.DocumentChunks
                 .Include(c => c.Document)
                 .Where(c => c.ChunkEmbedding768 == null && c.ChunkEmbedding1536 == null)
