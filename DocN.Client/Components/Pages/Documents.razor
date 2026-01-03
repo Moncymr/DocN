@@ -1487,43 +1487,65 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-        
-        currentPage = Page > 0 ? Page : 1;
-        await LoadDocuments();
-        
-        // Setup auto-refresh timer if there are processing documents
-        SetupAutoRefresh();
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+            
+            currentPage = Page > 0 ? Page : 1;
+            
+            // Load documents immediately
+            await LoadDocuments();
+            
+            // Setup auto-refresh timer if there are processing documents
+            SetupAutoRefresh();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing documents page: {ex.Message}");
+            isLoading = false;
+        }
     }
 
     private async Task LoadDocuments()
     {
-        isLoading = true;
-        
-        // Load reasonable batch size instead of all 1000 documents
-        // This improves performance significantly
-        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 200);
-        totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
-        
-        // Extract unique categories
-        if (documents != null)
+        try
         {
-            categories = documents
-                .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
-                .Select(d => d.ActualCategory!)
-                .Distinct()
-                .OrderBy(c => c)
-                .ToList();
+            isLoading = true;
+            StateHasChanged(); // Force UI update to show loading state
             
-            // Check if any documents are still being processed
-            hasProcessingDocuments = documents.Any(d => 
-                d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending || 
-                d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing);
+            // Load reasonable batch size instead of all 1000 documents
+            // This improves performance significantly
+            documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 200);
+            totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
+            
+            // Extract unique categories
+            if (documents != null)
+            {
+                categories = documents
+                    .Where(d => !string.IsNullOrEmpty(d.ActualCategory))
+                    .Select(d => d.ActualCategory!)
+                    .Distinct()
+                    .OrderBy(c => c)
+                    .ToList();
+                
+                // Check if any documents are still being processed
+                hasProcessingDocuments = documents.Any(d => 
+                    d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending || 
+                    d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing);
+            }
+            
+            ApplyFilters();
         }
-        
-        ApplyFilters();
-        isLoading = false;
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading documents: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged(); // Force UI update to show documents
+        }
     }
     
     private void SetupAutoRefresh()
