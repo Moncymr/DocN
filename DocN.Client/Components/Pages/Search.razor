@@ -75,8 +75,8 @@
                     </div>
                     <div class="filter-item">
                         <label>Similarità Minima:</label>
-                        <input type="range" @bind="minSimilarity" min="0.5" max="1.0" step="0.05" class="filter-range" />
-                        <span class="range-value">@minSimilarity.ToString("F2")</span>
+                        <input type="range" @bind="minSimilarity" min="0.3" max="1.0" step="0.01" class="filter-range" />
+                        <span class="range-value">@minSimilarity.ToString("P0")</span>
                     </div>
                 </div>
             </details>
@@ -173,9 +173,10 @@
                         <p>La ricerca vettoriale non ha trovato documenti con similarità >= @minSimilarity.ToString("P0")</p>
                         <p>Suggerimenti:</p>
                         <ul class="suggestions-list">
-                            <li>Riduci la soglia di similarità minima nei filtri avanzati</li>
-                            <li>Prova con la ricerca ibrida o testuale per risultati più ampi</li>
-                            <li>Verifica che i documenti siano stati elaborati con embedding</li>
+                            <li>Verifica che i documenti siano stati elaborati con embedding (guarda la colonna "Embedding Status" nella pagina Documenti)</li>
+                            <li>Riduci ulteriormente la soglia di similarità nei filtri avanzati (ora: @minSimilarity.ToString("P0"))</li>
+                            <li>Prova con la ricerca ibrida o testuale che non richiedono embedding</li>
+                            <li>Se cerchi per nome (es. "rossi"), la ricerca testuale potrebbe dare risultati migliori</li>
                         </ul>
                     }
                     else
@@ -202,7 +203,7 @@
     private string searchType = "hybrid"; // hybrid, vector, text
     private string categoryFilter = string.Empty;
     private int topK = 10;
-    private double minSimilarity = 0.5;
+    private double minSimilarity = 0.3;
     private bool isSearching = false;
     private bool hasSearched = false;
     private double queryTime = 0;

@@ -52,7 +52,7 @@ public class SearchController : ControllerBase
             var options = new SearchOptions
             {
                 TopK = request.TopK ?? 10,
-                MinSimilarity = request.MinSimilarity ?? 0.5,
+                MinSimilarity = request.MinSimilarity ?? 0.3,
                 CategoryFilter = request.CategoryFilter,
                 OwnerId = request.UserId,
                 VisibilityFilter = request.VisibilityFilter
@@ -110,7 +110,7 @@ public class SearchController : ControllerBase
             var options = new SearchOptions
             {
                 TopK = request.TopK ?? 10,
-                MinSimilarity = request.MinSimilarity ?? 0.5,
+                MinSimilarity = request.MinSimilarity ?? 0.3,
                 CategoryFilter = request.CategoryFilter,
                 OwnerId = request.UserId
             };
@@ -119,8 +119,11 @@ public class SearchController : ControllerBase
             var embedding = await GetQueryEmbeddingAsync(request.Query);
             if (embedding == null)
             {
+                _logger.LogWarning("Failed to generate query embedding for query: {Query}", request.Query);
                 return BadRequest(new { error = "Failed to generate query embedding" });
             }
+
+            _logger.LogDebug("Generated embedding with dimension {Dimension} for query", embedding.Length);
 
             var results = await _searchService.VectorSearchAsync(embedding, options);
             var elapsedTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
@@ -129,8 +132,8 @@ public class SearchController : ControllerBase
             var logQuery = request.Query.Length > 50 ? request.Query.Substring(0, 47) + "..." : request.Query;
             
             _logger.LogInformation(
-                "Vector search completed for query '{Query}' - Found {Count} results in {Time}ms (MinSimilarity: {MinSim}, UserId: {UserId})",
-                logQuery, results.Count, elapsedTime, options.MinSimilarity, request.UserId ?? "none");
+                "Vector search completed for query '{Query}' - Found {Count} results in {Time}ms (MinSimilarity: {MinSim:F2}, UserId: {UserId}, EmbeddingDim: {EmbedDim})",
+                logQuery, results.Count, elapsedTime, options.MinSimilarity, request.UserId ?? "none", embedding.Length);
 
             return Ok(new SearchResponse
             {
