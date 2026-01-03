@@ -229,30 +229,28 @@
                 
                 try
                 {
-                    // Update the document's embedding directly using ExecuteUpdate to avoid loading vector columns
-                    // First, regenerate the embedding
+                    // Regenerate the embedding
                     var embedding = await EmbeddingService.GenerateEmbeddingAsync(docInfo.ExtractedText);
                     
                     if (embedding != null)
                     {
-                        // Determine which vector field to update based on dimension
+                        // Use raw SQL to update embeddings to completely avoid EF Core type mapping
+                        // This bypasses the vector type mapping bug entirely
+                        string vectorFieldName;
+                        string otherVectorFieldName;
+                        int dimension;
+                        
                         if (embedding.Length == 768)
                         {
-                            await DbContext.Documents
-                                .Where(d => d.Id == docInfo.Id)
-                                .ExecuteUpdateAsync(setters => setters
-                                    .SetProperty(d => d.EmbeddingVector768, embedding)
-                                    .SetProperty(d => d.EmbeddingVector1536, (float[]?)null)
-                                    .SetProperty(d => d.EmbeddingDimension, 768));
+                            vectorFieldName = "EmbeddingVector768";
+                            otherVectorFieldName = "EmbeddingVector1536";
+                            dimension = 768;
                         }
                         else if (embedding.Length == 1536)
                         {
-                            await DbContext.Documents
-                                .Where(d => d.Id == docInfo.Id)
-                                .ExecuteUpdateAsync(setters => setters
-                                    .SetProperty(d => d.EmbeddingVector768, (float[]?)null)
-                                    .SetProperty(d => d.EmbeddingVector1536, embedding)
-                                    .SetProperty(d => d.EmbeddingDimension, 1536));
+                            vectorFieldName = "EmbeddingVector1536";
+                            otherVectorFieldName = "EmbeddingVector768";
+                            dimension = 1536;
                         }
                         else
                         {
@@ -262,6 +260,14 @@
                             processedErrorCount++;
                             continue;
                         }
+                        
+                        // Convert float array to string representation for SQL
+                        var vectorString = "[" + string.Join(",", embedding.Select(f => f.ToString("G17", System.Globalization.CultureInfo.InvariantCulture))) + "]";
+                        
+                        // Execute raw SQL to update the vector field
+                        await DbContext.Database.ExecuteSqlRawAsync(
+                            $"UPDATE Documents SET {vectorFieldName} = CAST(@p0 AS VECTOR({dimension})), {otherVectorFieldName} = NULL, EmbeddingDimension = @p1 WHERE Id = @p2",
+                            vectorString, dimension, docInfo.Id);
                         
                         successCount++;
                         processedSuccessCount++;
