@@ -10,7 +10,6 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
-@implements IDisposable
 
 <PageTitle>Documents - DocN</PageTitle>
 
@@ -1462,7 +1461,7 @@
     private int currentPage = 1;
     private int totalPages = 1;
     private int totalDocuments = 0;
-    private int pageSize = 20;
+    private int pageSize = 10; // Match server-side default
     private string currentUserId = string.Empty;
     
     // Filters and search
@@ -1484,112 +1483,20 @@
         
         currentPage = Page > 0 ? Page : 1;
         
-        // Check if there's a document ID in the query string to open FIRST
-        var uri = new Uri(Navigation.Uri);
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        var docIdStr = query["id"];
+        // Initialize filteredDocuments to avoid flash
+        filteredDocuments = new List<Document>();
         
-        if (!string.IsNullOrEmpty(docIdStr) && int.TryParse(docIdStr, out int docId))
-        {
-            // If opening a specific document via share link, load it directly without loading all documents
-            var specificDoc = await DocumentService.GetDocumentAsync(docId, currentUserId);
-            if (specificDoc != null)
-            {
-                // Create minimal document list for display
-                documents = new List<Document> { specificDoc };
-                totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
-                ViewDocumentDetails(specificDoc);
-                isLoading = false;
-                
-                // Don't start periodic refresh for single document view
-                return;
-            }
-        }
-        
-        // Normal page load - load documents list
         await LoadDocuments();
-        
-        // Start periodic refresh for status updates
-        _ = StartPeriodicRefresh();
-    }
-    
-    private System.Threading.CancellationTokenSource? _refreshCancellation;
-    
-    private async Task StartPeriodicRefresh()
-    {
-        _refreshCancellation = new System.Threading.CancellationTokenSource();
-        
-        while (!_refreshCancellation.Token.IsCancellationRequested)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(5), _refreshCancellation.Token);
-            
-            try
-            {
-                // Only refresh if there are documents in Processing status
-                if (documents?.Any(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing || 
-                                       d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending) == true)
-                {
-                    await RefreshDocumentStatuses();
-                }
-            }
-            catch (Exception)
-            {
-                // Ignore refresh errors
-            }
-        }
-    }
-    
-    private async Task RefreshDocumentStatuses()
-    {
-        if (documents == null || !documents.Any()) return;
-        
-        // Get IDs of documents that need status updates
-        var pendingDocIds = documents
-            .Where(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing || 
-                       d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending)
-            .Select(d => d.Id)
-            .ToList();
-        
-        if (!pendingDocIds.Any()) return;
-        
-        // Fetch updated status for each pending document
-        try
-        {
-            foreach (var docId in pendingDocIds)
-            {
-                var updatedDoc = await DocumentService.GetDocumentAsync(docId, currentUserId);
-                if (updatedDoc != null)
-                {
-                    var doc = documents.FirstOrDefault(d => d.Id == docId);
-                    if (doc != null)
-                    {
-                        doc.ChunkEmbeddingStatus = updatedDoc.ChunkEmbeddingStatus;
-                    }
-                }
-            }
-            
-            // Trigger re-render
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error refreshing document statuses: {ex.Message}");
-        }
-    }
-
-    public void Dispose()
-    {
-        _refreshCancellation?.Cancel();
-        _refreshCancellation?.Dispose();
     }
 
     private async Task LoadDocuments()
     {
         isLoading = true;
         
-        // Optimize: Load only what's needed for the current page (20 documents, not 100)
-        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, pageSize);
-        totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
+        // Load documents with the same page size as server (10 by default)
+        // For better performance, load only what's needed for the current view
+        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 1000); // Load all for filtering
+        totalDocuments = documents?.Count ?? 0;
         
         // Extract unique categories
         if (documents != null)
@@ -1690,31 +1597,16 @@
         try
         {
             var fileBytes = await DocumentService.DownloadDocumentAsync(doc.Id, currentUserId);
-            if (fileBytes != null && fileBytes.Length > 0)
+            if (fileBytes != null)
             {
                 await JSRuntime.InvokeVoidAsync("downloadFile", doc.FileName, Convert.ToBase64String(fileBytes));
-                
-                // Update statistics (don't block on this)
-                try
-                {
-                    await StatisticsService.UpdateDocumentAccessAsync(doc.Id);
-                }
-                catch (Exception statsEx)
-                {
-                    Console.WriteLine($"Warning: Could not update statistics: {statsEx.Message}");
-                    // Continue - download succeeded even if statistics failed
-                }
-            }
-            else
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Errore durante il download del documento. Il file potrebbe non esistere o non hai i permessi per accedervi.");
+                await StatisticsService.UpdateDocumentAccessAsync(doc.Id);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error downloading document {doc.Id}: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
-            await JSRuntime.InvokeVoidAsync("alert", $"Errore durante il download del documento: {ex.Message}");
+            // Handle error
+            Console.WriteLine($"Error downloading: {ex.Message}");
         }
     }
 
@@ -1725,7 +1617,7 @@
             var shareUrl = $"{Navigation.BaseUri}documents?id={doc.Id}";
             await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
             // Show a temporary success message
-            await JSRuntime.InvokeVoidAsync("alert", $"Link copiato negli appunti!\n{shareUrl}\n\nApri il link per visualizzare il documento specifico.");
+            await JSRuntime.InvokeVoidAsync("alert", $"Link copiato negli appunti!\n{shareUrl}");
         }
         catch (Exception ex)
         {
@@ -1736,31 +1628,13 @@
 
     private async Task DeleteDocument(Document doc)
     {
-        try
+        // Confirm deletion
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Sei sicuro di voler eliminare '{doc.FileName}'?");
+        if (confirmed)
         {
-            // Confirm deletion
-            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Sei sicuro di voler eliminare '{doc.FileName}'?\n\nQuesta azione non può essere annullata.");
-            if (!confirmed)
-                return;
-            
-            // Call DocumentService delete method
-            var success = await DocumentService.DeleteDocumentAsync(doc.Id, currentUserId);
-            
-            if (success)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Documento eliminato con successo!");
-                await LoadDocuments();
-                CloseDetailsPanel();
-            }
-            else
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Errore durante l'eliminazione: Non hai i permessi per eliminare questo documento o il documento non esiste.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error deleting: {ex.Message}");
-            await JSRuntime.InvokeVoidAsync("alert", "Errore durante l'eliminazione del documento.");
+            // TODO: Implement delete
+            await LoadDocuments();
+            CloseDetailsPanel();
         }
     }
 
