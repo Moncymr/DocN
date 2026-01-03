@@ -47,7 +47,7 @@ public class RetrievalAgent : IRetrievalAgent
             return new List<DocumentChunk>();
         }
 
-        // Get all chunks with embeddings
+        // Get chunks with embeddings, with a reasonable limit to prevent loading entire database
         // Query the actual mapped fields: ChunkEmbedding768 or ChunkEmbedding1536
         var chunksQuery = _context.DocumentChunks
             .Include(c => c.Document)
@@ -59,7 +59,11 @@ public class RetrievalAgent : IRetrievalAgent
             chunksQuery = chunksQuery.Where(c => c.Document!.OwnerId == userId);
         }
 
-        var chunks = await chunksQuery.ToListAsync();
+        // Apply reasonable limit to prevent loading too many chunks into memory
+        // We retrieve more than topK to ensure we have enough candidates after similarity filtering
+        // Limit to 1000 chunks maximum to prevent performance issues
+        var maxChunksToEvaluate = Math.Min(1000, topK * 100);
+        var chunks = await chunksQuery.Take(maxChunksToEvaluate).ToListAsync();
 
         // Calculate similarity scores
         var scoredChunks = new List<(DocumentChunk chunk, double score)>();

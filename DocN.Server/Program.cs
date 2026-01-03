@@ -273,7 +273,16 @@ builder.Services.AddDbContext<DocArcContext>(options =>
     var connectionString = builder.Configuration.GetConnectionString("DocArc");
     if (!string.IsNullOrEmpty(connectionString))
     {
-        options.UseSqlServer(connectionString);
+        options.UseSqlServer(connectionString, sqlOptions =>
+        {
+            // Set command timeout to 30 seconds to prevent long-running queries from hanging
+            sqlOptions.CommandTimeout(30);
+            // Enable retry on failure for transient errors
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorNumbersToAdd: null);
+        });
     }
     else
     {
@@ -289,7 +298,16 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
                         ?? builder.Configuration.GetConnectionString("DocArc");
     if (!string.IsNullOrEmpty(connectionString))
     {
-        options.UseSqlServer(connectionString);
+        options.UseSqlServer(connectionString, sqlOptions =>
+        {
+            // Set command timeout to 30 seconds to prevent long-running queries from hanging
+            sqlOptions.CommandTimeout(30);
+            // Enable retry on failure for transient errors
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorNumbersToAdd: null);
+        });
     }
     else
     {
