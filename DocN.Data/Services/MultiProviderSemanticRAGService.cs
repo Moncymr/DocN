@@ -279,9 +279,10 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
 
             // Get chunks for better precision
+            // Note: ChunkEmbedding is a computed property, so we check the actual DB fields
             var chunks = await _context.DocumentChunks
                 .Include(c => c.Document)
-                .Where(c => c.Document!.OwnerId == userId && c.ChunkEmbedding != null)
+                .Where(c => c.Document!.OwnerId == userId && (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
                 .ToListAsync();
 
             _logger.LogInformation("Found {Count} chunks with embeddings for user {UserId}", chunks.Count, userId);
