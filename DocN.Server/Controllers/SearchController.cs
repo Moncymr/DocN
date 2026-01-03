@@ -52,7 +52,7 @@ public class SearchController : ControllerBase
             var options = new SearchOptions
             {
                 TopK = request.TopK ?? 10,
-                MinSimilarity = request.MinSimilarity ?? 0.7,
+                MinSimilarity = request.MinSimilarity ?? 0.5,
                 CategoryFilter = request.CategoryFilter,
                 OwnerId = request.UserId,
                 VisibilityFilter = request.VisibilityFilter
@@ -107,7 +107,7 @@ public class SearchController : ControllerBase
             var options = new SearchOptions
             {
                 TopK = request.TopK ?? 10,
-                MinSimilarity = request.MinSimilarity ?? 0.7,
+                MinSimilarity = request.MinSimilarity ?? 0.5,
                 CategoryFilter = request.CategoryFilter,
                 OwnerId = request.UserId
             };
