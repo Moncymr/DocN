@@ -305,20 +305,39 @@ public class DocumentService : IDocumentService
     /// </remarks>
     public async Task<byte[]?> DownloadDocumentAsync(int documentId, string userId)
     {
-        // Check if user has access
-        if (!await CanUserAccessDocument(documentId, userId))
-            return null;
-
-        var document = await _context.Documents.FindAsync(documentId);
-        if (document == null || !File.Exists(document.FilePath))
-            return null;
-
         try
         {
-            return await File.ReadAllBytesAsync(document.FilePath);
+            // Check if user has access
+            if (!await CanUserAccessDocument(documentId, userId))
+            {
+                _logger?.LogWarning("User {UserId} attempted to download document {DocumentId} without permission", 
+                    userId ?? "anonymous", documentId);
+                return null;
+            }
+
+            var document = await _context.Documents.FindAsync(documentId);
+            if (document == null)
+            {
+                _logger?.LogWarning("Document {DocumentId} not found for download", documentId);
+                return null;
+            }
+
+            if (string.IsNullOrEmpty(document.FilePath) || !File.Exists(document.FilePath))
+            {
+                _logger?.LogWarning("File not found on disk for document {DocumentId}: {FilePath}", 
+                    documentId, document.FilePath ?? "null");
+                return null;
+            }
+
+            var fileBytes = await File.ReadAllBytesAsync(document.FilePath);
+            _logger?.LogInformation("User {UserId} downloaded document {DocumentId} ({FileName}), size: {Size} bytes", 
+                userId, documentId, document.FileName, fileBytes.Length);
+            
+            return fileBytes;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogError(ex, "Error downloading document {DocumentId} for user {UserId}", documentId, userId);
             return null;
         }
     }
