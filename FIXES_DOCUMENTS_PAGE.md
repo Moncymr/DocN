@@ -181,7 +181,12 @@ https://localhost:7114/documents
   - Should show error alert
 
 ### Delete Testing
-- [ ] Click detail view on a document
+- [ ] **Authorization Testing (IMPORTANT)**:
+  - [ ] Create document as User A
+  - [ ] Try to delete as User B (different user) - should get 403 Forbidden error
+  - [ ] Delete as User A (owner) - should succeed
+  - [ ] Check server logs for unauthorized deletion attempt warning
+- [ ] Click detail view on a document you own
 - [ ] Click "Elimina" (Delete) button
 - [ ] Confirmation dialog should appear
 - [ ] Click "Cancel" - nothing should happen
@@ -219,15 +224,24 @@ https://localhost:7114/documents
 
 ## Known Limitations & Future Improvements
 
+### Security Updates
+✅ **FIXED**: Authorization check added to DELETE endpoint - only document owner can delete
+
 ### Current Limitations
-1. **No Authorization Check on DELETE**: Currently any user can delete any document
-   - TODO: Add authorization check in DeleteDocument endpoint
+1. **N+1 Query Pattern in Status Refresh**: Individual HTTP requests for each pending document
+   - Consider: Implement batch endpoint that accepts multiple IDs and returns statuses in one call
    
-2. **File Deletion After DB Commit**: If file deletion fails, orphaned files may remain
+2. **Database Query Optimization**: Three separate queries in DELETE operation
+   - Consider: Use Include() to fetch document with related entities, or use cascading deletes
+   
+3. **File Deletion After DB Commit**: If file deletion fails, orphaned files may remain
    - Consider: Transaction scope or cleanup job for orphaned files
    
-3. **Client-Side Filtering**: Search/filter still loads many documents client-side
+4. **Client-Side Filtering**: Search/filter still loads many documents client-side
    - Future: Implement server-side filtering API
+
+5. **Hard-coded Refresh Interval**: 5-second refresh is not configurable
+   - Consider: Make it configurable or adjust based on number of pending documents
 
 ### Future Enhancements
 1. Server-side search and filtering endpoints
@@ -242,6 +256,12 @@ https://localhost:7114/documents
 
 ### New Endpoints
 - `DELETE /documents/{id}` - Delete a document with all relationships
+  - **Security**: Only document owner can delete
+  - **Returns**: 
+    - 204 No Content on success
+    - 403 Forbidden if user is not the owner
+    - 404 Not Found if document doesn't exist
+    - 500 Internal Server Error on failure
 
 ### Modified Endpoints
 None (only client-side changes to existing endpoints)
