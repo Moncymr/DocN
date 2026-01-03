@@ -35,12 +35,12 @@
         <!-- Sidebar with Conversations -->
         <div class="chat-sidebar @(showSidebar ? "open" : "")">
             <div class="sidebar-header">
-                <h3>📚 Conversations</h3>
+                <h3>📚 Conversazioni</h3>
             </div>
             <div class="conversations-list">
                 @if (isLoadingConversations)
                 {
-                    <div class="loading-conversations">Loading...</div>
+                    <div class="loading-conversations">Caricamento...</div>
                 }
                 else if (conversations.Any())
                 {
@@ -59,8 +59,8 @@
                 else
                 {
                     <div class="empty-conversations">
-                        <p>No conversations yet</p>
-                        <p class="hint">Start chatting to create one!</p>
+                        <p>Nessuna conversazione</p>
+                        <p class="hint">Inizia a chattare per crearne una!</p>
                     </div>
                 }
             </div>
@@ -74,9 +74,9 @@
                 {
                     <!-- Welcome Screen -->
                     <div class="welcome-screen">
-                        <div class="welcome-icon">🤖</div>
-                        <h2>Welcome to Document Chat</h2>
-                        <p>Ask me anything about your uploaded documents!</p>
+                        <div class="welcome-icon">✨</div>
+                        <h2>Benvenuto nella Chat Documenti</h2>
+                        <p>Fai qualsiasi domanda sui tuoi documenti caricati!</p>
                     </div>
                 }
                 else
@@ -99,10 +99,12 @@
                                 @if (msg.ReferencedDocumentIds.Any())
                                 {
                                     <div class="message-sources">
-                                        <span class="sources-label">📚 Sources:</span>
+                                        <span class="sources-label">📚 Fonti:</span>
                                         @foreach (var docId in msg.ReferencedDocumentIds)
                                         {
-                                            <span class="source-tag">Document #@docId</span>
+                                            <a href="/documents?id=@docId" class="source-tag" target="_blank" title="Apri documento">
+                                                Documento #@docId
+                                            </a>
                                         }
                                     </div>
                                 }
@@ -141,10 +143,10 @@
                 <div class="input-container">
                     <textarea 
                         class="chat-input" 
-                        placeholder="Ask a question about your documents..."
+                        placeholder="Fai una domanda sui tuoi documenti..."
                         @bind="userQuery"
                         @onkeydown="HandleKeyDown"
-                        rows="1"
+                        rows="2"
                         disabled="@isProcessing"></textarea>
                     <button class="btn-send" @onclick="SendMessage" disabled="@(isProcessing || string.IsNullOrWhiteSpace(userQuery))">
                         @if (isProcessing)
@@ -153,7 +155,7 @@
                         }
                         else
                         {
-                            <span>📤</span>
+                            <span>➤</span>
                         }
                     </button>
                 </div>
@@ -464,10 +466,26 @@
         border-radius: 3px;
         font-size: 0.85rem;
         font-weight: 500;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .source-tag:hover {
+        background: #ff6b35;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(255, 107, 53, 0.3);
     }
 
     .message.user .source-tag {
         background: rgba(255,255,255,0.2);
+        color: white;
+    }
+
+    .message.user .source-tag:hover {
+        background: rgba(255,255,255,0.35);
         color: white;
     }
 
