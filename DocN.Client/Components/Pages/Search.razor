@@ -6,13 +6,13 @@
 @inject ILogger<Search> Logger
 @rendermode InteractiveServer
 
-<PageTitle>Search - DocN</PageTitle>
+<PageTitle>Ricerca - DocN</PageTitle>
 
 <div class="search-page">
     <!-- Header -->
     <div class="page-header">
-        <h1>🔍 Document Search</h1>
-        <p class="subtitle">Search your documents using vector similarity, full-text, or hybrid search</p>
+        <h1>🔍 Ricerca Documenti</h1>
+        <p class="subtitle">Cerca nei tuoi documenti usando similarità vettoriale, ricerca testuale o ricerca ibrida</p>
     </div>
 
     <!-- Search Box -->
@@ -20,7 +20,7 @@
         <div class="search-input-group">
             <input type="text" 
                    class="search-input-large" 
-                   placeholder="Enter your search query..."
+                   placeholder="Inserisci la tua query di ricerca..."
                    @bind="searchQuery"
                    @onkeyup="HandleKeyPress" />
             <button class="btn-search" @onclick="PerformSearch" disabled="@isSearching">
@@ -30,7 +30,7 @@
                 }
                 else
                 {
-                    <span>🔍 Search</span>
+                    <span>🔍 Cerca</span>
                 }
             </button>
         </div>
@@ -39,30 +39,30 @@
         <div class="search-type-selector">
             <button class="type-btn @(searchType == "hybrid" ? "active" : "")" 
                     @onclick='() => SetSearchType("hybrid")'>
-                ⚡ Hybrid Search
-                <small>Best results</small>
+                ⚡ Ricerca Ibrida
+                <small>Migliori risultati</small>
             </button>
             <button class="type-btn @(searchType == "vector" ? "active" : "")" 
                     @onclick='() => SetSearchType("vector")'>
-                🧠 Vector Search
-                <small>Semantic similarity</small>
+                🧠 Ricerca Vettoriale
+                <small>Similarità semantica</small>
             </button>
             <button class="type-btn @(searchType == "text" ? "active" : "")" 
                     @onclick='() => SetSearchType("text")'>
-                📝 Text Search
-                <small>Keyword matching</small>
+                📝 Ricerca Testuale
+                <small>Corrispondenza parole chiave</small>
             </button>
         </div>
 
         <!-- Advanced Filters -->
         <div class="advanced-filters">
             <details>
-                <summary>⚙️ Advanced Filters</summary>
+                <summary>⚙️ Filtri Avanzati</summary>
                 <div class="filter-content">
                     <div class="filter-item">
-                        <label>Category:</label>
+                        <label>Categoria:</label>
                         <select @bind="categoryFilter" class="filter-select">
-                            <option value="">All Categories</option>
+                            <option value="">Tutte le Categorie</option>
                             @foreach (var category in categories)
                             {
                                 <option value="@category">@category</option>
@@ -70,11 +70,11 @@
                         </select>
                     </div>
                     <div class="filter-item">
-                        <label>Max Results:</label>
+                        <label>Massimo Risultati:</label>
                         <input type="number" @bind="topK" min="5" max="50" class="filter-input" />
                     </div>
                     <div class="filter-item">
-                        <label>Min Similarity:</label>
+                        <label>Similarità Minima:</label>
                         <input type="range" @bind="minSimilarity" min="0.5" max="1.0" step="0.05" class="filter-range" />
                         <span class="range-value">@minSimilarity.ToString("F2")</span>
                     </div>
@@ -91,17 +91,17 @@
             {
                 <div class="loading-state">
                     <div class="spinner-large"></div>
-                    <p>Searching...</p>
+                    <p>Ricerca in corso...</p>
                 </div>
             }
             else if (searchResults.Any())
             {
                 <div class="results-header">
-                    <h3>📊 Search Results</h3>
+                    <h3>📊 Risultati di Ricerca</h3>
                     <div class="results-meta">
-                        <span class="results-count">Found <strong>@searchResults.Count</strong> results</span>
+                        <span class="results-count">Trovati <strong>@searchResults.Count</strong> risultati</span>
                         <span class="results-time">in <strong>@queryTime.ToString("F0")</strong>ms</span>
-                        <span class="results-type">using <strong>@searchType</strong> search</span>
+                        <span class="results-type">usando ricerca <strong>@GetSearchTypeName()</strong></span>
                     </div>
                 </div>
 
@@ -115,14 +115,14 @@
                                     <h4 class="result-title">@result.Document.FileName</h4>
                                     <p class="result-category">
                                         <span class="icon">📂</span>
-                                        @(result.Document.ActualCategory ?? "Uncategorized")
+                                        @(result.Document.ActualCategory ?? "Senza Categoria")
                                     </p>
                                 </div>
                                 <div class="result-scores">
                                     @if (searchType == "hybrid")
                                     {
-                                        <div class="score-item" title="Combined Score">
-                                            <span class="score-label">Combined</span>
+                                        <div class="score-item" title="Punteggio Combinato">
+                                            <span class="score-label">Combinato</span>
                                             <div class="score-bar">
                                                 <div class="score-fill" style="width: @((result.CombinedScore * 100))%"></div>
                                             </div>
@@ -131,8 +131,8 @@
                                     }
                                     else if (searchType == "vector")
                                     {
-                                        <div class="score-item" title="Vector Similarity">
-                                            <span class="score-label">Similarity</span>
+                                        <div class="score-item" title="Similarità Vettoriale">
+                                            <span class="score-label">Similarità</span>
                                             <div class="score-bar">
                                                 <div class="score-fill" style="width: @((result.VectorScore * 100))%"></div>
                                             </div>
@@ -141,8 +141,8 @@
                                     }
                                     else
                                     {
-                                        <div class="score-item" title="Text Match Score">
-                                            <span class="score-label">Match</span>
+                                        <div class="score-item" title="Punteggio Corrispondenza Testo">
+                                            <span class="score-label">Corrispondenza</span>
                                             <div class="score-bar">
                                                 <div class="score-fill" style="width: @((result.TextScore * 100))%"></div>
                                             </div>
@@ -155,8 +155,8 @@
                                 <p class="result-excerpt">@GetExcerpt(result.Document.ExtractedText)</p>
                                 <div class="result-meta">
                                     <span>📊 @FormatFileSize(result.Document.FileSize)</span>
-                                    <span>📅 @result.Document.UploadedAt.ToString("MMM dd, yyyy")</span>
-                                    <span>👁️ @result.Document.AccessCount views</span>
+                                    <span>📅 @result.Document.UploadedAt.ToString("dd MMM yyyy")</span>
+                                    <span>👁️ @result.Document.AccessCount visualizzazioni</span>
                                 </div>
                             </div>
                         </div>
@@ -167,8 +167,8 @@
             {
                 <div class="empty-results">
                     <div class="empty-icon">🔍</div>
-                    <h3>No results found</h3>
-                    <p>Try adjusting your search query or filters</p>
+                    <h3>Nessun risultato trovato</h3>
+                    <p>Prova a modificare la query di ricerca o i filtri</p>
                 </div>
             }
         </div>
@@ -178,39 +178,8 @@
         <!-- Welcome State -->
         <div class="welcome-state">
             <div class="welcome-icon">🔍</div>
-            <h2>Search Your Documents</h2>
-            <p>Use our powerful search to find exactly what you need</p>
-            
-            <div class="search-methods">
-                <div class="method-card">
-                    <div class="method-icon">⚡</div>
-                    <h4>Hybrid Search</h4>
-                    <p>Combines vector similarity and keyword matching for best results</p>
-                </div>
-                <div class="method-card">
-                    <div class="method-icon">🧠</div>
-                    <h4>Vector Search</h4>
-                    <p>Finds semantically similar documents using AI embeddings</p>
-                </div>
-                <div class="method-card">
-                    <div class="method-icon">📝</div>
-                    <h4>Text Search</h4>
-                    <p>Traditional keyword-based search through document content</p>
-                </div>
-            </div>
-
-            <div class="example-queries">
-                <h4>Try these example queries:</h4>
-                <button class="example-btn" @onclick='() => SetQuery("contracts from last quarter")'>
-                    "contracts from last quarter"
-                </button>
-                <button class="example-btn" @onclick='() => SetQuery("technical documentation")'>
-                    "technical documentation"
-                </button>
-                <button class="example-btn" @onclick='() => SetQuery("financial reports 2024")'>
-                    "financial reports 2024"
-                </button>
-            </div>
+            <h2>Cerca nei Tuoi Documenti</h2>
+            <p>Utilizza la nostra potente ricerca per trovare esattamente ciò di cui hai bisogno</p>
         </div>
     }
 </div>
@@ -382,6 +351,17 @@
             len = len / 1024;
         }
         return $"{len:0.##} {sizes[order]}";
+    }
+
+    private string GetSearchTypeName()
+    {
+        return searchType switch
+        {
+            "hybrid" => "ibrida",
+            "vector" => "vettoriale",
+            "text" => "testuale",
+            _ => searchType
+        };
     }
 
     // Models matching the API

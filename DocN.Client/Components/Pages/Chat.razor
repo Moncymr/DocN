@@ -185,7 +185,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 1.5rem 2rem;
+        padding: 1rem 1.5rem;
         background: white;
         border-bottom: 1px solid #e0e0e0;
         z-index: 10;
@@ -205,7 +205,7 @@
     }
 
     .header-info h1 {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
         margin: 0;
         background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
         -webkit-background-clip: text;
@@ -215,7 +215,7 @@
 
     .subtitle {
         color: #666;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         margin: 0.25rem 0 0 0;
     }
 
@@ -291,8 +291,12 @@
         border-right: 1px solid #e0e0e0;
         display: flex;
         flex-direction: column;
-        transition: transform 0.3s;
+        transition: all 0.3s;
         border-radius: 15px 0 0 15px;
+    }
+
+    .chat-sidebar:not(.open) {
+        margin-left: -300px;
     }
 
     .sidebar-header {
