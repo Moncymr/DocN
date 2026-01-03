@@ -1485,25 +1485,38 @@
     private readonly SemaphoreSlim _refreshSemaphore = new SemaphoreSlim(1, 1);
     private bool _isRefreshing = false;
 
+    private bool _firstRender = true;
+    
     protected override async Task OnInitializedAsync()
     {
-        try
+        // Get user ID synchronously from auth state
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        
+        currentPage = Page > 0 ? Page : 1;
+        
+        // Don't load data here - let OnAfterRenderAsync handle it for faster initial render
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _firstRender)
         {
-            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-            
-            currentPage = Page > 0 ? Page : 1;
-            
-            // Load documents immediately
-            await LoadDocuments();
-            
-            // Setup auto-refresh timer if there are processing documents
-            SetupAutoRefresh();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error initializing documents page: {ex.Message}");
-            isLoading = false;
+            _firstRender = false;
+            try
+            {
+                // Load documents after first render for faster page display
+                await LoadDocuments();
+                
+                // Setup auto-refresh timer if there are processing documents
+                SetupAutoRefresh();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading documents: {ex.Message}");
+                isLoading = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -1512,7 +1525,11 @@
         try
         {
             isLoading = true;
-            StateHasChanged(); // Force UI update to show loading state
+            // StateHasChanged() only if not first render - first render already shows loading state
+            if (!_firstRender)
+            {
+                StateHasChanged(); // Force UI update to show loading state
+            }
             
             // Use proper pagination - only load documents for current page
             // This respects the pageSize setting (default 20)
