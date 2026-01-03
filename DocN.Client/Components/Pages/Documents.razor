@@ -9,7 +9,6 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
-@inject HttpClient Http
 @rendermode InteractiveServer
 @implements IDisposable
 
@@ -1486,6 +1485,30 @@
         currentPage = Page > 0 ? Page : 1;
         await LoadDocuments();
         
+        // Check if there's a document ID in the query string to open
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var docIdStr = query["id"];
+        
+        if (!string.IsNullOrEmpty(docIdStr) && int.TryParse(docIdStr, out int docId))
+        {
+            // Find and open the document
+            var doc = documents?.FirstOrDefault(d => d.Id == docId);
+            if (doc != null)
+            {
+                ViewDocumentDetails(doc);
+            }
+            else
+            {
+                // Document not in current page, try to load it directly
+                var specificDoc = await DocumentService.GetDocumentAsync(docId, currentUserId);
+                if (specificDoc != null)
+                {
+                    ViewDocumentDetails(specificDoc);
+                }
+            }
+        }
+        
         // Start periodic refresh for status updates
         _ = StartPeriodicRefresh();
     }
@@ -1529,18 +1552,18 @@
         
         if (!pendingDocIds.Any()) return;
         
-        // Only fetch the specific documents that need updates, not all 1000
+        // Fetch updated status for each pending document
         try
         {
             foreach (var docId in pendingDocIds)
             {
-                var response = await Http.GetFromJsonAsync<Document>($"/documents/{docId}");
-                if (response != null)
+                var updatedDoc = await DocumentService.GetDocumentAsync(docId, currentUserId);
+                if (updatedDoc != null)
                 {
                     var doc = documents.FirstOrDefault(d => d.Id == docId);
                     if (doc != null)
                     {
-                        doc.ChunkEmbeddingStatus = response.ChunkEmbeddingStatus;
+                        doc.ChunkEmbeddingStatus = updatedDoc.ChunkEmbeddingStatus;
                     }
                 }
             }
@@ -1666,18 +1689,15 @@
     {
         try
         {
-            // Call the download endpoint directly
-            var response = await Http.GetAsync($"/documents/{doc.Id}/download");
-            
-            if (response.IsSuccessStatusCode)
+            var fileBytes = await DocumentService.DownloadDocumentAsync(doc.Id, currentUserId);
+            if (fileBytes != null)
             {
-                var fileBytes = await response.Content.ReadAsByteArrayAsync();
                 await JSRuntime.InvokeVoidAsync("downloadFile", doc.FileName, Convert.ToBase64String(fileBytes));
                 await StatisticsService.UpdateDocumentAccessAsync(doc.Id);
             }
             else
             {
-                await JSRuntime.InvokeVoidAsync("alert", "Errore durante il download del documento.");
+                await JSRuntime.InvokeVoidAsync("alert", "Errore durante il download del documento. Il file potrebbe non esistere o non hai i permessi per accedervi.");
             }
         }
         catch (Exception ex)
@@ -1694,7 +1714,7 @@
             var shareUrl = $"{Navigation.BaseUri}documents?id={doc.Id}";
             await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
             // Show a temporary success message
-            await JSRuntime.InvokeVoidAsync("alert", $"Link copiato negli appunti!\n{shareUrl}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Link copiato negli appunti!\n{shareUrl}\n\nApri il link per visualizzare il documento specifico.");
         }
         catch (Exception ex)
         {
@@ -1708,14 +1728,14 @@
         try
         {
             // Confirm deletion
-            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Sei sicuro di voler eliminare '{doc.FileName}'?");
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Sei sicuro di voler eliminare '{doc.FileName}'?\n\nQuesta azione non può essere annullata.");
             if (!confirmed)
                 return;
             
-            // Call delete endpoint
-            var response = await Http.DeleteAsync($"/documents/{doc.Id}");
+            // Call DocumentService delete method
+            var success = await DocumentService.DeleteDocumentAsync(doc.Id, currentUserId);
             
-            if (response.IsSuccessStatusCode)
+            if (success)
             {
                 await JSRuntime.InvokeVoidAsync("alert", "Documento eliminato con successo!");
                 await LoadDocuments();
@@ -1723,8 +1743,7 @@
             }
             else
             {
-                var error = await response.Content.ReadAsStringAsync();
-                await JSRuntime.InvokeVoidAsync("alert", $"Errore durante l'eliminazione: {error}");
+                await JSRuntime.InvokeVoidAsync("alert", "Errore durante l'eliminazione: Non hai i permessi per eliminare questo documento o il documento non esiste.");
             }
         }
         catch (Exception ex)
