@@ -440,21 +440,17 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             catch (Microsoft.Data.SqlClient.SqlException sqlEx)
             {
                 // Check if error is due to VECTOR type not being supported (older SQL Server version)
-                // Common SQL error numbers:
-                // - 207: Invalid column name (VECTOR columns don't exist)
-                // - 2715: Column/parameter already exists
-                // - 8116: Data type VECTOR is invalid
-                bool isVectorNotSupported = sqlEx.Number == 207 || 
-                                           sqlEx.Number == 8116 ||
-                                           sqlEx.Message.Contains("VECTOR_DISTANCE", StringComparison.OrdinalIgnoreCase) ||
-                                           sqlEx.Message.Contains("VECTOR", StringComparison.OrdinalIgnoreCase);
+                // SQL error numbers indicating VECTOR support is not available:
+                // - 207: Invalid column name (VECTOR columns don't exist in schema)
+                // - 8116: Argument data type is invalid for argument (VECTOR type not recognized)
+                bool isVectorNotSupported = sqlEx.Number == 207 || sqlEx.Number == 8116;
                 
                 if (isVectorNotSupported)
                 {
                     _logger.LogInformation(
-                        "SQL Server VECTOR_DISTANCE not available (SQL error {ErrorNumber}: {ErrorMessage}). " +
+                        "SQL Server VECTOR_DISTANCE not available (SQL error {ErrorNumber}). " +
                         "This requires SQL Server 2025+. Falling back to optimized in-memory calculation.",
-                        sqlEx.Number, sqlEx.Message);
+                        sqlEx.Number);
                 }
                 else
                 {
@@ -638,7 +634,9 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
         }
         
         // Column names are validated above from a whitelist, safe to use in SQL
-        // Note: These are not user inputs, they are controlled constants based on embedding dimension
+        // Security model: Column names come from compile-time constants (SupportedDimension768/1536)
+        // mapped to hardcoded strings. No user input or external data can reach the column name variables.
+        // This is a safe and common pattern for schema-level parameterization.
 
         // Serialize query embedding to JSON format (required for VECTOR type)
         var embeddingJson = System.Text.Json.JsonSerializer.Serialize(queryEmbedding);
