@@ -440,16 +440,26 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             catch (Microsoft.Data.SqlClient.SqlException sqlEx)
             {
                 // Check if error is due to VECTOR type not being supported (older SQL Server version)
-                // Common errors: "Invalid column name", "Invalid data type", "Unknown function VECTOR_DISTANCE"
-                if (sqlEx.Message.Contains("VECTOR_DISTANCE") || 
-                    sqlEx.Message.Contains("VECTOR") ||
-                    sqlEx.Message.Contains("Invalid column name"))
+                // Common SQL error numbers:
+                // - 207: Invalid column name (VECTOR columns don't exist)
+                // - 2715: Column/parameter already exists
+                // - 8116: Data type VECTOR is invalid
+                bool isVectorNotSupported = sqlEx.Number == 207 || 
+                                           sqlEx.Number == 8116 ||
+                                           sqlEx.Message.Contains("VECTOR_DISTANCE", StringComparison.OrdinalIgnoreCase) ||
+                                           sqlEx.Message.Contains("VECTOR", StringComparison.OrdinalIgnoreCase);
+                
+                if (isVectorNotSupported)
                 {
-                    _logger.LogInformation("SQL Server VECTOR_DISTANCE not available (requires SQL Server 2025+), falling back to optimized in-memory calculation");
+                    _logger.LogInformation(
+                        "SQL Server VECTOR_DISTANCE not available (SQL error {ErrorNumber}: {ErrorMessage}). " +
+                        "This requires SQL Server 2025+. Falling back to optimized in-memory calculation.",
+                        sqlEx.Number, sqlEx.Message);
                 }
                 else
                 {
-                    _logger.LogWarning(sqlEx, "SQL error during VECTOR_DISTANCE search, falling back to in-memory calculation");
+                    _logger.LogWarning(sqlEx, "SQL error during VECTOR_DISTANCE search (error {ErrorNumber}), falling back to in-memory calculation", 
+                        sqlEx.Number);
                 }
                 // Fall through to optimized in-memory approach
             }
@@ -608,6 +618,7 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
         string docVectorColumn;
         string chunkVectorColumn;
         
+        // Use whitelist approach for security - only allow known valid column names
         if (embeddingDimension == Utilities.EmbeddingValidationHelper.SupportedDimension768)
         {
             docVectorColumn = "EmbeddingVector768";
@@ -625,6 +636,9 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
                 $"Expected {Utilities.EmbeddingValidationHelper.SupportedDimension768} or " +
                 $"{Utilities.EmbeddingValidationHelper.SupportedDimension1536}.");
         }
+        
+        // Column names are validated above from a whitelist, safe to use in SQL
+        // Note: These are not user inputs, they are controlled constants based on embedding dimension
 
         // Serialize query embedding to JSON format (required for VECTOR type)
         var embeddingJson = System.Text.Json.JsonSerializer.Serialize(queryEmbedding);
