@@ -412,89 +412,95 @@ public class DocumentService : IDocumentService
     /// </remarks>
     public async Task<Document> CreateDocumentAsync(Document document, bool generateChunkEmbeddingsImmediately = false)
     {
-        try
+        // Use execution strategy to handle all operations as a retriable unit
+        var strategy = _context.Database.CreateExecutionStrategy();
+        
+        return await strategy.ExecuteAsync(async () =>
         {
-            // Determine which embedding field is populated and validate
-            float[]? embeddingToValidate = null;
-            
-            if (document.EmbeddingVector768 != null && document.EmbeddingVector768.Length > 0)
+            try
             {
-                embeddingToValidate = document.EmbeddingVector768;
-                document.EmbeddingDimension = 768;
-            }
-            else if (document.EmbeddingVector1536 != null && document.EmbeddingVector1536.Length > 0)
-            {
-                embeddingToValidate = document.EmbeddingVector1536;
-                document.EmbeddingDimension = 1536;
-            }
-            
-            // Validate embedding dimensions before saving to avoid database errors
-            EmbeddingValidationHelper.ValidateEmbeddingDimensions(embeddingToValidate);
-            
-            _context.Documents.Add(document);
-            await _context.SaveChangesAsync();
-            
-            // Create chunks with or without embeddings based on parameter
-            if (_chunkingService != null && !string.IsNullOrEmpty(document.ExtractedText))
-            {
-                if (generateChunkEmbeddingsImmediately && _aiService != null)
+                // Determine which embedding field is populated and validate
+                float[]? embeddingToValidate = null;
+                
+                if (document.EmbeddingVector768 != null && document.EmbeddingVector768.Length > 0)
                 {
-                    // SLOW PATH: Create chunks with embeddings immediately (complete but slower)
-                    var chunks = _chunkingService.ChunkDocument(document);
-                    if (chunks.Any())
+                    embeddingToValidate = document.EmbeddingVector768;
+                    document.EmbeddingDimension = 768;
+                }
+                else if (document.EmbeddingVector1536 != null && document.EmbeddingVector1536.Length > 0)
+                {
+                    embeddingToValidate = document.EmbeddingVector1536;
+                    document.EmbeddingDimension = 1536;
+                }
+                
+                // Validate embedding dimensions before saving to avoid database errors
+                EmbeddingValidationHelper.ValidateEmbeddingDimensions(embeddingToValidate);
+                
+                _context.Documents.Add(document);
+                await _context.SaveChangesAsync();
+                
+                // Create chunks with or without embeddings based on parameter
+                if (_chunkingService != null && !string.IsNullOrEmpty(document.ExtractedText))
+                {
+                    if (generateChunkEmbeddingsImmediately && _aiService != null)
                     {
-                        _logger?.LogInformation("Creating {ChunkCount} chunks WITH embeddings for document {Id} (immediate generation)", chunks.Count, document.Id);
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Processing;
-                        await _context.SaveChangesAsync();
-                        
-                        var embeddedCount = await GenerateChunkEmbeddingsAsync(chunks, document.Id);
-                        _logger?.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
-                            chunks.Count, document.Id, embeddedCount);
-                        
-                        _context.DocumentChunks.AddRange(chunks);
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
-                        await _context.SaveChangesAsync();
-                        
-                        _logger?.LogInformation("Saved {ChunkCount} chunks with embeddings for document {Id}", chunks.Count, document.Id);
+                        // SLOW PATH: Create chunks with embeddings immediately (complete but slower)
+                        var chunks = _chunkingService.ChunkDocument(document);
+                        if (chunks.Any())
+                        {
+                            _logger?.LogInformation("Creating {ChunkCount} chunks WITH embeddings for document {Id} (immediate generation)", chunks.Count, document.Id);
+                            document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Processing;
+                            await _context.SaveChangesAsync();
+                            
+                            var embeddedCount = await GenerateChunkEmbeddingsAsync(chunks, document.Id);
+                            _logger?.LogInformation("Created {ChunkCount} chunks for document {Id}, {EmbeddedCount} with embeddings", 
+                                chunks.Count, document.Id, embeddedCount);
+                            
+                            _context.DocumentChunks.AddRange(chunks);
+                            document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
+                            await _context.SaveChangesAsync();
+                            
+                            _logger?.LogInformation("Saved {ChunkCount} chunks with embeddings for document {Id}", chunks.Count, document.Id);
+                        }
+                        else
+                        {
+                            document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
+                            await _context.SaveChangesAsync();
+                        }
                     }
                     else
                     {
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
+                        // FAST PATH: Just mark as pending - background processor will create chunks AND embeddings later
+                        _logger?.LogInformation("Marking document {Id} for background chunk generation (no chunks created during upload for speed)", document.Id);
+                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
                         await _context.SaveChangesAsync();
                     }
                 }
                 else
                 {
-                    // FAST PATH: Just mark as pending - background processor will create chunks AND embeddings later
-                    _logger?.LogInformation("Marking document {Id} for background chunk generation (no chunks created during upload for speed)", document.Id);
-                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
+                    document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
                     await _context.SaveChangesAsync();
                 }
+                
+                return document;
             }
-            else
+            catch (DbUpdateException ex)
             {
-                document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
-                await _context.SaveChangesAsync();
+                // Extract the inner exception details for better error reporting
+                var innerMessage = ex.InnerException?.Message ?? ex.Message;
+                
+                // Check for vector dimension mismatch error
+                if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(innerMessage))
+                {
+                    var embeddingDim = document.EmbeddingDimension ?? 0;
+                    throw new InvalidOperationException(
+                        EmbeddingValidationHelper.CreateDimensionMismatchErrorMessage(embeddingDim, innerMessage),
+                        ex);
+                }
+                
+                throw new InvalidOperationException($"Database save failed: {innerMessage}", ex);
             }
-            
-            return document;
-        }
-        catch (DbUpdateException ex)
-        {
-            // Extract the inner exception details for better error reporting
-            var innerMessage = ex.InnerException?.Message ?? ex.Message;
-            
-            // Check for vector dimension mismatch error
-            if (EmbeddingValidationHelper.IsVectorDimensionMismatchError(innerMessage))
-            {
-                var embeddingDim = document.EmbeddingDimension ?? 0;
-                throw new InvalidOperationException(
-                    EmbeddingValidationHelper.CreateDimensionMismatchErrorMessage(embeddingDim, innerMessage),
-                    ex);
-            }
-            
-            throw new InvalidOperationException($"Database save failed: {innerMessage}", ex);
-        }
+        });
     }
 
     /// <summary>
