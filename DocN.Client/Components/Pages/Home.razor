@@ -202,9 +202,17 @@
         {
             Logger.LogInformation("Starting recreation of all embeddings");
 
-            // Get all documents
+            // Get all documents - use AsNoTracking to avoid EF Core type mapping issues with vector columns
             var documents = await DbContext.Documents
+                .AsNoTracking()
                 .Where(d => !string.IsNullOrEmpty(d.ExtractedText))
+                .Select(d => new Document
+                {
+                    Id = d.Id,
+                    FileName = d.FileName,
+                    ExtractedText = d.ExtractedText,
+                    ChunkEmbeddingStatus = d.ChunkEmbeddingStatus
+                })
                 .ToListAsync();
 
             totalDocuments = documents.Count;
@@ -214,15 +222,28 @@
             int successCount = 0;
             int errorCount = 0;
 
-            foreach (var document in documents)
+            foreach (var docInfo in documents)
             {
                 currentDocument++;
-                currentDocumentName = document.FileName ?? $"Documento #{document.Id}";
+                currentDocumentName = docInfo.FileName ?? $"Documento #{docInfo.Id}";
                 
                 try
                 {
+                    // Load the actual document entity for updating
+                    var document = await DbContext.Documents
+                        .Where(d => d.Id == docInfo.Id)
+                        .FirstOrDefaultAsync();
+                    
+                    if (document == null)
+                    {
+                        Logger.LogWarning("Document {Id} not found, skipping", docInfo.Id);
+                        errorCount++;
+                        processedErrorCount++;
+                        continue;
+                    }
+                    
                     // Regenerate embedding for document
-                    var embedding = await EmbeddingService.GenerateEmbeddingAsync(document.ExtractedText);
+                    var embedding = await EmbeddingService.GenerateEmbeddingAsync(docInfo.ExtractedText);
                     if (embedding != null)
                     {
                         document.EmbeddingVector = embedding;
@@ -233,7 +254,7 @@
 
                     // Delete existing chunks and recreate them
                     var existingChunks = await DbContext.DocumentChunks
-                        .Where(c => c.DocumentId == document.Id)
+                        .Where(c => c.DocumentId == docInfo.Id)
                         .ToListAsync();
                     
                     DbContext.DocumentChunks.RemoveRange(existingChunks);
@@ -282,7 +303,7 @@
                     errorCount++;
                     processedErrorCount++;
                     Logger.LogError(ex, "Error recreating embeddings for document {Id}: {FileName}", 
-                        document.Id, document.FileName);
+                        docInfo.Id, docInfo.FileName);
                 }
                 
                 // Update UI once per document (after all processing is complete)
