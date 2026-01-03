@@ -15,7 +15,7 @@ public class AlertMetricsMiddleware
     private static long _totalRequests = 0;
     private static long _failedRequests = 0;
     private static readonly Dictionary<string, List<double>> _latencyByEndpoint = new();
-    private static readonly object _lock = new();
+    private static readonly object _metricsLock = new();
 
     public AlertMetricsMiddleware(
         RequestDelegate next,
@@ -71,7 +71,7 @@ public class AlertMetricsMiddleware
             stopwatch.Stop();
             
             // Record latency
-            lock (_lock)
+            lock (_metricsLock)
             {
                 if (!_latencyByEndpoint.ContainsKey(path))
                 {
@@ -149,7 +149,7 @@ public class AlertMetricsMiddleware
     /// </summary>
     public static object GetMetrics()
     {
-        lock (_lock)
+        lock (_metricsLock)
         {
             var total = Interlocked.Read(ref _totalRequests);
             var failed = Interlocked.Read(ref _failedRequests);

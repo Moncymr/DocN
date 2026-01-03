@@ -3,6 +3,7 @@ using DocN.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
+using System.Net;
 
 namespace DocN.Data.Services;
 
@@ -317,7 +318,8 @@ public class RAGQualityService : IRAGQualityService
     private double CalculateTextSimilarity(string text1, string text2)
     {
         // Simple word overlap similarity
-        // In production, use embeddings cosine similarity
+        // TODO: In production, replace with embeddings cosine similarity for better accuracy
+        // This is a placeholder implementation for initial deployment
         var words1 = text1.ToLower()
             .Split(new[] { ' ', '.', ',', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
             .ToHashSet();

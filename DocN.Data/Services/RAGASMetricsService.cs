@@ -18,6 +18,16 @@ public class RAGASMetricsService : IRAGASMetricsService
     private const double RELEVANCY_THRESHOLD = 0.75;
     private const double PRECISION_THRESHOLD = 0.70;
     private const double RECALL_THRESHOLD = 0.70;
+    
+    // Common stop words for term extraction
+    private static readonly HashSet<string> _stopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+        "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
+        "been", "being", "have", "has", "had", "do", "does", "did", "will",
+        "would", "could", "should", "may", "might", "can", "this", "that",
+        "these", "those", "i", "you", "he", "she", "it", "we", "they"
+    };
 
     public RAGASMetricsService(
         ILogger<RAGASMetricsService> logger,
@@ -363,20 +373,11 @@ public class RAGASMetricsService : IRAGASMetricsService
     private List<string> ExtractKeyTerms(string text)
     {
         // Simple term extraction - in production, use NLP techniques
-        var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-            "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-            "been", "being", "have", "has", "had", "do", "does", "did", "will",
-            "would", "could", "should", "may", "might", "can", "this", "that",
-            "these", "those", "i", "you", "he", "she", "it", "we", "they"
-        };
-        
         return text
             .ToLower()
             .Split(new[] { ' ', ',', '.', '!', '?', ';', ':', '"', '\'', '(', ')', '[', ']' }, 
                    StringSplitOptions.RemoveEmptyEntries)
-            .Where(term => term.Length > 2 && !stopWords.Contains(term))
+            .Where(term => term.Length > 2 && !_stopWords.Contains(term))
             .Distinct()
             .ToList();
     }

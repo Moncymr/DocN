@@ -321,12 +321,17 @@ public class AlertingService : IAlertingService
 
     private string FormatAlertEmail(Alert alert)
     {
+        // HTML encode to prevent XSS
+        var encodedName = WebUtility.HtmlEncode(alert.Name);
+        var encodedDescription = WebUtility.HtmlEncode(alert.Description);
+        var encodedSource = WebUtility.HtmlEncode(alert.Source);
+        
         return $@"
 <html>
 <body>
-    <h2 style='color: {GetSeverityColor(alert.Severity)};'>[{alert.Severity}] {alert.Name}</h2>
-    <p><strong>Description:</strong> {alert.Description}</p>
-    <p><strong>Source:</strong> {alert.Source}</p>
+    <h2 style='color: {GetSeverityColor(alert.Severity)};'>[{alert.Severity}] {encodedName}</h2>
+    <p><strong>Description:</strong> {encodedDescription}</p>
+    <p><strong>Source:</strong> {encodedSource}</p>
     <p><strong>Started At:</strong> {alert.StartsAt:yyyy-MM-dd HH:mm:ss UTC}</p>
     <p><strong>Status:</strong> {alert.Status}</p>
     <hr/>
