@@ -1122,8 +1122,10 @@
         {
             return System.Text.Json.JsonSerializer.Serialize(tags);
         }
-        catch
+        catch (System.Text.Json.JsonException ex)
         {
+            _ = LogService.LogErrorAsync("UploadMultiple", "Error serializing tags", 
+                ex.Message, userId: currentUserId, stackTrace: ex.StackTrace);
             return null;
         }
     }
@@ -1137,8 +1139,10 @@
         {
             return System.Text.Json.JsonSerializer.Serialize(metadata);
         }
-        catch
+        catch (System.Text.Json.JsonException ex)
         {
+            _ = LogService.LogErrorAsync("UploadMultiple", "Error serializing metadata", 
+                ex.Message, userId: currentUserId, stackTrace: ex.StackTrace);
             return null;
         }
     }
@@ -1181,6 +1185,7 @@
 
     public void Dispose()
     {
-        // Cleanup if needed
+        // No cleanup required - file processing is async and managed by the server
+        // This implements IDisposable for future extensibility if needed
     }
 }
