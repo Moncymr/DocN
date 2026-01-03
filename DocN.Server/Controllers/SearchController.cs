@@ -122,6 +122,10 @@ public class SearchController : ControllerBase
             var results = await _searchService.VectorSearchAsync(embedding, options);
             var elapsedTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
 
+            _logger.LogInformation(
+                "Vector search completed for query '{Query}' - Found {Count} results in {Time}ms (MinSimilarity: {MinSim}, UserId: {UserId})",
+                request.Query, results.Count, elapsedTime, options.MinSimilarity, request.UserId ?? "none");
+
             return Ok(new SearchResponse
             {
                 Query = request.Query,

@@ -168,7 +168,20 @@
                 <div class="empty-results">
                     <div class="empty-icon">🔍</div>
                     <h3>Nessun risultato trovato</h3>
-                    <p>Prova a modificare la query di ricerca o i filtri</p>
+                    @if (searchType == "vector")
+                    {
+                        <p>La ricerca vettoriale non ha trovato documenti con similarità >= @minSimilarity.ToString("P0")</p>
+                        <p>Suggerimenti:</p>
+                        <ul class="suggestions-list">
+                            <li>Riduci la soglia di similarità minima nei filtri avanzati</li>
+                            <li>Prova con la ricerca ibrida o testuale per risultati più ampi</li>
+                            <li>Verifica che i documenti siano stati elaborati con embedding</li>
+                        </ul>
+                    }
+                    else
+                    {
+                        <p>Prova a modificare la query di ricerca o i filtri</p>
+                    }
                 </div>
             }
         </div>
@@ -791,6 +804,27 @@
 
     .empty-results p {
         color: #666;
+    }
+
+    .suggestions-list {
+        list-style: none;
+        padding: 0;
+        margin: 1rem auto;
+        max-width: 500px;
+        text-align: left;
+    }
+
+    .suggestions-list li {
+        padding: 0.5rem 1rem;
+        margin: 0.5rem 0;
+        background: #f8f9fa;
+        border-radius: 8px;
+        color: #555;
+    }
+
+    .suggestions-list li:before {
+        content: "💡 ";
+        margin-right: 0.5rem;
     }
 
     .loading-state {
