@@ -60,7 +60,7 @@ public class DocumentsController : ControllerBase
     /// <summary>
     /// Ottiene lista completa di tutti i documenti ordinati per data upload (più recenti primi)
     /// </summary>
-    /// <returns>Lista documenti con tutti i metadati</returns>
+    /// <returns>Lista documenti con tutti i metadati eccetto i vettori embedding</returns>
     /// <response code="200">Ritorna la lista dei documenti (può essere vuota)</response>
     /// <response code="500">Errore interno del server durante recupero</response>
     /// <remarks>
@@ -70,19 +70,18 @@ public class DocumentsController : ControllerBase
     /// - Recupera TUTTI i documenti (anche senza embeddings generati)
     /// - Ordinamento decrescente per data upload
     /// - Include metadati: nome file, categoria, tag, dimensione, owner, etc.
+    /// - ESCLUDE vettori embedding per ottimizzazione performance
     /// 
     /// Output atteso:
     /// - Array JSON di oggetti Document
     /// - Ordinati da più recente a più vecchio
-    /// - Lista vuota [] se nessun documento presente
-    /// 
-    /// FIX IMPORTANTE:
-    /// - Versione corrente ritorna TUTTI i documenti indipendentemente da presenza embeddings
-    /// - Fix precedente: documenti senza vettori non venivano mostrati
+    /// - Lista vuota se nessun documento presente
+    /// - Vettori embedding esclusi (non necessari per visualizzazione lista)
     /// 
     /// Performance:
-    /// - Query ottimizzata con indice su UploadedAt
-    /// - Per grandi dataset (>10k documenti), considerare paginazione
+    /// - Query ottimizzata con proiezione per escludere embeddings (768-1536 floats per documento)
+    /// - Indice su UploadedAt per ordinamento veloce
+    /// - Per grandi dataset (oltre 10k documenti), considerare paginazione
     /// 
     /// TODO (futuro):
     /// - Aggiungere paginazione (page, pageSize)
@@ -96,13 +95,43 @@ public class DocumentsController : ControllerBase
     {
         try
         {
-            // KEY FIX: Return all documents regardless of whether Vector field is populated
-            // This addresses the issue where documents without vectors were not being shown
+            // PERFORMANCE FIX: Use projection to exclude embedding vectors which are not needed for list view
+            // This significantly reduces data transfer and improves query speed
+            // Embedding vectors (768 or 1536 floats per document) are only needed for semantic search, not for listing
             var documents = await _context.Documents
                 .OrderByDescending(d => d.UploadedAt)
+                .Select(d => new Document
+                {
+                    Id = d.Id,
+                    FileName = d.FileName,
+                    FilePath = d.FilePath,
+                    ContentType = d.ContentType,
+                    FileSize = d.FileSize,
+                    ExtractedText = d.ExtractedText,
+                    SuggestedCategory = d.SuggestedCategory,
+                    CategoryReasoning = d.CategoryReasoning,
+                    ActualCategory = d.ActualCategory,
+                    AITagsJson = d.AITagsJson,
+                    AIAnalysisDate = d.AIAnalysisDate,
+                    ExtractedMetadataJson = d.ExtractedMetadataJson,
+                    PageCount = d.PageCount,
+                    DetectedLanguage = d.DetectedLanguage,
+                    ProcessingStatus = d.ProcessingStatus,
+                    ProcessingError = d.ProcessingError,
+                    ChunkEmbeddingStatus = d.ChunkEmbeddingStatus,
+                    Notes = d.Notes,
+                    Visibility = d.Visibility,
+                    // Exclude EmbeddingVector768 and EmbeddingVector1536 - not needed for list view
+                    EmbeddingDimension = d.EmbeddingDimension,
+                    UploadedAt = d.UploadedAt,
+                    LastAccessedAt = d.LastAccessedAt,
+                    AccessCount = d.AccessCount,
+                    OwnerId = d.OwnerId,
+                    TenantId = d.TenantId
+                })
                 .ToListAsync();
 
-            _logger.LogInformation("Retrieved {Count} documents", documents.Count);
+            _logger.LogInformation("Retrieved {Count} documents (without embedding vectors for performance)", documents.Count);
             return Ok(documents);
         }
         catch (Exception ex)
@@ -135,7 +164,7 @@ public class DocumentsController : ControllerBase
     /// 
     /// Performance:
     /// - Query ottimizzata con ricerca per chiave primaria (molto veloce)
-    /// - Tipicamente <10ms
+    /// - Tipicamente meno di 10ms
     /// 
     /// Sicurezza:
     /// - TODO: Aggiungere controllo autorizzazione (solo owner o admin possono accedere)
