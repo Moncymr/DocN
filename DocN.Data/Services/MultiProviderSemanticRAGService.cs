@@ -258,6 +258,21 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
                 _logger.LogInformation(
                     "Similarity scores - Min: {Min:P1}, Max: {Max:P1}, Avg: {Avg:P1}, Threshold: {Threshold:P0}", 
                     allScores.Min(), allScores.Max(), allScores.Average(), minSimilarity);
+                
+                // Log top documents by score for debugging
+                var topDocs = documents
+                    .Select(d => new { Doc = d, Score = d.EmbeddingVector != null ? CalculateCosineSimilarity(queryEmbedding, d.EmbeddingVector) : 0 })
+                    .OrderByDescending(x => x.Score)
+                    .Take(5)
+                    .ToList();
+                
+                _logger.LogInformation("Top 5 documents by similarity score:");
+                foreach (var item in topDocs)
+                {
+                    _logger.LogInformation("  - '{FileName}' (ID:{DocId}): Score={Score:P1} {Status}",
+                        item.Doc.FileName, item.Doc.Id, item.Score, 
+                        item.Score >= minSimilarity ? "✓ ABOVE threshold" : "✗ below threshold");
+                }
             }
 
             _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
@@ -568,6 +583,21 @@ FORMATO DELLA RISPOSTA:
             
             _logger.LogInformation("Loaded {Count} total documents for user {UserId}", allUserDocuments.Count, userId);
             
+            // Log document details for debugging
+            if (allUserDocuments.Any())
+            {
+                foreach (var doc in allUserDocuments)
+                {
+                    var extractedTextPreview = doc.ExtractedText != null 
+                        ? (doc.ExtractedText.Length > 100 ? doc.ExtractedText.Substring(0, 100) + "..." : doc.ExtractedText)
+                        : "[NULL]";
+                    
+                    _logger.LogDebug(
+                        "Document {DocId}: FileName='{FileName}', Category='{Category}', ExtractedTextLength={TextLength}, ExtractedTextPreview='{Preview}'",
+                        doc.Id, doc.FileName, doc.ActualCategory ?? "[NULL]", doc.ExtractedText?.Length ?? 0, extractedTextPreview);
+                }
+            }
+            
             if (!allUserDocuments.Any())
             {
                 _logger.LogWarning("User {UserId} has no documents", userId);
@@ -627,16 +657,81 @@ FORMATO DELLA RISPOSTA:
                 // Solo keywords
                 _logger.LogInformation("Using keyword-only search for keywords: {Keywords}", string.Join(", ", keywords));
                 
+                // Log each document check for debugging
+                var matchResults = new List<string>();
+                
                 filteredDocuments = allUserDocuments.Where(d =>
-                    keywords.Any(kw =>
-                        d.FileName.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
-                        (d.ExtractedText != null && d.ExtractedText.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                        (d.ActualCategory != null && d.ActualCategory.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                        (d.SuggestedCategory != null && d.SuggestedCategory.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                        (d.Notes != null && d.Notes.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                        (d.AITagsJson != null && d.AITagsJson.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                        (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(kw, StringComparison.OrdinalIgnoreCase)))
-                ).ToList();
+                {
+                    var matches = new List<string>();
+                    bool hasMatch = false;
+                    
+                    foreach (var kw in keywords)
+                    {
+                        if (d.FileName.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add($"FileName matches '{kw}'");
+                            hasMatch = true;
+                        }
+                        if (d.ExtractedText != null && d.ExtractedText.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add($"ExtractedText matches '{kw}'");
+                            hasMatch = true;
+                        }
+                        if (d.ActualCategory != null && d.ActualCategory.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add($"ActualCategory matches '{kw}'");
+                            hasMatch = true;
+                        }
+                        if (d.SuggestedCategory != null && d.SuggestedCategory.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add($"SuggestedCategory matches '{kw}'");
+                            hasMatch = true;
+                        }
+                        if (d.Notes != null && d.Notes.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add($"Notes matches '{kw}'");
+                            hasMatch = true;
+                        }
+                        if (d.AITagsJson != null && d.AITagsJson.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add($"AITagsJson matches '{kw}'");
+                            hasMatch = true;
+                        }
+                        if (d.ExtractedMetadataJson != null && d.ExtractedMetadataJson.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matches.Add($"ExtractedMetadataJson matches '{kw}'");
+                            hasMatch = true;
+                        }
+                    }
+                    
+                    if (hasMatch)
+                    {
+                        matchResults.Add($"Document '{d.FileName}' (ID:{d.Id}): {string.Join(", ", matches)}");
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Document '{FileName}' (ID:{DocId}) - NO MATCH for keywords: {Keywords}", 
+                            d.FileName, d.Id, string.Join(", ", keywords));
+                    }
+                    
+                    return hasMatch;
+                }).ToList();
+                
+                // Log all matches found
+                if (matchResults.Any())
+                {
+                    _logger.LogInformation("Keyword search found {Count} matching documents:", matchResults.Count);
+                    foreach (var result in matchResults)
+                    {
+                        _logger.LogInformation("  - {Result}", result);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Keyword search found NO matching documents for keywords: {Keywords}", 
+                        string.Join(", ", keywords));
+                    _logger.LogInformation("Checked {DocCount} documents total", allUserDocuments.Count);
+                }
             }
             else
             {
