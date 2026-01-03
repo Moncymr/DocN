@@ -10,6 +10,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
+@implements IDisposable
 
 <PageTitle>Documents - DocN</PageTitle>
 
@@ -1475,6 +1476,10 @@
     // Details panel
     private bool showDetailsPanel = false;
     private Document? selectedDocument = null;
+    
+    // Auto-refresh for processing documents
+    private System.Threading.Timer? refreshTimer;
+    private bool hasProcessingDocuments = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1483,14 +1488,19 @@
         
         currentPage = Page > 0 ? Page : 1;
         await LoadDocuments();
+        
+        // Setup auto-refresh timer if there are processing documents
+        SetupAutoRefresh();
     }
 
     private async Task LoadDocuments()
     {
         isLoading = true;
         
-        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 1000); // Load all for filtering
-        totalDocuments = documents?.Count ?? 0;
+        // Load reasonable batch size instead of all 1000 documents
+        // This improves performance significantly
+        documents = await DocumentService.GetUserDocumentsAsync(currentUserId, 1, 200);
+        totalDocuments = await DocumentService.GetTotalDocumentCountAsync(currentUserId);
         
         // Extract unique categories
         if (documents != null)
@@ -1501,10 +1511,44 @@
                 .Distinct()
                 .OrderBy(c => c)
                 .ToList();
+            
+            // Check if any documents are still being processed
+            hasProcessingDocuments = documents.Any(d => 
+                d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending || 
+                d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing);
         }
         
         ApplyFilters();
         isLoading = false;
+    }
+    
+    private void SetupAutoRefresh()
+    {
+        // If there are documents being processed, setup auto-refresh every 10 seconds
+        if (hasProcessingDocuments)
+        {
+            refreshTimer?.Dispose();
+            refreshTimer = new System.Threading.Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadDocuments();
+                    StateHasChanged();
+                    
+                    // If no more processing documents, stop the timer
+                    if (!hasProcessingDocuments)
+                    {
+                        refreshTimer?.Dispose();
+                        refreshTimer = null;
+                    }
+                });
+            }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+        }
+    }
+    
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
     }
 
     private void ApplyFilters()
