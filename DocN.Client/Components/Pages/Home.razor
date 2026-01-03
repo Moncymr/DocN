@@ -229,25 +229,40 @@
                 
                 try
                 {
-                    // Load the actual document entity for updating
-                    var document = await DbContext.Documents
-                        .Where(d => d.Id == docInfo.Id)
-                        .FirstOrDefaultAsync();
-                    
-                    if (document == null)
-                    {
-                        Logger.LogWarning("Document {Id} not found, skipping", docInfo.Id);
-                        errorCount++;
-                        processedErrorCount++;
-                        continue;
-                    }
-                    
-                    // Regenerate embedding for document
+                    // Update the document's embedding directly using ExecuteUpdate to avoid loading vector columns
+                    // First, regenerate the embedding
                     var embedding = await EmbeddingService.GenerateEmbeddingAsync(docInfo.ExtractedText);
+                    
                     if (embedding != null)
                     {
-                        document.EmbeddingVector = embedding;
-                        document.EmbeddingDimension = embedding.Length; // Fix: Set embedding dimension
+                        // Determine which vector field to update based on dimension
+                        if (embedding.Length == 768)
+                        {
+                            await DbContext.Documents
+                                .Where(d => d.Id == docInfo.Id)
+                                .ExecuteUpdateAsync(setters => setters
+                                    .SetProperty(d => d.EmbeddingVector768, embedding)
+                                    .SetProperty(d => d.EmbeddingVector1536, (float[]?)null)
+                                    .SetProperty(d => d.EmbeddingDimension, 768));
+                        }
+                        else if (embedding.Length == 1536)
+                        {
+                            await DbContext.Documents
+                                .Where(d => d.Id == docInfo.Id)
+                                .ExecuteUpdateAsync(setters => setters
+                                    .SetProperty(d => d.EmbeddingVector768, (float[]?)null)
+                                    .SetProperty(d => d.EmbeddingVector1536, embedding)
+                                    .SetProperty(d => d.EmbeddingDimension, 1536));
+                        }
+                        else
+                        {
+                            Logger.LogWarning("Unsupported embedding dimension {Dimension} for document {Id}", 
+                                embedding.Length, docInfo.Id);
+                            errorCount++;
+                            processedErrorCount++;
+                            continue;
+                        }
+                        
                         successCount++;
                         processedSuccessCount++;
                     }
@@ -258,7 +273,7 @@
                         .ExecuteDeleteAsync();
 
                     // Create new chunks with embeddings
-                    var newChunks = ChunkingService.ChunkDocument(document);
+                    var newChunks = ChunkingService.ChunkDocument(docInfo);
                     int chunksEmbedded = 0;
                     foreach (var chunk in newChunks)
                     {
@@ -272,29 +287,35 @@
                         DbContext.DocumentChunks.Add(chunk);
                     }
 
-                    // Update chunk embedding status
+                    // Update chunk embedding status using ExecuteUpdate
+                    string newStatus;
                     if (newChunks.Count == 0)
                     {
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.NotRequired;
+                        newStatus = ChunkEmbeddingStatus.NotRequired;
                     }
                     else if (chunksEmbedded == newChunks.Count)
                     {
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Completed;
+                        newStatus = ChunkEmbeddingStatus.Completed;
                     }
                     else if (chunksEmbedded > 0)
                     {
                         // Some chunks have embeddings but not all - mark as pending for retry
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
+                        newStatus = ChunkEmbeddingStatus.Pending;
                     }
                     else
                     {
                         // No chunks have embeddings
-                        document.ChunkEmbeddingStatus = ChunkEmbeddingStatus.Pending;
+                        newStatus = ChunkEmbeddingStatus.Pending;
                     }
+                    
+                    await DbContext.Documents
+                        .Where(d => d.Id == docInfo.Id)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(d => d.ChunkEmbeddingStatus, newStatus));
 
                     await DbContext.SaveChangesAsync();
                     Logger.LogInformation("Recreated embeddings for document {Id}: {FileName} - {ChunksEmbedded}/{TotalChunks} chunks embedded", 
-                        document.Id, document.FileName, chunksEmbedded, newChunks.Count);
+                        docInfo.Id, docInfo.FileName, chunksEmbedded, newChunks.Count);
                 }
                 catch (Exception ex)
                 {
