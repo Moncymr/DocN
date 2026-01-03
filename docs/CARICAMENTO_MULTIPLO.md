@@ -209,7 +209,8 @@ Per problemi o domande:
 4. Contatta l'amministratore di sistema se i problemi persistono
 
 ## Vedi Anche
-- [Caricamento Singolo File](../DocN.Client/Components/Pages/Upload.razor)
-- [Gestione Documenti](../DocN.Client/Components/Pages/Documents.razor)
-- [Configurazione AI](../DocN.Client/Components/Pages/Config.razor)
-- [Ricerca Documenti](../DocN.Client/Components/Pages/Search.razor)
+- Caricamento Singolo File (pagina `/upload`)
+- Gestione Documenti (pagina `/documents`)
+- Configurazione AI (pagina `/config`)
+- Ricerca Documenti (pagina `/search`)
+- [Documentazione Completa](./README.md)

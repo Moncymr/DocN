@@ -212,7 +212,7 @@
                     <div class="files-progress-list">
                         @foreach (var status in fileStatuses)
                         {
-                            <div class="file-progress-item status-@status.Status.ToLower()">
+                            <div class="file-progress-item status-@status.StatusLower">
                                 <div class="file-progress-icon">
                                     @if (status.Status == "Processing")
                                     {
@@ -729,6 +729,14 @@
 </style>
 
 @code {
+    // Constants
+    private static readonly string[] DEFAULT_ALLOWED_EXTENSIONS = new[] 
+    { 
+        ".pdf", ".doc", ".docx", ".xlsx", ".xls", ".pptx", ".ppt", 
+        ".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", 
+        ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".gif", ".webp" 
+    };
+
     // Upload model
     private class UploadModel
     {
@@ -771,6 +779,9 @@
         public string Status { get; set; } = "Pending"; // Pending, Processing, Completed, Error
         public string StatusMessage { get; set; } = "In attesa...";
         public string? ErrorMessage { get; set; }
+        
+        private string? _statusLowerCache;
+        public string StatusLower => _statusLowerCache ??= Status.ToLower();
     }
 
     protected override async Task OnInitializedAsync()
@@ -790,7 +801,7 @@
         // Validate each file
         var maxSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
         var allowedExtensions = Configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>() 
-            ?? new[] { ".pdf", ".doc", ".docx", ".xlsx", ".xls", ".pptx", ".ppt", ".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".gif", ".webp" };
+            ?? DEFAULT_ALLOWED_EXTENSIONS;
 
         var invalidFiles = new List<string>();
         var validFiles = new List<IBrowserFile>();
@@ -913,13 +924,16 @@
             Dictionary<string, string>? extractedMetadata = null;
             int? pageCount = null;
             string? detectedLanguage = null;
+            
+            // Get max file size from configuration
+            var maxFileSize = Configuration.GetValue<int>("FileStorage:MaxFileSizeMB", 50) * 1024 * 1024;
 
             // Step 1: Save file
             var fileName = $"{Guid.NewGuid()}_{file.Name}";
             var filePath = Path.Combine(uploadPath, fileName);
             savedFilePath = filePath;
 
-            using (var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
+            using (var stream = file.OpenReadStream(maxAllowedSize: maxFileSize))
             {
                 using var fileStream = File.Create(filePath);
                 await stream.CopyToAsync(fileStream);
@@ -933,7 +947,7 @@
 
                 try
                 {
-                    using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                    using var stream = file.OpenReadStream(maxAllowedSize: maxFileSize);
                     var processingResult = await FileProcessingService.ProcessFileAsync(stream, file.Name, file.ContentType);
                     
                     if (processingResult.Success)
@@ -1151,7 +1165,7 @@
     private string GetAcceptedExtensions()
     {
         var extensions = Configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>() 
-            ?? new[] { ".pdf", ".doc", ".docx", ".xlsx", ".xls", ".pptx", ".ppt", ".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".gif", ".webp" };
+            ?? DEFAULT_ALLOWED_EXTENSIONS;
         return string.Join(",", extensions);
     }
 
