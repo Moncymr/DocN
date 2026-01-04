@@ -172,7 +172,7 @@ public class OllamaProvider : BaseAIProvider
             // Clean up potential JSON markers
             var cleanedResponse = CleanJsonResponse(jsonResponse);
 
-            var jsonDoc = JsonDocument.Parse(cleanedResponse);
+            using var jsonDoc = JsonDocument.Parse(cleanedResponse);
             var suggestions = new List<CategorySuggestion>();
 
             if (jsonDoc.RootElement.TryGetProperty("suggestions", out var suggestionsArray))
@@ -204,7 +204,7 @@ public class OllamaProvider : BaseAIProvider
             // Clean up potential JSON markers
             var cleanedResponse = CleanJsonResponse(jsonResponse);
 
-            var jsonDoc = JsonDocument.Parse(cleanedResponse);
+            using var jsonDoc = JsonDocument.Parse(cleanedResponse);
             var tags = new List<string>();
 
             if (jsonDoc.RootElement.TryGetProperty("tags", out var tagsArray))
@@ -235,7 +235,7 @@ public class OllamaProvider : BaseAIProvider
             // Clean up potential JSON markers
             var cleanedResponse = CleanJsonResponse(jsonResponse);
 
-            var jsonDoc = JsonDocument.Parse(cleanedResponse);
+            using var jsonDoc = JsonDocument.Parse(cleanedResponse);
             var metadata = new Dictionary<string, string>();
 
             foreach (var property in jsonDoc.RootElement.EnumerateObject())
