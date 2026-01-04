@@ -110,15 +110,18 @@ public class DocumentStatisticsService : IDocumentStatisticsService
             .CountAsync();
         
         // For documents in Pending status that don't have any chunks yet, estimate their chunks
-        // Average document has ~15 chunks, but we need to count documents without any chunks
+        // Average document has ~15 chunks based on typical PDF documents
+        const int ESTIMATED_CHUNKS_PER_DOCUMENT = 15; // Can be adjusted based on actual statistics
+        
+        // Note: This query uses a nested ANY which EF Core translates to NOT EXISTS in SQL
+        // Performance is acceptable for current scale. If needed, can be optimized with a LEFT JOIN approach.
         var documentsWithoutChunks = await _context.Documents
             .Where(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending &&
                        !_context.DocumentChunks.Any(c => c.DocumentId == d.Id))
             .CountAsync();
         
         // Add estimated chunks for documents that haven't been chunked yet
-        const int AVG_CHUNKS_PER_DOC = 15;
-        var estimatedPendingChunks = documentsWithoutChunks * AVG_CHUNKS_PER_DOC;
+        var estimatedPendingChunks = documentsWithoutChunks * ESTIMATED_CHUNKS_PER_DOCUMENT;
         var totalPendingChunks = pendingChunksCount + estimatedPendingChunks;
         
         // Calculate estimated processing time
