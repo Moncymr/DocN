@@ -82,20 +82,29 @@ public class BatchEmbeddingProcessor : BackgroundService
                     pendingWithoutText);
             }
             
-            // Find documents with Pending status that need chunks created
+            // Find documents that need chunks created
+            // Include both Pending documents AND Processing documents that have no chunks
+            // (Processing documents without chunks are likely stuck from a previous failed attempt)
             var pendingDocuments = await context.Documents
                 .Where(d => !string.IsNullOrEmpty(d.ExtractedText) && 
-                           d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending)
+                           (d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending ||
+                            (d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing &&
+                             !context.DocumentChunks.Any(c => c.DocumentId == d.Id))))
                 .Take(10) // Process 10 at a time to avoid overload
                 .ToListAsync(cancellationToken);
 
             if (!pendingDocuments.Any())
             {
-                _logger.LogDebug("No Pending documents found to process (this is normal if all docs are Processing or Completed)");
+                _logger.LogDebug("No documents found that need chunks created (this is normal if all docs are Processing with chunks or Completed)");
                 return;
             }
 
-            _logger.LogInformation("Processing {Count} documents with Pending status for chunk creation and embeddings", pendingDocuments.Count);
+            // Count how many are Pending vs Processing for better diagnostics
+            var pendingCount = pendingDocuments.Count(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Pending);
+            var processingCount = pendingDocuments.Count(d => d.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing);
+            
+            _logger.LogInformation("Processing {Count} documents for chunk creation and embeddings ({PendingCount} Pending, {ProcessingCount} Processing without chunks)", 
+                pendingDocuments.Count, pendingCount, processingCount);
 
             foreach (var document in pendingDocuments)
             {
@@ -104,6 +113,13 @@ public class BatchEmbeddingProcessor : BackgroundService
 
                 try
                 {
+                    // Log if this is a retry of a stuck Processing document
+                    if (document.ChunkEmbeddingStatus == ChunkEmbeddingStatus.Processing)
+                    {
+                        _logger.LogWarning("Retrying document {Id}: {FileName} - was stuck in Processing status without chunks", 
+                            document.Id, document.FileName);
+                    }
+                    
                     // Generate embedding for document only if it doesn't have one
                     if (document.EmbeddingVector == null && !string.IsNullOrWhiteSpace(document.ExtractedText))
                     {
