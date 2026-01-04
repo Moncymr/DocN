@@ -223,16 +223,16 @@ public class GroqProvider : BaseAIProvider
         // Remove markdown code blocks if present
         var cleaned = response.Trim();
         
-        if (cleaned.StartsWith("```json") && cleaned.Length > 7)
+        if (cleaned.StartsWith("```json") && cleaned.Length >= 7)
         {
             cleaned = cleaned.Substring(7);
         }
-        else if (cleaned.StartsWith("```") && cleaned.Length > 3)
+        else if (cleaned.StartsWith("```") && cleaned.Length >= 3)
         {
             cleaned = cleaned.Substring(3);
         }
         
-        if (cleaned.EndsWith("```") && cleaned.Length > 3)
+        if (cleaned.EndsWith("```") && cleaned.Length >= 3)
         {
             cleaned = cleaned.Substring(0, cleaned.Length - 3);
         }
