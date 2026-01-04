@@ -2,7 +2,14 @@
 -- DocN Database - Complete Creation Script V5
 -- Database: DocNDb  
 -- SQL Server 2025 con supporto VECTOR
--- Versione: 5.0 - Dicembre 2024
+-- Versione: 5.1 - Gennaio 2026
+-- ================================================
+-- CHANGELOG V5.1:
+-- • Aggiunto supporto Ollama (modelli AI locali)
+-- •  Aggiunto supporto Groq (API cloud veloce)
+-- • ProviderType aggiornato: 0=AzureOpenAI, 1=OpenAI, 2=Gemini, 3=Ollama, 4=Groq
+-- • Valori default per Ollama e Groq nella configurazione
+-- • Tutte le funzionalità V5 mantenute
 -- ================================================
 -- CHANGELOG V5:
 -- • Enhanced AuditLogs per GDPR/SOC2 compliance:
@@ -58,8 +65,8 @@ GO
 
 PRINT '';
 PRINT '================================================';
-PRINT '🚀 Inizio setup database DocNDb V5';
-PRINT '   (Con Agent System e Dual Vector Support)';
+PRINT '🚀 Inizio setup database DocNDb V5.1';
+PRINT '   (Con supporto Ollama e Groq)';
 PRINT '================================================';
 PRINT '';
 
@@ -535,7 +542,8 @@ BEGIN
         ConfigurationName NVARCHAR(100) NOT NULL,
         
         -- V3: Multi-provider configuration
-        ProviderType INT NOT NULL DEFAULT 1,  -- 1=Gemini, 2=OpenAI, 3=AzureOpenAI
+        -- ProviderType: 0=AzureOpenAI, 1=OpenAI, 2=Gemini, 3=Ollama, 4=Groq
+        ProviderType INT NOT NULL DEFAULT 1,
         ProviderEndpoint NVARCHAR(MAX) NULL,
         ProviderApiKey NVARCHAR(MAX) NULL,
         ChatModelName NVARCHAR(MAX) NULL,
@@ -565,6 +573,16 @@ BEGIN
         AzureOpenAIChatModel NVARCHAR(MAX) NULL,
         AzureOpenAIEmbeddingModel NVARCHAR(MAX) NULL,
         
+        -- Ollama Settings (Local AI)
+        OllamaEndpoint NVARCHAR(MAX) NULL,
+        OllamaChatModel NVARCHAR(MAX) NULL,
+        OllamaEmbeddingModel NVARCHAR(MAX) NULL,
+        
+        -- Groq Settings (Cloud API)
+        GroqApiKey NVARCHAR(MAX) NULL,
+        GroqChatModel NVARCHAR(MAX) NULL,
+        GroqEndpoint NVARCHAR(MAX) NULL,
+        
         -- Parametri RAG
         MaxDocumentsToRetrieve INT NOT NULL DEFAULT 5,
         SimilarityThreshold FLOAT NOT NULL DEFAULT 0.7,
@@ -591,7 +609,7 @@ BEGIN
     
     CREATE INDEX IX_AIConfigurations_IsActive ON AIConfigurations(IsActive);
     
-    PRINT '  ✓ AIConfigurations creata con supporto multi-provider';
+    PRINT '  ✓ AIConfigurations creata con supporto multi-provider (Gemini, OpenAI, Azure, Ollama, Groq)';
 END
 GO
 
@@ -1004,6 +1022,13 @@ BEGIN
         OpenAIEmbeddingModel,
         AzureOpenAIChatModel,
         AzureOpenAIEmbeddingModel,
+        -- Ollama defaults
+        OllamaEndpoint,
+        OllamaChatModel,
+        OllamaEmbeddingModel,
+        -- Groq defaults
+        GroqEndpoint,
+        GroqChatModel,
         -- V3: Chunking settings
         EnableChunking,
         ChunkSize,
@@ -1013,7 +1038,7 @@ BEGIN
     )
     VALUES (
         'Default Multi-Provider AI',
-        1,  -- Default to Gemini
+        1,  -- Default to Gemini (0=AzureOpenAI, 1=OpenAI, 2=Gemini, 3=Ollama, 4=Groq)
         5,
         0.7,
         8000,
@@ -1027,6 +1052,13 @@ BEGIN
         'text-embedding-ada-002',
         'gpt-4',
         'text-embedding-ada-002',
+        -- Ollama defaults
+        'http://localhost:11434',
+        'llama3',
+        'nomic-embed-text',
+        -- Groq defaults
+        'https://api.groq.com/openai/v1',
+        'llama-3.1-8b-instant',
         1,  -- Chunking enabled
         1000,  -- Chunk size
         200,  -- Chunk overlap
@@ -1034,7 +1066,7 @@ BEGIN
         1  -- Active
     );
     
-    PRINT '  ✓ Configurazione AI predefinita inserita con multi-provider support';
+    PRINT '  ✓ Configurazione AI predefinita inserita con multi-provider support (Gemini, OpenAI, Azure, Ollama, Groq)';
 END
 GO
 
