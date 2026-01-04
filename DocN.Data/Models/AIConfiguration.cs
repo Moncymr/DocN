@@ -7,7 +7,9 @@ public enum AIProviderType
 {
     Gemini = 1,
     OpenAI = 2,
-    AzureOpenAI = 3
+    AzureOpenAI = 3,
+    Ollama = 4,
+    Groq = 5
 }
 
 /// <summary>
@@ -61,6 +63,16 @@ public class AIConfiguration
     // Azure OpenAI Settings (additional fields)
     public string? AzureOpenAIChatModel { get; set; } = "gpt-4";
     public string? AzureOpenAIEmbeddingModel { get; set; } = "text-embedding-ada-002";
+    
+    // Ollama Settings (Local AI)
+    public string? OllamaEndpoint { get; set; } = "http://localhost:11434";
+    public string? OllamaChatModel { get; set; } = "llama3";
+    public string? OllamaEmbeddingModel { get; set; } = "nomic-embed-text";
+    
+    // Groq Settings (Cloud API)
+    public string? GroqApiKey { get; set; }
+    public string? GroqChatModel { get; set; } = "llama-3.1-8b-instant";
+    public string? GroqEndpoint { get; set; } = "https://api.groq.com/openai/v1";
     
     // RAG Configuration
     public int MaxDocumentsToRetrieve { get; set; } = 5;

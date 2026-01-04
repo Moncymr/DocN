@@ -18,5 +18,15 @@ public enum AIProviderType
     /// <summary>
     /// Google Gemini API
     /// </summary>
-    Gemini
+    Gemini,
+    
+    /// <summary>
+    /// Ollama (local AI models)
+    /// </summary>
+    Ollama,
+    
+    /// <summary>
+    /// Groq (fast cloud API)
+    /// </summary>
+    Groq
 }

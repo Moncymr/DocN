@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace DocN.Server.Controllers;
 
 /// <summary>
-/// Controller REST API per gestione configurazioni AI provider (Gemini, OpenAI, Azure OpenAI)
+/// Controller REST API per gestione configurazioni AI provider (Groq, Ollama, Gemini, OpenAI, Azure OpenAI)
 /// Permette CRUD configurazioni e test connettività provider
 /// </summary>
 /// <remarks>
@@ -27,6 +27,8 @@ namespace DocN.Server.Controllers;
 /// 1. Google Gemini (API key Gemini)
 /// 2. OpenAI (API key OpenAI)
 /// 3. Azure OpenAI (endpoint + API key Azure)
+/// 4. Ollama (endpoint locale, modelli locali)
+/// 5. Groq (API key Groq, cloud veloce)
 /// 
 /// Funzionalità chiave:
 /// - Test pre-salvataggio: Valida API key prima di salvare
@@ -73,7 +75,7 @@ public class ConfigController : ControllerBase
     /// 
     /// Processo:
     /// 1. Recupera configurazione attiva da database
-    /// 2. Per ogni provider configurato (Gemini, OpenAI, Azure):
+    /// 2. Per ogni provider configurato (Gemini, OpenAI, Azure, Ollama, Groq):
     ///    a. Verifica presenza API key/endpoint
     ///    b. Effettua chiamata test API (es. list models o embedding test)
     ///    c. Valida risposta e registra risultato
@@ -83,15 +85,17 @@ public class ConfigController : ControllerBase
     /// - Gemini: Chiama /models endpoint con API key
     /// - OpenAI: Chiama /models endpoint con Bearer token
     /// - Azure: Chiama endpoint deployment con API key header
+    /// - Ollama: Chiama /api/tags endpoint locale
+    /// - Groq: Chiama /models endpoint con Bearer token
     /// 
     /// Output atteso:
     /// - Success: true se almeno 1 provider funzionante
     /// - ProviderResults: Array con dettagli per ogni provider
-    ///   * ProviderName: "Gemini", "OpenAI", "Azure OpenAI"
-    ///   * IsConfigured: true se API key presente
+    ///   * ProviderName: "Gemini", "OpenAI", "Azure OpenAI", "Ollama", "Groq"
+    ///   * IsConfigured: true se API key/endpoint presente
     ///   * IsValid: true se test connessione riuscito
     ///   * Message: Dettagli esito (successo o errore)
-    ///   * ResponseTime: Latenza chiamata API
+    ///   * Services: Lista servizi configurati per il provider
     /// 
     /// Scenari:
     /// 1. Nessun provider configurato: 404 + messaggio guida
@@ -153,6 +157,20 @@ public class ConfigController : ControllerBase
             {
                 var azureResult = await TestAzureOpenAIProvider(config);
                 result.ProviderResults.Add(azureResult);
+            }
+
+            // Test Ollama provider if configured
+            if (!string.IsNullOrEmpty(config.OllamaEndpoint))
+            {
+                var ollamaResult = await TestOllamaProvider(config);
+                result.ProviderResults.Add(ollamaResult);
+            }
+
+            // Test Groq provider if configured
+            if (!string.IsNullOrEmpty(config.GroqApiKey))
+            {
+                var groqResult = await TestGroqProvider(config);
+                result.ProviderResults.Add(groqResult);
             }
 
             // Determine overall success
@@ -464,6 +482,187 @@ public class ConfigController : ControllerBase
         return result;
     }
 
+    private async Task<ProviderTestResult> TestOllamaProvider(AIConfiguration config)
+    {
+        var result = new ProviderTestResult
+        {
+            ProviderName = "Ollama (Local)",
+            ProviderType = AIProviderType.Ollama,
+            IsConfigured = true,
+            Services = new List<ServiceTestResult>()
+        };
+
+        try
+        {
+            // Test Ollama endpoint connectivity
+            var httpClient = _httpClientFactory.CreateClient("AI");
+            var endpoint = config.OllamaEndpoint?.TrimEnd('/') ?? "http://localhost:11434";
+            
+            // Test with tags endpoint to check if Ollama is running
+            var testUrl = $"{endpoint}/api/tags";
+            var response = await httpClient.GetAsync(testUrl);
+
+            if (response.IsSuccessStatusCode)
+            {
+                result.IsValid = true;
+                result.Message = "✅ Ollama in esecuzione";
+
+                // Test Chat service
+                if (config.ChatProvider == AIProviderType.Ollama)
+                {
+                    result.Services.Add(new ServiceTestResult
+                    {
+                        ServiceName = "Chat",
+                        Model = config.OllamaChatModel ?? "llama3",
+                        Status = "✅ Configurato",
+                        IsHealthy = true
+                    });
+                }
+
+                // Test Embeddings service
+                if (config.EmbeddingsProvider == AIProviderType.Ollama)
+                {
+                    result.Services.Add(new ServiceTestResult
+                    {
+                        ServiceName = "Embeddings",
+                        Model = config.OllamaEmbeddingModel ?? "nomic-embed-text",
+                        Status = "✅ Configurato",
+                        IsHealthy = true
+                    });
+                }
+
+                // Test Tag Extraction service
+                if (config.TagExtractionProvider == AIProviderType.Ollama)
+                {
+                    result.Services.Add(new ServiceTestResult
+                    {
+                        ServiceName = "Tag Extraction",
+                        Model = config.OllamaChatModel ?? "llama3",
+                        Status = "✅ Configurato",
+                        IsHealthy = true
+                    });
+                }
+
+                // Test RAG service
+                if (config.RAGProvider == AIProviderType.Ollama)
+                {
+                    result.Services.Add(new ServiceTestResult
+                    {
+                        ServiceName = "RAG",
+                        Model = config.OllamaChatModel ?? "llama3",
+                        Status = "✅ Configurato",
+                        IsHealthy = true
+                    });
+                }
+            }
+            else
+            {
+                result.IsValid = false;
+                result.Message = $"❌ Ollama non raggiungibile: {response.StatusCode}. Verifica che Ollama sia in esecuzione (ollama serve)";
+                _logger.LogWarning("Ollama test failed: {StatusCode}", response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            result.IsValid = false;
+            result.Message = $"❌ Errore di connessione a Ollama: {ex.Message}. Verifica che Ollama sia in esecuzione.";
+            _logger.LogError(ex, "Error testing Ollama provider");
+        }
+
+        return result;
+    }
+
+    private async Task<ProviderTestResult> TestGroqProvider(AIConfiguration config)
+    {
+        var result = new ProviderTestResult
+        {
+            ProviderName = "Groq Cloud",
+            ProviderType = AIProviderType.Groq,
+            IsConfigured = true,
+            Services = new List<ServiceTestResult>()
+        };
+
+        try
+        {
+            // Test Groq API key validity by listing models
+            var httpClient = _httpClientFactory.CreateClient("AI");
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {config.GroqApiKey}");
+
+            var endpoint = config.GroqEndpoint?.TrimEnd('/') ?? "https://api.groq.com/openai/v1";
+            var testUrl = $"{endpoint}/models";
+            var response = await httpClient.GetAsync(testUrl);
+
+            if (response.IsSuccessStatusCode)
+            {
+                result.IsValid = true;
+                result.Message = "✅ API Key valida";
+
+                // Test Chat service
+                if (config.ChatProvider == AIProviderType.Groq)
+                {
+                    result.Services.Add(new ServiceTestResult
+                    {
+                        ServiceName = "Chat",
+                        Model = config.GroqChatModel ?? "llama-3.1-8b-instant",
+                        Status = "✅ Configurato",
+                        IsHealthy = true
+                    });
+                }
+
+                // Note: Groq doesn't support embeddings
+                if (config.EmbeddingsProvider == AIProviderType.Groq)
+                {
+                    result.Services.Add(new ServiceTestResult
+                    {
+                        ServiceName = "Embeddings",
+                        Model = "N/A",
+                        Status = "⚠️ Groq non supporta embeddings",
+                        IsHealthy = false
+                    });
+                }
+
+                // Test Tag Extraction service
+                if (config.TagExtractionProvider == AIProviderType.Groq)
+                {
+                    result.Services.Add(new ServiceTestResult
+                    {
+                        ServiceName = "Tag Extraction",
+                        Model = config.GroqChatModel ?? "llama-3.1-8b-instant",
+                        Status = "✅ Configurato",
+                        IsHealthy = true
+                    });
+                }
+
+                // Test RAG service
+                if (config.RAGProvider == AIProviderType.Groq)
+                {
+                    result.Services.Add(new ServiceTestResult
+                    {
+                        ServiceName = "RAG",
+                        Model = config.GroqChatModel ?? "llama-3.1-8b-instant",
+                        Status = "✅ Configurato",
+                        IsHealthy = true
+                    });
+                }
+            }
+            else
+            {
+                result.IsValid = false;
+                var errorContent = await response.Content.ReadAsStringAsync();
+                result.Message = $"❌ API Key non valida: {response.StatusCode}";
+                _logger.LogWarning("Groq API test failed: {StatusCode} - {Error}", response.StatusCode, errorContent);
+            }
+        }
+        catch (Exception ex)
+        {
+            result.IsValid = false;
+            result.Message = $"❌ Errore di connessione: {ex.Message}";
+            _logger.LogError(ex, "Error testing Groq provider");
+        }
+
+        return result;
+    }
+
     /// <summary>
     /// Get the current active AI configuration
     /// </summary>
@@ -573,6 +772,8 @@ public class ConfigController : ControllerBase
                     HasGeminiKey = !string.IsNullOrWhiteSpace(c.GeminiApiKey),
                     HasOpenAIKey = !string.IsNullOrWhiteSpace(c.OpenAIApiKey),
                     HasAzureKey = !string.IsNullOrWhiteSpace(c.AzureOpenAIKey) && !string.IsNullOrWhiteSpace(c.AzureOpenAIEndpoint),
+                    HasOllamaEndpoint = !string.IsNullOrWhiteSpace(c.OllamaEndpoint),
+                    HasGroqKey = !string.IsNullOrWhiteSpace(c.GroqApiKey),
                     c.ProviderType,
                     SortOrder = c.IsActive ? 0 : 1
                 })
@@ -593,7 +794,9 @@ public class ConfigController : ControllerBase
                     updatedAt = activeConfig.UpdatedAt,
                     hasGeminiKey = activeConfig.HasGeminiKey,
                     hasOpenAIKey = activeConfig.HasOpenAIKey,
-                    hasAzureKey = activeConfig.HasAzureKey
+                    hasAzureKey = activeConfig.HasAzureKey,
+                    hasOllamaEndpoint = activeConfig.HasOllamaEndpoint,
+                    hasGroqKey = activeConfig.HasGroqKey
                 } : null,
                 multipleActiveWarning = multipleActive,
                 allConfigurations = allConfigs,

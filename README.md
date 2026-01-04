@@ -7,7 +7,7 @@ DocN è un sistema avanzato di gestione documentale enterprise con Retrieval-Aug
 ## ✨ Caratteristiche Principali
 
 ### 🤖 AI Multi-Provider
-- **Supporto Multi-Provider**: Gemini, OpenAI, Azure OpenAI
+- **Supporto Multi-Provider**: Groq, Ollama, Gemini, OpenAI, Azure OpenAI
 - **Configurazione Flessibile**: Assegnazione provider specifica per servizio (Chat, Embeddings, Tag Extraction, RAG)
 - **Fallback Automatico**: Ridondanza e alta disponibilità
 
@@ -78,6 +78,8 @@ DocN/
 - **ORM**: Entity Framework Core 10.0
 - **AI/ML**: 
   - Microsoft Semantic Kernel
+  - Groq (fast cloud API)
+  - Ollama (local AI models)
   - Google Gemini API
   - OpenAI API
   - Azure OpenAI
@@ -90,7 +92,7 @@ DocN/
 - .NET 10.0 SDK o superiore
 - SQL Server 2025 o Azure SQL Database
 - Visual Studio 2025 o VS Code
-- API keys per almeno un provider AI (Gemini, OpenAI, o Azure OpenAI)
+- API keys per almeno un provider AI (Groq, Gemini, OpenAI, o Azure OpenAI) OPPURE Ollama installato localmente
 
 ### Installazione
 
@@ -112,13 +114,29 @@ DocN/
 
 3. **Configurazione AI Providers**
    
-   **📘 Per una guida completa passo-passo in italiano, consulta: [GUIDA_CONFIGURAZIONE_GEMINI.md](GUIDA_CONFIGURAZIONE_GEMINI.md)**
+   **📘 Guide complete disponibili:**
+   - [GUIDA_GROQ.md](GUIDA_GROQ.md) - API cloud velocissima e gratuita (consigliato per iniziare)
+   - [GUIDA_OLLAMA_LOCALE.md](GUIDA_OLLAMA_LOCALE.md) - Installazione locale per privacy totale
+   - [GUIDA_OLLAMA_COLAB.md](GUIDA_OLLAMA_COLAB.md) - Ollama gratis su Google Colab
+   - [GUIDA_CONFIGURAZIONE_GEMINI.md](GUIDA_CONFIGURAZIONE_GEMINI.md) - Setup Gemini passo-passo
    
+   **Quick Start:**
    ```bash
    cd DocN.Server
    dotnet user-secrets init
-   dotnet user-secrets set "Gemini:ApiKey" "your-gemini-key"
-   dotnet user-secrets set "OpenAI:ApiKey" "your-openai-key"
+   
+   # Opzione 1: Groq (velocissimo, gratuito)
+   dotnet user-secrets set "AIProvider:DefaultProvider" "Groq"
+   dotnet user-secrets set "AIProvider:Groq:ApiKey" "gsk_your-groq-key"
+   
+   # Opzione 2: Ollama (locale, privacy totale)
+   # Modifica appsettings.json - vedi GUIDA_OLLAMA_LOCALE.md
+   
+   # Opzione 3: Gemini (buon bilanciamento)
+   dotnet user-secrets set "AIProvider:Gemini:ApiKey" "your-gemini-key"
+   
+   # Opzione 4: OpenAI
+   dotnet user-secrets set "AIProvider:OpenAI:ApiKey" "your-openai-key"
    ```
 
 4. **Avvio Applicazione**
@@ -214,6 +232,9 @@ DocN include un sistema completo di monitoring e alerting:
 - [**PROSSIME_FASI.md**](PROSSIME_FASI.md) - 🚀 Prossime Fasi di Sviluppo (Quick Reference)
 
 ### Guide Rapide
+- [**GUIDA_GROQ.md**](GUIDA_GROQ.md) - 🚀 API cloud velocissima e gratuita (NUOVO!)
+- [**GUIDA_OLLAMA_LOCALE.md**](GUIDA_OLLAMA_LOCALE.md) - 💻 Installazione Ollama locale (NUOVO!)
+- [**GUIDA_OLLAMA_COLAB.md**](GUIDA_OLLAMA_COLAB.md) - ☁️ Ollama gratis su Google Colab (NUOVO!)
 - [**GUIDA_CONFIGURAZIONE_GEMINI.md**](GUIDA_CONFIGURAZIONE_GEMINI.md) - 🇮🇹 Guida completa configurazione Gemini (italiano)
 - [**docs/EMBEDDING_QUEUE_MONITORING.md**](docs/EMBEDDING_QUEUE_MONITORING.md) - 🇮🇹 Monitoraggio coda embeddings e troubleshooting
 - [**docs/ALERTING_RUNBOOK.md**](docs/ALERTING_RUNBOOK.md) - 🚨 Runbook gestione alert e monitoring
@@ -257,11 +278,26 @@ Costruisci una knowledge base organizzativa con ricerca semantica e accesso cont
 ### Configurazione AI Providers
 
 Accedi a `/config` nell'applicazione per configurare:
-- Provider AI (Gemini, OpenAI, Azure OpenAI)
+- Provider AI (Groq, Ollama, Gemini, OpenAI, Azure OpenAI)
 - Modelli per Chat, Embeddings, Tag Extraction
 - Parametri RAG (similarity threshold, max documents)
 - Chunking configuration
 - Fallback automatico
+
+**🚀 Groq (Cloud - Consigliato per Iniziare):**
+- Registrati su: https://console.groq.com
+- Ottieni API key gratuita
+- Velocità: 10x più veloce di OpenAI
+- Tier gratuito: 14,400 richieste/giorno
+- Guida completa: [GUIDA_GROQ.md](GUIDA_GROQ.md)
+
+**💻 Ollama (Locale - Privacy Totale):**
+- Installazione locale: [GUIDA_OLLAMA_LOCALE.md](GUIDA_OLLAMA_LOCALE.md)
+- Google Colab gratis: [GUIDA_OLLAMA_COLAB.md](GUIDA_OLLAMA_COLAB.md)
+- Installare Ollama: https://ollama.ai
+- Avviare Ollama: `ollama serve`
+- Scaricare modelli: `ollama pull llama3` e `ollama pull nomic-embed-text`
+- Configurare endpoint in appsettings.json (default: http://localhost:11434)
 
 **📚 Per capire come funziona l'inizializzazione del provider RAG, consulta:**
 [**RAG_PROVIDER_INITIALIZATION_GUIDE.md**](RAG_PROVIDER_INITIALIZATION_GUIDE.md) - Guida completa che spiega dove e come viene inizializzato il provider RAG per i tuoi documenti.
@@ -335,6 +371,8 @@ Questo progetto è distribuito sotto licenza MIT. Vedi file `LICENSE` per dettag
 - **Microsoft Semantic Kernel**: Orchestrazione AI
 - **Tesseract OCR**: Estrazione testo da immagini
 - **SQL Server 2025**: Supporto vettori nativi
+- **Groq**: API cloud velocissima per inferenza
+- **Ollama**: Modelli AI locali
 - **Gemini AI**: Embeddings e chat di Google
 - **OpenAI**: GPT models e embeddings
 - **Azure OpenAI**: Enterprise AI services
