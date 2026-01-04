@@ -13,7 +13,7 @@
 <div class="config-container">
     <div class="config-header">
         <h2>⚙️ Configurazione AI Multi-Provider</h2>
-        <p class="description">Configura i provider AI (Gemini, OpenAI, Azure OpenAI) per i diversi servizi</p>
+        <p class="description">Configura i provider AI (Groq, Ollama, Gemini, OpenAI, Azure OpenAI) per i diversi servizi</p>
     </div>
 
     @if (config == null)
@@ -46,6 +46,8 @@
                             <option value="1">Gemini</option>
                             <option value="2">OpenAI</option>
                             <option value="3">Azure OpenAI</option>
+                            <option value="4">Ollama (Local)</option>
+                            <option value="5">Groq (Cloud)</option>
                         </select>
                         <small>Per conversazioni e analisi categoria</small>
                     </div>
@@ -57,8 +59,9 @@
                             <option value="1">Gemini</option>
                             <option value="2">OpenAI</option>
                             <option value="3">Azure OpenAI</option>
+                            <option value="4">Ollama (Local)</option>
                         </select>
-                        <small>Per ricerca semantica</small>
+                        <small>Per ricerca semantica (Groq non supportato)</small>
                     </div>
 
                     <div class="form-group">
@@ -68,6 +71,8 @@
                             <option value="1">Gemini</option>
                             <option value="2">OpenAI</option>
                             <option value="3">Azure OpenAI</option>
+                            <option value="4">Ollama (Local)</option>
+                            <option value="5">Groq (Cloud)</option>
                         </select>
                         <small>Per estrazione automatica tag</small>
                     </div>
@@ -79,6 +84,8 @@
                             <option value="1">Gemini</option>
                             <option value="2">OpenAI</option>
                             <option value="3">Azure OpenAI</option>
+                            <option value="4">Ollama (Local)</option>
+                            <option value="5">Groq (Cloud)</option>
                         </select>
                         <small>Per chat con documenti</small>
                     </div>
@@ -175,6 +182,66 @@
                         <label>Embedding Model</label>
                         <InputText @bind-Value="config.AzureOpenAIEmbeddingModel" class="form-control" placeholder="text-embedding-ada-002" />
                     </div>
+                </div>
+            </div>
+
+            <!-- Ollama Configuration -->
+            <div class="config-card provider-card">
+                <div class="provider-header">
+                    <h3>💻 Ollama Configuration</h3>
+                    <span class="provider-badge ollama">Ollama (Local)</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label>Ollama Endpoint</label>
+                        <InputText @bind-Value="config.OllamaEndpoint" class="form-control" placeholder="http://localhost:11434" />
+                        <small>Endpoint del server Ollama locale o remoto</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Chat Model</label>
+                        <InputText @bind-Value="config.OllamaChatModel" class="form-control" placeholder="llama3" />
+                        <small>Modello per chat (es: llama3, mistral, gemma)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Embedding Model</label>
+                        <InputText @bind-Value="config.OllamaEmbeddingModel" class="form-control" placeholder="nomic-embed-text" />
+                        <small>Modello per embeddings (es: nomic-embed-text)</small>
+                    </div>
+                </div>
+                <div class="provider-info">
+                    <small>ℹ️ Ollama deve essere in esecuzione localmente. Guida: <a href="https://github.com/Moncymr/DocN/blob/main/GUIDA_OLLAMA_LOCALE.md" target="_blank">GUIDA_OLLAMA_LOCALE.md</a></small>
+                </div>
+            </div>
+
+            <!-- Groq Configuration -->
+            <div class="config-card provider-card">
+                <div class="provider-header">
+                    <h3>⚡ Groq Configuration</h3>
+                    <span class="provider-badge groq">Groq Cloud</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label>Groq API Key</label>
+                        <InputText type="password" @bind-Value="config.GroqApiKey" class="form-control" placeholder="gsk_..." />
+                        <small>Ottieni la key gratuita da <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Chat Model</label>
+                        <InputText @bind-Value="config.GroqChatModel" class="form-control" placeholder="llama-3.1-8b-instant" />
+                        <small>Modello per chat (es: llama-3.1-8b-instant, mixtral-8x7b)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Groq Endpoint</label>
+                        <InputText @bind-Value="config.GroqEndpoint" class="form-control" placeholder="https://api.groq.com/openai/v1" />
+                        <small>Endpoint API Groq (solitamente non serve cambiare)</small>
+                    </div>
+                </div>
+                <div class="provider-info warning">
+                    <small>⚠️ Groq non supporta embeddings. Usa Gemini, OpenAI, o Ollama per embeddings.</small>
                 </div>
             </div>
             <!-- RAG Configuration -->
@@ -445,6 +512,36 @@
 
     .provider-badge.azure {
         background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    }
+
+    .provider-badge.ollama {
+        background: linear-gradient(135deg, #6b46c1 0%, #553c9a 100%);
+    }
+
+    .provider-badge.groq {
+        background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+    }
+
+    .provider-info {
+        margin-top: 1rem;
+        padding: 0.75rem 1rem;
+        background: #edf2f7;
+        border-left: 3px solid #4299e1;
+        border-radius: 4px;
+    }
+
+    .provider-info.warning {
+        background: #fef5e7;
+        border-left-color: #f39c12;
+    }
+
+    .provider-info a {
+        color: #3182ce;
+        text-decoration: underline;
+    }
+
+    .provider-info a:hover {
+        color: #2c5282;
     }
 
     .form-grid {
@@ -839,7 +936,14 @@
                 OpenAIChatModel = "gpt-4",
                 OpenAIEmbeddingModel = "text-embedding-ada-002",
                 AzureOpenAIChatModel = "gpt-4",
-                AzureOpenAIEmbeddingModel = "text-embedding-ada-002"
+                AzureOpenAIEmbeddingModel = "text-embedding-ada-002",
+                // Ollama defaults
+                OllamaEndpoint = "http://localhost:11434",
+                OllamaChatModel = "llama3",
+                OllamaEmbeddingModel = "nomic-embed-text",
+                // Groq defaults
+                GroqEndpoint = "https://api.groq.com/openai/v1",
+                GroqChatModel = "llama-3.1-8b-instant"
             };
         }
 
