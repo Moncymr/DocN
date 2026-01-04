@@ -90,6 +90,31 @@ public class AIProviderFactoryTests
     }
 
     [Fact]
+    public void CreateProvider_WithOllama_ReturnsOllamaProvider()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configuration = CreateTestConfiguration(AIProviderType.Ollama);
+        
+        services.AddSingleton(Options.Create(configuration));
+        services.AddSingleton<ILogger<OllamaProvider>>(new LoggerFactory().CreateLogger<OllamaProvider>());
+        services.AddTransient<OllamaProvider>();
+        services.AddSingleton<IAIProviderFactory, AIProviderFactory>();
+        
+        var serviceProvider = services.BuildServiceProvider();
+        var factory = serviceProvider.GetRequiredService<IAIProviderFactory>();
+        
+        // Act
+        var provider = factory.CreateProvider(AIProviderType.Ollama);
+        
+        // Assert
+        Assert.NotNull(provider);
+        Assert.IsType<OllamaProvider>(provider);
+        Assert.Equal(AIProviderType.Ollama, provider.ProviderType);
+        Assert.Equal("Ollama", provider.ProviderName);
+    }
+
+    [Fact]
     public void GetDefaultProvider_ReturnsConfiguredDefaultProvider()
     {
         // Arrange
@@ -136,6 +161,12 @@ public class AIProviderFactoryTests
                 ApiKey = "test-gemini-key",
                 EmbeddingModel = "text-embedding-004",
                 GenerationModel = "gemini-1.5-pro"
+            },
+            Ollama = new OllamaConfiguration
+            {
+                Endpoint = "http://localhost:11434",
+                EmbeddingModel = "nomic-embed-text",
+                ChatModel = "llama3"
             }
         };
     }

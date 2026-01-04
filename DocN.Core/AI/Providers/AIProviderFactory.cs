@@ -29,6 +29,7 @@ public class AIProviderFactory : IAIProviderFactory
             AIProviderType.AzureOpenAI => _serviceProvider.GetRequiredService<AzureOpenAIProvider>(),
             AIProviderType.OpenAI => _serviceProvider.GetRequiredService<OpenAIProvider>(),
             AIProviderType.Gemini => _serviceProvider.GetRequiredService<GeminiProvider>(),
+            AIProviderType.Ollama => _serviceProvider.GetRequiredService<OllamaProvider>(),
             _ => throw new ArgumentException($"Provider type {providerType} not supported", nameof(providerType))
         };
     }

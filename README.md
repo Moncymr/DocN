@@ -7,7 +7,7 @@ DocN è un sistema avanzato di gestione documentale enterprise con Retrieval-Aug
 ## ✨ Caratteristiche Principali
 
 ### 🤖 AI Multi-Provider
-- **Supporto Multi-Provider**: Gemini, OpenAI, Azure OpenAI
+- **Supporto Multi-Provider**: Ollama, Gemini, OpenAI, Azure OpenAI
 - **Configurazione Flessibile**: Assegnazione provider specifica per servizio (Chat, Embeddings, Tag Extraction, RAG)
 - **Fallback Automatico**: Ridondanza e alta disponibilità
 
@@ -78,6 +78,7 @@ DocN/
 - **ORM**: Entity Framework Core 10.0
 - **AI/ML**: 
   - Microsoft Semantic Kernel
+  - Ollama (local AI models)
   - Google Gemini API
   - OpenAI API
   - Azure OpenAI
@@ -117,7 +118,10 @@ DocN/
    ```bash
    cd DocN.Server
    dotnet user-secrets init
+   # Per Ollama (modelli locali) - modifica appsettings.json con endpoint locale
+   # Per Gemini
    dotnet user-secrets set "Gemini:ApiKey" "your-gemini-key"
+   # Per OpenAI
    dotnet user-secrets set "OpenAI:ApiKey" "your-openai-key"
    ```
 
@@ -223,11 +227,17 @@ Costruisci una knowledge base organizzativa con ricerca semantica e accesso cont
 ### Configurazione AI Providers
 
 Accedi a `/config` nell'applicazione per configurare:
-- Provider AI (Gemini, OpenAI, Azure OpenAI)
+- Provider AI (Ollama, Gemini, OpenAI, Azure OpenAI)
 - Modelli per Chat, Embeddings, Tag Extraction
 - Parametri RAG (similarity threshold, max documents)
 - Chunking configuration
 - Fallback automatico
+
+**Ollama (Modelli Locali):**
+- Installare Ollama: https://ollama.ai
+- Avviare Ollama: `ollama serve`
+- Scaricare modelli: `ollama pull llama3` e `ollama pull nomic-embed-text`
+- Configurare endpoint in appsettings.json (default: http://localhost:11434)
 
 **📚 Per capire come funziona l'inizializzazione del provider RAG, consulta:**
 [**RAG_PROVIDER_INITIALIZATION_GUIDE.md**](RAG_PROVIDER_INITIALIZATION_GUIDE.md) - Guida completa che spiega dove e come viene inizializzato il provider RAG per i tuoi documenti.
@@ -301,6 +311,7 @@ Questo progetto è distribuito sotto licenza MIT. Vedi file `LICENSE` per dettag
 - **Microsoft Semantic Kernel**: Orchestrazione AI
 - **Tesseract OCR**: Estrazione testo da immagini
 - **SQL Server 2025**: Supporto vettori nativi
+- **Ollama**: Modelli AI locali
 - **Gemini AI**: Embeddings e chat di Google
 - **OpenAI**: GPT models e embeddings
 - **Azure OpenAI**: Enterprise AI services

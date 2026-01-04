@@ -29,6 +29,7 @@ public static class AIServiceExtensions
         services.AddTransient<AzureOpenAIProvider>();
         services.AddTransient<OpenAIProvider>();
         services.AddTransient<GeminiProvider>();
+        services.AddTransient<OllamaProvider>();
 
         // Registra la factory come singleton
         services.AddSingleton<IAIProviderFactory, AIProviderFactory>();

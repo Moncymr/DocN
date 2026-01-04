@@ -26,6 +26,11 @@ public class AIProviderConfiguration
     /// Configurazione Google Gemini
     /// </summary>
     public GeminiConfiguration? Gemini { get; set; }
+    
+    /// <summary>
+    /// Configurazione Ollama
+    /// </summary>
+    public OllamaConfiguration? Ollama { get; set; }
 }
 
 /// <summary>
@@ -109,4 +114,25 @@ public class GeminiConfiguration
     /// Endpoint API (opzionale, default usa endpoint Google)
     /// </summary>
     public string? ApiEndpoint { get; set; }
+}
+
+/// <summary>
+/// Configurazione per Ollama
+/// </summary>
+public class OllamaConfiguration
+{
+    /// <summary>
+    /// Endpoint Ollama (default: http://localhost:11434)
+    /// </summary>
+    public string Endpoint { get; set; } = "http://localhost:11434";
+    
+    /// <summary>
+    /// Modello per embeddings
+    /// </summary>
+    public string EmbeddingModel { get; set; } = "nomic-embed-text";
+    
+    /// <summary>
+    /// Modello per chat/completion
+    /// </summary>
+    public string ChatModel { get; set; } = "llama3";
 }
