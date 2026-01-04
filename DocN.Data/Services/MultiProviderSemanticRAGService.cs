@@ -209,158 +209,360 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
                 return new List<RelevantDocumentResult>();
             }
 
-            // Get all documents with embeddings for the user
-            // Note: EmbeddingVector is a computed property, so we check the actual DB fields
-            var documents = await _context.Documents
-                .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
-                .ToListAsync();
-
-            _logger.LogInformation("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
-
-            if (!documents.Any())
-            {
-                _logger.LogWarning("No documents with embeddings found for user {UserId}. User needs to upload documents or wait for embeddings to be generated.", userId);
-                
-                // Check if user has ANY documents (even without embeddings)
-                var totalDocs = await _context.Documents
-                    .Where(d => d.OwnerId == userId)
-                    .CountAsync();
-                    
-                if (totalDocs > 0)
-                {
-                    _logger.LogWarning("User {UserId} has {TotalDocs} documents but NONE have embeddings generated. Documents need to be processed.", userId, totalDocs);
-                }
-                
-                return new List<RelevantDocumentResult>();
-            }
-
-            // Calculate similarity scores for documents
-            var scoredDocs = new List<(Document doc, double score)>();
-            var allScores = new List<double>(); // Track all scores for diagnostics
+            // Check if we're using SQL Server (vs in-memory database for testing)
+            var isSqlServer = _context.Database.IsSqlServer();
             
-            foreach (var doc in documents)
+            if (!isSqlServer)
             {
-                if (doc.EmbeddingVector == null) continue;
+                _logger.LogDebug("Not using SQL Server, falling back to full in-memory search");
+                return await SearchDocumentsInMemoryAsync(queryEmbedding, userId, topK, minSimilarity);
+            }
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
-                allScores.Add(similarity);
+            // Try to use SQL Server VECTOR_DISTANCE if available (SQL Server 2025+)
+            try
+            {
+                return await SearchWithVectorDistanceAsync(queryEmbedding, userId, topK, minSimilarity);
+            }
+            catch (Microsoft.Data.SqlClient.SqlException sqlEx)
+            {
+                // Check if error is due to VECTOR type not being supported (older SQL Server version)
+                // SQL error numbers indicating VECTOR support is not available:
+                // - 207: Invalid column name (VECTOR columns don't exist in schema)
+                // - 8116: Argument data type is invalid for argument (VECTOR type not recognized)
+                bool isVectorNotSupported = sqlEx.Number == 207 || sqlEx.Number == 8116 || sqlEx.Number == 102;
                 
-                if (similarity >= minSimilarity)
+                if (isVectorNotSupported)
                 {
-                    scoredDocs.Add((doc, similarity));
-                    _logger.LogDebug("Document {FileName} (ID: {DocId}) matched with similarity {Score:P1}", 
-                        doc.FileName, doc.Id, similarity);
+                    _logger.LogInformation(
+                        "SQL Server VECTOR_DISTANCE not available (SQL error {ErrorNumber}). " +
+                        "This requires SQL Server 2025+. Falling back to optimized in-memory calculation.",
+                        sqlEx.Number);
                 }
-            }
-
-            // Log diagnostic info about scores
-            if (allScores.Any())
-            {
-                _logger.LogInformation(
-                    "Similarity scores - Min: {Min:P1}, Max: {Max:P1}, Avg: {Avg:P1}, Threshold: {Threshold:P0}", 
-                    allScores.Min(), allScores.Max(), allScores.Average(), minSimilarity);
+                else
+                {
+                    _logger.LogWarning(sqlEx, "SQL error during VECTOR_DISTANCE search (error {ErrorNumber}), falling back to in-memory calculation", 
+                        sqlEx.Number);
+                }
                 
-                // Log top documents by score for debugging
-                var topDocs = documents
-                    .Select(d => new { Doc = d, Score = d.EmbeddingVector != null ? CalculateCosineSimilarity(queryEmbedding, d.EmbeddingVector) : 0 })
-                    .OrderByDescending(x => x.Score)
-                    .Take(5)
-                    .ToList();
-                
-                _logger.LogInformation("Top 5 documents by similarity score:");
-                foreach (var item in topDocs)
-                {
-                    _logger.LogInformation("  - '{FileName}' (ID:{DocId}): Score={Score:P1} {Status}",
-                        item.Doc.FileName, item.Doc.Id, item.Score, 
-                        item.Score >= minSimilarity ? "✓ ABOVE threshold" : "✗ below threshold");
-                }
+                // Fallback to in-memory calculation
+                return await SearchDocumentsInMemoryAsync(queryEmbedding, userId, topK, minSimilarity);
             }
-
-            _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
-
-            // Get chunks for better precision
-            // Note: ChunkEmbedding is a computed property, so we check the actual DB fields
-            var chunks = await _context.DocumentChunks
-                .Include(c => c.Document)
-                .Where(c => c.Document!.OwnerId == userId && (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
-                .ToListAsync();
-
-            _logger.LogInformation("Found {Count} chunks with embeddings for user {UserId}", chunks.Count, userId);
-
-            var scoredChunks = new List<(DocumentChunk chunk, double score)>();
-            foreach (var chunk in chunks)
+            catch (Exception ex)
             {
-                if (chunk.ChunkEmbedding == null) continue;
-
-                var similarity = CalculateCosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
-                if (similarity >= minSimilarity)
-                {
-                    scoredChunks.Add((chunk, similarity));
-                }
+                _logger.LogError(ex, "Unexpected error during SQL vector search, falling back to in-memory calculation");
+                return await SearchDocumentsInMemoryAsync(queryEmbedding, userId, topK, minSimilarity);
             }
-
-            _logger.LogInformation("Found {Count} chunks above similarity threshold {Threshold:P0}", scoredChunks.Count, minSimilarity);
-
-            // Combine document-level and chunk-level results
-            var results = new List<RelevantDocumentResult>();
-
-            // Add chunk-based results (higher priority)
-            var topChunks = scoredChunks.OrderByDescending(x => x.score).Take(topK).ToList();
-            var existingDocIds = new HashSet<int>();
-
-            foreach (var (chunk, score) in topChunks)
-            {
-                if (chunk.Document == null) continue;
-
-                results.Add(new RelevantDocumentResult
-                {
-                    DocumentId = chunk.DocumentId,
-                    FileName = chunk.Document.FileName,
-                    Category = chunk.Document.ActualCategory,
-                    SimilarityScore = score,
-                    RelevantChunk = chunk.ChunkText,
-                    ChunkIndex = chunk.ChunkIndex
-                });
-                existingDocIds.Add(chunk.DocumentId);
-            }
-
-            // Add document-level results if we don't have enough chunks
-            if (results.Count < topK)
-            {
-                foreach (var (doc, score) in scoredDocs.OrderByDescending(x => x.score))
-                {
-                    if (results.Count >= topK)
-                        break;
-
-                    if (existingDocIds.Contains(doc.Id))
-                        continue;
-
-                    results.Add(new RelevantDocumentResult
-                    {
-                        DocumentId = doc.Id,
-                        FileName = doc.FileName,
-                        Category = doc.ActualCategory,
-                        SimilarityScore = score,
-                        ExtractedText = doc.ExtractedText
-                    });
-                    existingDocIds.Add(doc.Id);
-                }
-            }
-
-            _logger.LogInformation("Returning {Count} total results (threshold: {Threshold:P0})", results.Count, minSimilarity);
-
-            if (!results.Any())
-            {
-                _logger.LogWarning("No documents matched the similarity threshold of {Threshold:P0}. Consider lowering the threshold or checking if document embeddings are compatible with query embeddings.", minSimilarity);
-            }
-
-            return results;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching documents with embedding for user: {UserId}", userId);
+            _logger.LogError(ex, "Error searching documents with embedding");
             return new List<RelevantDocumentResult>();
         }
+    }
+
+    /// <summary>
+    /// SQL-optimized vector search using VECTOR_DISTANCE function (SQL Server 2025+)
+    /// </summary>
+    private async Task<List<RelevantDocumentResult>> SearchWithVectorDistanceAsync(
+        float[] queryEmbedding,
+        string userId,
+        int topK = 10,
+        double minSimilarity = 0.7)
+    {
+        // Determine which vector field to use based on embedding dimension
+        var embeddingDimension = queryEmbedding.Length;
+        string docVectorColumn;
+        string chunkVectorColumn;
+        
+        // Use whitelist approach for security - only allow known valid column names
+        if (embeddingDimension == 768)
+        {
+            docVectorColumn = "EmbeddingVector768";
+            chunkVectorColumn = "ChunkEmbedding768";
+        }
+        else if (embeddingDimension == 1536)
+        {
+            docVectorColumn = "EmbeddingVector1536";
+            chunkVectorColumn = "ChunkEmbedding1536";
+        }
+        else
+        {
+            throw new ArgumentException(
+                $"Unsupported embedding dimension: {embeddingDimension}. " +
+                $"Expected 768 or 1536.");
+        }
+        
+        // Serialize query embedding to JSON format (required for VECTOR type)
+        var embeddingJson = System.Text.Json.JsonSerializer.Serialize(queryEmbedding);
+
+        // Use raw SQL with VECTOR_DISTANCE function for document-level and chunk-level search
+        // Note: This requires SQL Server 2025 with VECTOR type support
+        var sql = $@"
+            WITH DocumentScores AS (
+                SELECT TOP (@topK)
+                    d.Id,
+                    d.FileName,
+                    d.ActualCategory,
+                    d.ExtractedText,
+                    CAST(VECTOR_DISTANCE('cosine', d.{docVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) AS FLOAT) AS SimilarityScore
+                FROM Documents d
+                WHERE d.OwnerId = @userId
+                    AND d.{docVectorColumn} IS NOT NULL
+                    AND VECTOR_DISTANCE('cosine', d.{docVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) >= @minSimilarity
+                ORDER BY SimilarityScore DESC
+            ),
+            ChunkScores AS (
+                SELECT TOP (@topK)
+                    dc.DocumentId AS Id,
+                    d.FileName,
+                    d.ActualCategory,
+                    dc.ChunkText,
+                    dc.ChunkIndex,
+                    CAST(VECTOR_DISTANCE('cosine', dc.{chunkVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) AS FLOAT) AS SimilarityScore
+                FROM DocumentChunks dc
+                INNER JOIN Documents d ON dc.DocumentId = d.Id
+                WHERE d.OwnerId = @userId
+                    AND dc.{chunkVectorColumn} IS NOT NULL
+                    AND VECTOR_DISTANCE('cosine', dc.{chunkVectorColumn}, CAST(@queryEmbedding AS VECTOR({embeddingDimension}))) >= @minSimilarity
+                ORDER BY SimilarityScore DESC
+            )
+            SELECT 
+                Id, 
+                FileName, 
+                ActualCategory, 
+                CAST(NULL AS NVARCHAR(MAX)) AS ExtractedText, 
+                ChunkText, 
+                ChunkIndex, 
+                SimilarityScore,
+                'CHUNK' AS SourceType
+            FROM ChunkScores
+            UNION ALL
+            SELECT 
+                Id, 
+                FileName, 
+                ActualCategory, 
+                ExtractedText, 
+                CAST(NULL AS NVARCHAR(MAX)) AS ChunkText, 
+                CAST(NULL AS INT) AS ChunkIndex, 
+                SimilarityScore,
+                'DOCUMENT' AS SourceType
+            FROM DocumentScores
+            ORDER BY SimilarityScore DESC";
+
+        // Execute the query
+        using var command = _context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = sql;
+        
+        var embeddingParam = command.CreateParameter();
+        embeddingParam.ParameterName = "@queryEmbedding";
+        embeddingParam.Value = embeddingJson;
+        command.Parameters.Add(embeddingParam);
+        
+        var userIdParam = command.CreateParameter();
+        userIdParam.ParameterName = "@userId";
+        userIdParam.Value = userId;
+        command.Parameters.Add(userIdParam);
+        
+        var topKParam = command.CreateParameter();
+        topKParam.ParameterName = "@topK";
+        topKParam.Value = topK * 2; // Get more candidates for better results
+        command.Parameters.Add(topKParam);
+        
+        var minSimParam = command.CreateParameter();
+        minSimParam.ParameterName = "@minSimilarity";
+        minSimParam.Value = minSimilarity;
+        command.Parameters.Add(minSimParam);
+
+        await _context.Database.OpenConnectionAsync();
+
+        var results = new List<RelevantDocumentResult>();
+        using (var reader = await command.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var sourceType = reader.GetString(reader.GetOrdinal("SourceType"));
+                
+                results.Add(new RelevantDocumentResult
+                {
+                    DocumentId = reader.GetInt32(reader.GetOrdinal("Id")),
+                    FileName = reader.GetString(reader.GetOrdinal("FileName")),
+                    Category = reader.IsDBNull(reader.GetOrdinal("ActualCategory")) ? null : reader.GetString(reader.GetOrdinal("ActualCategory")),
+                    SimilarityScore = reader.GetDouble(reader.GetOrdinal("SimilarityScore")),
+                    RelevantChunk = sourceType == "CHUNK" && !reader.IsDBNull(reader.GetOrdinal("ChunkText")) 
+                        ? reader.GetString(reader.GetOrdinal("ChunkText")) 
+                        : null,
+                    ChunkIndex = sourceType == "CHUNK" && !reader.IsDBNull(reader.GetOrdinal("ChunkIndex")) 
+                        ? reader.GetInt32(reader.GetOrdinal("ChunkIndex")) 
+                        : (int?)null,
+                    ExtractedText = sourceType == "DOCUMENT" && !reader.IsDBNull(reader.GetOrdinal("ExtractedText")) 
+                        ? reader.GetString(reader.GetOrdinal("ExtractedText")) 
+                        : null
+                });
+            }
+        }
+
+        _logger.LogInformation(
+            "SQL-optimized search completed. Found {Count} results using VECTOR_DISTANCE (threshold: {Threshold:P0})",
+            results.Count, minSimilarity);
+
+        return results.Take(topK).ToList();
+    }
+
+    /// <summary>
+    /// In-memory vector search (fallback for non-SQL Server or older versions)
+    /// </summary>
+    private async Task<List<RelevantDocumentResult>> SearchDocumentsInMemoryAsync(
+        float[] queryEmbedding,
+        string userId,
+        int topK = 10,
+        double minSimilarity = 0.7)
+    {
+        // Get all documents with embeddings for the user
+        // Note: EmbeddingVector is a computed property, so we check the actual DB fields
+        var documents = await _context.Documents
+            .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
+            .ToListAsync();
+
+        _logger.LogInformation("In-memory search: Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
+
+        if (!documents.Any())
+        {
+            _logger.LogWarning("No documents with embeddings found for user {UserId}. User needs to upload documents or wait for embeddings to be generated.", userId);
+            
+            // Check if user has ANY documents (even without embeddings)
+            var totalDocs = await _context.Documents
+                .Where(d => d.OwnerId == userId)
+                .CountAsync();
+                
+            if (totalDocs > 0)
+            {
+                _logger.LogWarning("User {UserId} has {TotalDocs} documents but NONE have embeddings generated. Documents need to be processed.", userId, totalDocs);
+            }
+            
+            return new List<RelevantDocumentResult>();
+        }
+
+        // Calculate similarity scores for documents
+        var scoredDocs = new List<(Document doc, double score)>();
+        var allScores = new List<double>(); // Track all scores for diagnostics
+        
+        foreach (var doc in documents)
+        {
+            if (doc.EmbeddingVector == null) continue;
+
+            var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
+            allScores.Add(similarity);
+            
+            if (similarity >= minSimilarity)
+            {
+                scoredDocs.Add((doc, similarity));
+                _logger.LogDebug("Document {FileName} (ID: {DocId}) matched with similarity {Score:P1}", 
+                    doc.FileName, doc.Id, similarity);
+            }
+        }
+
+        // Log diagnostic info about scores
+        if (allScores.Any())
+        {
+            _logger.LogInformation(
+                "Similarity scores - Min: {Min:P1}, Max: {Max:P1}, Avg: {Avg:P1}, Threshold: {Threshold:P0}", 
+                allScores.Min(), allScores.Max(), allScores.Average(), minSimilarity);
+            
+            // Log top documents by score for debugging
+            var topDocs = documents
+                .Select(d => new { Doc = d, Score = d.EmbeddingVector != null ? CalculateCosineSimilarity(queryEmbedding, d.EmbeddingVector) : 0 })
+                .OrderByDescending(x => x.Score)
+                .Take(5)
+                .ToList();
+            
+            _logger.LogInformation("Top 5 documents by similarity score:");
+            foreach (var item in topDocs)
+            {
+                _logger.LogInformation("  - '{FileName}' (ID:{DocId}): Score={Score:P1} {Status}",
+                    item.Doc.FileName, item.Doc.Id, item.Score, 
+                    item.Score >= minSimilarity ? "✓ ABOVE threshold" : "✗ below threshold");
+            }
+        }
+
+        _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
+
+        // Get chunks for better precision
+        // Note: ChunkEmbedding is a computed property, so we check the actual DB fields
+        var chunks = await _context.DocumentChunks
+            .Include(c => c.Document)
+            .Where(c => c.Document!.OwnerId == userId && (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
+            .ToListAsync();
+
+        _logger.LogInformation("Found {Count} chunks with embeddings for user {UserId}", chunks.Count, userId);
+
+        var scoredChunks = new List<(DocumentChunk chunk, double score)>();
+        foreach (var chunk in chunks)
+        {
+            if (chunk.ChunkEmbedding == null) continue;
+
+            var similarity = CalculateCosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
+            if (similarity >= minSimilarity)
+            {
+                scoredChunks.Add((chunk, similarity));
+            }
+        }
+
+        _logger.LogInformation("Found {Count} chunks above similarity threshold {Threshold:P0}", scoredChunks.Count, minSimilarity);
+
+        // Combine document-level and chunk-level results
+        var results = new List<RelevantDocumentResult>();
+
+        // Add chunk-based results (higher priority)
+        var topChunks = scoredChunks.OrderByDescending(x => x.score).Take(topK).ToList();
+        var existingDocIds = new HashSet<int>();
+
+        foreach (var (chunk, score) in topChunks)
+        {
+            if (chunk.Document == null) continue;
+
+            results.Add(new RelevantDocumentResult
+            {
+                DocumentId = chunk.DocumentId,
+                FileName = chunk.Document.FileName,
+                Category = chunk.Document.ActualCategory,
+                SimilarityScore = score,
+                RelevantChunk = chunk.ChunkText,
+                ChunkIndex = chunk.ChunkIndex
+            });
+            existingDocIds.Add(chunk.DocumentId);
+        }
+
+        // Add document-level results if we don't have enough chunks
+        if (results.Count < topK)
+        {
+            foreach (var (doc, score) in scoredDocs.OrderByDescending(x => x.score))
+            {
+                if (results.Count >= topK)
+                    break;
+
+                if (existingDocIds.Contains(doc.Id))
+                    continue;
+
+                results.Add(new RelevantDocumentResult
+                {
+                    DocumentId = doc.Id,
+                    FileName = doc.FileName,
+                    Category = doc.ActualCategory,
+                    SimilarityScore = score,
+                    ExtractedText = doc.ExtractedText
+                });
+                existingDocIds.Add(doc.Id);
+            }
+        }
+
+        _logger.LogInformation("In-memory search: Returning {Count} total results (threshold: {Threshold:P0})", results.Count, minSimilarity);
+
+        if (!results.Any())
+        {
+            _logger.LogWarning("No documents matched the similarity threshold of {Threshold:P0}. Consider lowering the threshold or checking if document embeddings are compatible with query embeddings.", minSimilarity);
+        }
+
+        return results;
     }
 
     private string BuildDocumentContext(List<RelevantDocumentResult> documents)
