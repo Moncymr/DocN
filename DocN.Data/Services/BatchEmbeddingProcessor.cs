@@ -57,7 +57,7 @@ public class BatchEmbeddingProcessor : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+        var embeddingService = scope.ServiceProvider.GetRequiredService<IMultiProviderAIService>();
         var chunkingService = scope.ServiceProvider.GetRequiredService<IChunkingService>();
 
         try
@@ -274,7 +274,7 @@ public class BatchEmbeddingProcessor : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var embeddingService = scope.ServiceProvider.GetRequiredService<IEmbeddingService>();
+        var embeddingService = scope.ServiceProvider.GetRequiredService<IMultiProviderAIService>();
 
         try
         {
