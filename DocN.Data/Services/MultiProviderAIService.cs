@@ -516,14 +516,18 @@ public class MultiProviderAIService : IMultiProviderAIService
         var openAIKey = GetEffectiveApiKey(config.OpenAIApiKey, AIProviderType.OpenAI, config);
         var azureKey = GetEffectiveApiKey(config.AzureOpenAIKey, AIProviderType.AzureOpenAI, config);
         var azureEndpoint = GetEffectiveEndpoint(config.AzureOpenAIEndpoint, AIProviderType.AzureOpenAI, config);
+        var ollamaEndpoint = config.OllamaEndpoint;
+        var groqKey = config.GroqApiKey;
         
         bool hasGeminiKey = !string.IsNullOrWhiteSpace(geminiKey);
         bool hasOpenAIKey = !string.IsNullOrWhiteSpace(openAIKey);
         bool hasAzureKey = !string.IsNullOrWhiteSpace(azureKey) && !string.IsNullOrWhiteSpace(azureEndpoint);
+        bool hasOllamaEndpoint = !string.IsNullOrWhiteSpace(ollamaEndpoint);
+        bool hasGroqKey = !string.IsNullOrWhiteSpace(groqKey);
         
-        if (!hasGeminiKey && !hasOpenAIKey && !hasAzureKey)
+        if (!hasGeminiKey && !hasOpenAIKey && !hasAzureKey && !hasOllamaEndpoint && !hasGroqKey)
         {
-            throw new InvalidOperationException("Nessun provider AI ha una chiave API valida configurata. Configura almeno un provider (Gemini, OpenAI, o Azure OpenAI) tramite l'interfaccia utente.");
+            throw new InvalidOperationException("Nessun provider AI ha una chiave API o endpoint valido configurato. Configura almeno un provider (Gemini, OpenAI, Azure OpenAI, Ollama, o Groq) tramite l'interfaccia utente.");
         }
 
         // Try primary provider
@@ -534,6 +538,8 @@ public class MultiProviderAIService : IMultiProviderAIService
                 AIProviderType.Gemini => await GenerateChatWithGeminiAsync(systemPrompt, userPrompt, config),
                 AIProviderType.OpenAI => await GenerateChatWithOpenAIAsync(systemPrompt, userPrompt, config),
                 AIProviderType.AzureOpenAI => await GenerateChatWithAzureOpenAIAsync(systemPrompt, userPrompt, config),
+                AIProviderType.Ollama => await GenerateChatWithOllamaAsync(systemPrompt, userPrompt, config),
+                AIProviderType.Groq => await GenerateChatWithGroqAsync(systemPrompt, userPrompt, config),
                 _ => throw new InvalidOperationException($"Provider non supportato: {provider}")
             };
             
@@ -597,6 +603,40 @@ public class MultiProviderAIService : IMultiProviderAIService
                     {
                         await _logService.LogErrorAsync("AI", "Fallback AzureOpenAI fallito", ex4.Message, stackTrace: ex4.StackTrace);
                         errors.Add($"AzureOpenAI: {ex4.Message}");
+                    }
+                }
+                
+                // Try Ollama as fallback
+                if (provider != AIProviderType.Ollama && hasOllamaEndpoint)
+                {
+                    try
+                    {
+                        await _logService.LogInfoAsync("AI", "Tentativo Ollama come fallback");
+                        var result = await GenerateChatWithOllamaAsync(systemPrompt, userPrompt, config);
+                        await _logService.LogInfoAsync("AI", "Chat generation successful with Ollama (fallback)");
+                        return result;
+                    }
+                    catch (Exception ex5)
+                    {
+                        await _logService.LogWarningAsync("AI", "Fallback Ollama fallito", ex5.Message);
+                        errors.Add($"Ollama: {ex5.Message}");
+                    }
+                }
+                
+                // Try Groq as fallback
+                if (provider != AIProviderType.Groq && hasGroqKey)
+                {
+                    try
+                    {
+                        await _logService.LogInfoAsync("AI", "Tentativo Groq come fallback");
+                        var result = await GenerateChatWithGroqAsync(systemPrompt, userPrompt, config);
+                        await _logService.LogInfoAsync("AI", "Chat generation successful with Groq (fallback)");
+                        return result;
+                    }
+                    catch (Exception ex6)
+                    {
+                        await _logService.LogWarningAsync("AI", "Fallback Groq fallito", ex6.Message);
+                        errors.Add($"Groq: {ex6.Message}");
                     }
                 }
                 
@@ -768,6 +808,64 @@ public class MultiProviderAIService : IMultiProviderAIService
             OpenAI.Chat.ChatMessage.CreateUserMessage(userPrompt)
         };
 
+        var completion = await chatClient.CompleteChatAsync(messages);
+        return completion.Value.Content[0].Text;
+    }
+
+    private async Task<string> GenerateChatWithOllamaAsync(string systemPrompt, string userPrompt, AIConfiguration config)
+    {
+        var endpoint = config.OllamaEndpoint ?? "http://localhost:11434";
+        var model = config.OllamaChatModel ?? "llama3";
+
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException("Endpoint di Ollama non configurato");
+        }
+
+        var ollamaClient = new OllamaSharp.OllamaApiClient(new Uri(endpoint));
+        ollamaClient.SelectedModel = model;
+        
+        var chat = new OllamaSharp.Chat(ollamaClient);
+        var fullPrompt = $"System: {systemPrompt}\n\nUser: {userPrompt}";
+        
+        var responseBuilder = new System.Text.StringBuilder();
+        await foreach (var token in chat.SendAsync(fullPrompt))
+        {
+            responseBuilder.Append(token);
+        }
+        
+        var response = responseBuilder.ToString();
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            throw new InvalidOperationException("Ollama returned empty response");
+        }
+        
+        return response;
+    }
+
+    private async Task<string> GenerateChatWithGroqAsync(string systemPrompt, string userPrompt, AIConfiguration config)
+    {
+        var apiKey = config.GroqApiKey;
+        var endpoint = config.GroqEndpoint ?? "https://api.groq.com/openai/v1";
+        var model = config.GroqChatModel ?? "llama-3.1-8b-instant";
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            throw new InvalidOperationException("API key di Groq non configurata");
+        }
+
+        var options = new OpenAI.OpenAIClientOptions();
+        options.Endpoint = new Uri(endpoint);
+        
+        var groqClient = new OpenAI.OpenAIClient(new System.ClientModel.ApiKeyCredential(apiKey), options);
+        var chatClient = groqClient.GetChatClient(model);
+        
+        var messages = new List<OpenAI.Chat.ChatMessage>
+        {
+            OpenAI.Chat.ChatMessage.CreateSystemMessage(systemPrompt),
+            OpenAI.Chat.ChatMessage.CreateUserMessage(userPrompt)
+        };
+        
         var completion = await chatClient.CompleteChatAsync(messages);
         return completion.Value.Content[0].Text;
     }
