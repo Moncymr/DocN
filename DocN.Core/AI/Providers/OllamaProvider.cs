@@ -261,18 +261,21 @@ public class OllamaProvider : BaseAIProvider
     {
         // Remove markdown code blocks if present
         var cleaned = response.Trim();
-        if (cleaned.StartsWith("```json"))
+        
+        if (cleaned.StartsWith("```json") && cleaned.Length > 7)
         {
             cleaned = cleaned.Substring(7);
         }
-        if (cleaned.StartsWith("```"))
+        else if (cleaned.StartsWith("```") && cleaned.Length > 3)
         {
             cleaned = cleaned.Substring(3);
         }
-        if (cleaned.EndsWith("```"))
+        
+        if (cleaned.EndsWith("```") && cleaned.Length > 3)
         {
             cleaned = cleaned.Substring(0, cleaned.Length - 3);
         }
+        
         return cleaned.Trim();
     }
 }

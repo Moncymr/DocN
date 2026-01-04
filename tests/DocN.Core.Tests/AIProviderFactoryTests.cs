@@ -196,7 +196,6 @@ public class AIProviderFactoryTests
             Groq = new GroqConfiguration
             {
                 ApiKey = "test-groq-key",
-                EmbeddingModel = "llama-3.1-8b-instant",
                 ChatModel = "llama-3.1-8b-instant",
                 Endpoint = "https://api.groq.com/openai/v1"
             }

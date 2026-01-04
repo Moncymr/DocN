@@ -153,9 +153,11 @@ public class GroqConfiguration
     public string ApiKey { get; set; } = string.Empty;
     
     /// <summary>
-    /// Modello per embeddings (Groq non supporta embeddings nativamente, usa un provider alternativo)
+    /// Modello per embeddings - NOTA: Groq non supporta embeddings nativamente.
+    /// Configurare un altro provider (Gemini, OpenAI, Ollama) per gli embeddings.
     /// </summary>
-    public string EmbeddingModel { get; set; } = "llama-3.1-8b-instant";
+    [Obsolete("Groq does not support embeddings. Use another provider for embeddings.")]
+    public string EmbeddingModel { get; set; } = string.Empty;
     
     /// <summary>
     /// Modello per chat/completion
