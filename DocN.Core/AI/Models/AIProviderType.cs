@@ -23,5 +23,10 @@ public enum AIProviderType
     /// <summary>
     /// Ollama (local AI models)
     /// </summary>
-    Ollama
+    Ollama,
+    
+    /// <summary>
+    /// Groq (fast cloud API)
+    /// </summary>
+    Groq
 }

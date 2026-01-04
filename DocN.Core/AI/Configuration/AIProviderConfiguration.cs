@@ -31,6 +31,11 @@ public class AIProviderConfiguration
     /// Configurazione Ollama
     /// </summary>
     public OllamaConfiguration? Ollama { get; set; }
+    
+    /// <summary>
+    /// Configurazione Groq
+    /// </summary>
+    public GroqConfiguration? Groq { get; set; }
 }
 
 /// <summary>
@@ -135,4 +140,30 @@ public class OllamaConfiguration
     /// Modello per chat/completion
     /// </summary>
     public string ChatModel { get; set; } = "llama3";
+}
+
+/// <summary>
+/// Configurazione per Groq
+/// </summary>
+public class GroqConfiguration
+{
+    /// <summary>
+    /// Chiave API Groq
+    /// </summary>
+    public string ApiKey { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Modello per embeddings (Groq non supporta embeddings nativamente, usa un provider alternativo)
+    /// </summary>
+    public string EmbeddingModel { get; set; } = "llama-3.1-8b-instant";
+    
+    /// <summary>
+    /// Modello per chat/completion
+    /// </summary>
+    public string ChatModel { get; set; } = "llama-3.1-8b-instant";
+    
+    /// <summary>
+    /// Endpoint API Groq
+    /// </summary>
+    public string Endpoint { get; set; } = "https://api.groq.com/openai/v1";
 }

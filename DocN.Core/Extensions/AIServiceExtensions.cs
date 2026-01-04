@@ -30,6 +30,7 @@ public static class AIServiceExtensions
         services.AddTransient<OpenAIProvider>();
         services.AddTransient<GeminiProvider>();
         services.AddTransient<OllamaProvider>();
+        services.AddTransient<GroqProvider>();
 
         // Registra la factory come singleton
         services.AddSingleton<IAIProviderFactory, AIProviderFactory>();

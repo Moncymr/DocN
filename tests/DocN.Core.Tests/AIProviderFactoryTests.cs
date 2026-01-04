@@ -115,6 +115,31 @@ public class AIProviderFactoryTests
     }
 
     [Fact]
+    public void CreateProvider_WithGroq_ReturnsGroqProvider()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var configuration = CreateTestConfiguration(AIProviderType.Groq);
+        
+        services.AddSingleton(Options.Create(configuration));
+        services.AddSingleton<ILogger<GroqProvider>>(new LoggerFactory().CreateLogger<GroqProvider>());
+        services.AddTransient<GroqProvider>();
+        services.AddSingleton<IAIProviderFactory, AIProviderFactory>();
+        
+        var serviceProvider = services.BuildServiceProvider();
+        var factory = serviceProvider.GetRequiredService<IAIProviderFactory>();
+        
+        // Act
+        var provider = factory.CreateProvider(AIProviderType.Groq);
+        
+        // Assert
+        Assert.NotNull(provider);
+        Assert.IsType<GroqProvider>(provider);
+        Assert.Equal(AIProviderType.Groq, provider.ProviderType);
+        Assert.Equal("Groq", provider.ProviderName);
+    }
+
+    [Fact]
     public void GetDefaultProvider_ReturnsConfiguredDefaultProvider()
     {
         // Arrange
@@ -167,6 +192,13 @@ public class AIProviderFactoryTests
                 Endpoint = "http://localhost:11434",
                 EmbeddingModel = "nomic-embed-text",
                 ChatModel = "llama3"
+            },
+            Groq = new GroqConfiguration
+            {
+                ApiKey = "test-groq-key",
+                EmbeddingModel = "llama-3.1-8b-instant",
+                ChatModel = "llama-3.1-8b-instant",
+                Endpoint = "https://api.groq.com/openai/v1"
             }
         };
     }
