@@ -1144,14 +1144,35 @@ Respond ONLY with valid JSON, no other comments.";
             }
             response = response.Trim();
             
-            // Parse JSON response
+            // Parse JSON response - handle mixed value types (strings, numbers, booleans, etc.)
             try
             {
-                var metadata = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(response, 
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                using var jsonDoc = JsonDocument.Parse(response);
+                var metadata = new Dictionary<string, string>();
                 
-                await _logService.LogDebugAsync("Metadata", $"Extracted {metadata?.Count ?? 0} metadata fields", fileName);
-                return metadata ?? new Dictionary<string, string>();
+                foreach (var property in jsonDoc.RootElement.EnumerateObject())
+                {
+                    // Convert all JSON value types to strings
+                    var value = property.Value.ValueKind switch
+                    {
+                        JsonValueKind.String => property.Value.GetString() ?? string.Empty,
+                        JsonValueKind.Number => property.Value.GetRawText(), // Get the raw number as string
+                        JsonValueKind.True => "true",
+                        JsonValueKind.False => "false",
+                        JsonValueKind.Null => string.Empty,
+                        JsonValueKind.Object => property.Value.GetRawText(), // Nested objects as JSON string
+                        JsonValueKind.Array => property.Value.GetRawText(), // Arrays as JSON string
+                        _ => property.Value.GetRawText()
+                    };
+                    
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        metadata[property.Name] = value;
+                    }
+                }
+                
+                await _logService.LogDebugAsync("Metadata", $"Extracted {metadata.Count} metadata fields", fileName);
+                return metadata;
             }
             catch (System.Text.Json.JsonException jsonEx)
             {
