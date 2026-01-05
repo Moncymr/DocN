@@ -886,16 +886,29 @@
         if (!providerType.HasValue)
             return "Non configurato";
 
+        // Convert integer to AIProviderType enum
         // AIProviderType enum: Gemini = 1, OpenAI = 2, AzureOpenAI = 3, Ollama = 4, Groq = 5
-        return providerType.Value switch
+        var providerTypeEnum = (AIProviderType)providerType.Value;
+        
+        return providerTypeEnum switch
         {
-            1 => "Gemini",
-            2 => "OpenAI",
-            3 => "Azure OpenAI",
-            4 => "Ollama",
-            5 => "Groq",
+            AIProviderType.Gemini => "Gemini",
+            AIProviderType.OpenAI => "OpenAI",
+            AIProviderType.AzureOpenAI => "Azure OpenAI",
+            AIProviderType.Ollama => "Ollama",
+            AIProviderType.Groq => "Groq",
             _ => "Non configurato"
         };
+    }
+
+    // AIProviderType enum definition for reference
+    private enum AIProviderType
+    {
+        Gemini = 1,
+        OpenAI = 2,
+        AzureOpenAI = 3,
+        Ollama = 4,
+        Groq = 5
     }
 
     // Response models matching the API
