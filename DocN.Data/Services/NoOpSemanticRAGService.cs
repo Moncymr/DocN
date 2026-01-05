@@ -75,49 +75,87 @@ public class NoOpSemanticRAGService : ISemanticRAGService
                 return new List<RelevantDocumentResult>();
             }
 
-            // Get all documents with embeddings for the user
+            // Performance optimization: Limit the number of candidates to evaluate
+            // This prevents loading thousands of documents into memory when the user has many files
+            const int MaxDocumentCandidates = 500;
+            const int MaxChunkCandidates = 1000;
+            
+            // Get recent documents with embeddings for the user - limited to avoid performance issues
             // Query the actual mapped fields: EmbeddingVector768 or EmbeddingVector1536
-            var documents = await _context.Documents
+            var embeddingDimension = queryEmbedding.Length;
+            
+            var documentsQuery = _context.Documents
                 .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
-                .ToListAsync();
+                .OrderByDescending(d => d.UploadedAt)
+                .Take(MaxDocumentCandidates)
+                .Select(d => new 
+                {
+                    d.Id,
+                    d.FileName,
+                    d.ActualCategory,
+                    d.ExtractedText,
+                    d.EmbeddingVector768,
+                    d.EmbeddingVector1536
+                });
 
-            _logger.LogInformation("Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
+            var documents = await documentsQuery.ToListAsync();
+
+            _logger.LogInformation("NoOp search: Loaded {Count} document candidates (max: {Max}) for user {UserId}", 
+                documents.Count, MaxDocumentCandidates, userId);
             
             // Calculate similarity scores for documents
-            var scoredDocs = new List<(Document doc, double score)>();
+            var scoredDocs = new List<(int id, string fileName, string? category, string? extractedText, double score)>();
             foreach (var doc in documents)
             {
-                // Use the EmbeddingVector property getter which returns the populated field
-                var docEmbedding = doc.EmbeddingVector;
-                if (docEmbedding == null) continue;
+                // Get the correct embedding based on dimension
+                float[]? embedding = embeddingDimension == 768 ? doc.EmbeddingVector768 : doc.EmbeddingVector1536;
+                if (embedding == null) continue;
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, docEmbedding);
+                var similarity = CalculateCosineSimilarity(queryEmbedding, embedding);
                 if (similarity >= minSimilarity)
                 {
-                    scoredDocs.Add((doc, similarity));
+                    scoredDocs.Add((doc.Id, doc.FileName, doc.ActualCategory, doc.ExtractedText, similarity));
                 }
             }
 
             _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
 
-            // Get chunks for better precision
+            // Get chunks for better precision - limited for performance
             // Query the actual mapped fields: ChunkEmbedding768 or ChunkEmbedding1536
-            var chunks = await _context.DocumentChunks
-                .Include(c => c.Document)
-                .Where(c => c.Document!.OwnerId == userId && (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
-                .ToListAsync();
+            var chunksQuery = from chunk in _context.DocumentChunks
+                              join doc in _context.Documents on chunk.DocumentId equals doc.Id
+                              where doc.OwnerId == userId && 
+                                    (chunk.ChunkEmbedding768 != null || chunk.ChunkEmbedding1536 != null)
+                              orderby chunk.CreatedAt descending
+                              select new
+                              {
+                                  chunk.Id,
+                                  chunk.DocumentId,
+                                  chunk.ChunkText,
+                                  chunk.ChunkIndex,
+                                  chunk.ChunkEmbedding768,
+                                  chunk.ChunkEmbedding1536,
+                                  DocumentFileName = doc.FileName,
+                                  DocumentCategory = doc.ActualCategory
+                              };
 
-            var scoredChunks = new List<(DocumentChunk chunk, double score)>();
+            var chunks = await chunksQuery.Take(MaxChunkCandidates).ToListAsync();
+
+            _logger.LogInformation("NoOp search: Loaded {Count} chunk candidates (max: {Max}) for user {UserId}", 
+                chunks.Count, MaxChunkCandidates, userId);
+
+            var scoredChunks = new List<(int docId, string fileName, string? category, string chunkText, int chunkIndex, double score)>();
             foreach (var chunk in chunks)
             {
-                // Use the ChunkEmbedding property getter which returns the populated field
-                var chunkEmbedding = chunk.ChunkEmbedding;
-                if (chunkEmbedding == null) continue;
+                // Get the correct embedding based on dimension
+                float[]? embedding = embeddingDimension == 768 ? chunk.ChunkEmbedding768 : chunk.ChunkEmbedding1536;
+                if (embedding == null) continue;
 
-                var similarity = CalculateCosineSimilarity(queryEmbedding, chunkEmbedding);
+                var similarity = CalculateCosineSimilarity(queryEmbedding, embedding);
                 if (similarity >= minSimilarity)
                 {
-                    scoredChunks.Add((chunk, similarity));
+                    scoredChunks.Add((chunk.DocumentId, chunk.DocumentFileName, chunk.DocumentCategory, 
+                                     chunk.ChunkText, chunk.ChunkIndex, similarity));
                 }
             }
 
@@ -128,44 +166,42 @@ public class NoOpSemanticRAGService : ISemanticRAGService
             var topChunks = scoredChunks.OrderByDescending(x => x.score).Take(topK).ToList();
             var existingDocIds = new HashSet<int>();
             
-            foreach (var (chunk, score) in topChunks)
+            foreach (var (docId, fileName, category, chunkText, chunkIndex, score) in topChunks)
             {
-                if (chunk.Document == null) continue;
-
                 results.Add(new RelevantDocumentResult
                 {
-                    DocumentId = chunk.DocumentId,
-                    FileName = chunk.Document.FileName,
-                    Category = chunk.Document.ActualCategory,
+                    DocumentId = docId,
+                    FileName = fileName,
+                    Category = category,
                     SimilarityScore = score,
-                    RelevantChunk = chunk.ChunkText,
-                    ChunkIndex = chunk.ChunkIndex
+                    RelevantChunk = chunkText,
+                    ChunkIndex = chunkIndex
                 });
-                existingDocIds.Add(chunk.DocumentId);
+                existingDocIds.Add(docId);
             }
 
             // Add document-level results if we don't have enough chunks
             if (results.Count < topK)
             {
-                foreach (var (doc, score) in scoredDocs.OrderByDescending(x => x.score))
+                foreach (var (id, fileName, category, extractedText, score) in scoredDocs.OrderByDescending(x => x.score))
                 {
                     // Stop if we've reached topK results
                     if (results.Count >= topK)
                         break;
                         
                     // Avoid duplicates
-                    if (existingDocIds.Contains(doc.Id))
+                    if (existingDocIds.Contains(id))
                         continue;
 
                     results.Add(new RelevantDocumentResult
                     {
-                        DocumentId = doc.Id,
-                        FileName = doc.FileName,
-                        Category = doc.ActualCategory,
+                        DocumentId = id,
+                        FileName = fileName,
+                        Category = category,
                         SimilarityScore = score,
-                        ExtractedText = doc.ExtractedText
+                        ExtractedText = extractedText
                     });
-                    existingDocIds.Add(doc.Id);
+                    existingDocIds.Add(id);
                 }
             }
 
