@@ -1,7 +1,6 @@
 @page "/config/diagnostica"
 @using System.Net.Http.Json
 @using System.Text.Json
-@using DocN.Data.Models
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
@@ -167,7 +166,7 @@
 
                         <div class="providers-section">
                             <h5>Provider Configurati:</h5>
-                            @if (config.HasGeminiKey || config.HasOpenAIKey || config.HasAzureKey || config.HasOllamaEndpoint || config.HasGroqKey)
+                            @if (config.HasGeminiKey || config.HasOpenAIKey || config.HasAzureKey)
                             {
                                 <div class="provider-badges">
                                     @if (config.HasGeminiKey)
@@ -181,14 +180,6 @@
                                     @if (config.HasAzureKey)
                                     {
                                         <span class="provider-badge azure">✅ Azure OpenAI</span>
-                                    }
-                                    @if (config.HasOllamaEndpoint)
-                                    {
-                                        <span class="provider-badge ollama">✅ Ollama</span>
-                                    }
-                                    @if (config.HasGroqKey)
-                                    {
-                                        <span class="provider-badge groq">✅ Groq</span>
                                     }
                                 </div>
                             }
@@ -206,27 +197,27 @@
                                     <div class="service-item">
                                         <span class="service-icon">💬</span>
                                         <span class="service-label">Chat:</span>
-                                        <span class="service-value">@GetProviderTypeName(config.ChatProvider)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.ChatProvider, config.ProviderType)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🧠</span>
                                         <span class="service-label">Embeddings:</span>
-                                        <span class="service-value">@GetProviderTypeName(config.EmbeddingsProvider)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.EmbeddingsProvider, config.ProviderType)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🏷️</span>
                                         <span class="service-label">Tag Extract:</span>
-                                        <span class="service-value">@GetProviderTypeName(config.TagExtractionProvider)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.TagExtractionProvider, config.ProviderType)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">📋</span>
                                         <span class="service-label">Metadata Extract:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.MetadataExtractionProvider, config.ProviderType)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🔍</span>
                                         <span class="service-label">RAG:</span>
-                                        <span class="service-value">@GetProviderTypeName(config.RAGProvider)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.RAGProvider, config.ProviderType)</span>
                                     </div>
                                 </div>
                             </div>
@@ -605,14 +596,6 @@
         background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
     }
 
-    .provider-badge.ollama {
-        background: linear-gradient(135deg, #000000 0%, #2d2d2d 100%);
-    }
-
-    .provider-badge.groq {
-        background: linear-gradient(135deg, #f55036 0%, #d43f2a 100%);
-    }
-
     .no-providers {
         color: #ffc107;
         font-weight: 600;
@@ -869,18 +852,29 @@
         return dateTime.ToString("dd/MM/yyyy HH:mm:ss");
     }
 
-    private string GetProviderTypeName(AIProviderType? providerType)
+    private string GetProviderName(ConfigurationInfo config)
     {
-        if (!providerType.HasValue)
-            return "Non configurato";
+        // Determine which provider is configured based on available keys
+        if (config.HasGeminiKey)
+            return "Gemini";
+        if (config.HasOpenAIKey)
+            return "OpenAI";
+        if (config.HasAzureKey)
+            return "Azure OpenAI";
         
-        return providerType.Value switch
+        return "Non configurato";
+    }
+
+    private string GetProviderTypeName(int? providerType, int fallbackProviderType)
+    {
+        var provider = providerType ?? fallbackProviderType;
+        return provider switch
         {
-            AIProviderType.Gemini => "Gemini",
-            AIProviderType.OpenAI => "OpenAI",
-            AIProviderType.AzureOpenAI => "Azure OpenAI",
-            AIProviderType.Ollama => "Ollama",
-            AIProviderType.Groq => "Groq",
+            1 => "Gemini",
+            2 => "OpenAI",
+            3 => "Azure OpenAI",
+            4 => "Ollama",
+            5 => "Groq",
             _ => "Non configurato"
         };
     }
@@ -905,6 +899,11 @@
         public bool HasGeminiKey { get; set; }
         public bool HasOpenAIKey { get; set; }
         public bool HasAzureKey { get; set; }
+        public int? ChatProvider { get; set; }
+        public int? EmbeddingsProvider { get; set; }
+        public int? TagExtractionProvider { get; set; }
+        public int? MetadataExtractionProvider { get; set; }
+        public int? RAGProvider { get; set; }
     }
 
     private class ConfigurationInfo
@@ -917,13 +916,12 @@
         public bool HasGeminiKey { get; set; }
         public bool HasOpenAIKey { get; set; }
         public bool HasAzureKey { get; set; }
-        public bool HasOllamaEndpoint { get; set; }
-        public bool HasGroqKey { get; set; }
         public int ProviderType { get; set; }
-        public AIProviderType? ChatProvider { get; set; }
-        public AIProviderType? EmbeddingsProvider { get; set; }
-        public AIProviderType? TagExtractionProvider { get; set; }
-        public AIProviderType? RAGProvider { get; set; }
+        public int? ChatProvider { get; set; }
+        public int? EmbeddingsProvider { get; set; }
+        public int? TagExtractionProvider { get; set; }
+        public int? MetadataExtractionProvider { get; set; }
+        public int? RAGProvider { get; set; }
         public int SortOrder { get; set; }
     }
 
