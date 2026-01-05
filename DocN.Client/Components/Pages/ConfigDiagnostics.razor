@@ -197,27 +197,27 @@
                                     <div class="service-item">
                                         <span class="service-icon">💬</span>
                                         <span class="service-label">Chat:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.ChatProvider, config.ProviderType)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🧠</span>
                                         <span class="service-label">Embeddings:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.EmbeddingsProvider, config.ProviderType)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🏷️</span>
                                         <span class="service-label">Tag Extract:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.TagExtractionProvider, config.ProviderType)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">📋</span>
                                         <span class="service-label">Metadata Extract:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.MetadataExtractionProvider, config.ProviderType)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🔍</span>
                                         <span class="service-label">RAG:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.RAGProvider, config.ProviderType)</span>
                                     </div>
                                 </div>
                             </div>
@@ -865,6 +865,20 @@
         return "Non configurato";
     }
 
+    private string GetProviderTypeName(int? providerType, int fallbackProviderType)
+    {
+        var provider = providerType ?? fallbackProviderType;
+        return provider switch
+        {
+            1 => "Gemini",
+            2 => "OpenAI",
+            3 => "Azure OpenAI",
+            4 => "Ollama",
+            5 => "Groq",
+            _ => "Non configurato"
+        };
+    }
+
     // Response models matching the API
     private class ConfigDiagnosticsResponse
     {
@@ -885,6 +899,11 @@
         public bool HasGeminiKey { get; set; }
         public bool HasOpenAIKey { get; set; }
         public bool HasAzureKey { get; set; }
+        public int? ChatProvider { get; set; }
+        public int? EmbeddingsProvider { get; set; }
+        public int? TagExtractionProvider { get; set; }
+        public int? MetadataExtractionProvider { get; set; }
+        public int? RAGProvider { get; set; }
     }
 
     private class ConfigurationInfo
@@ -898,6 +917,11 @@
         public bool HasOpenAIKey { get; set; }
         public bool HasAzureKey { get; set; }
         public int ProviderType { get; set; }
+        public int? ChatProvider { get; set; }
+        public int? EmbeddingsProvider { get; set; }
+        public int? TagExtractionProvider { get; set; }
+        public int? MetadataExtractionProvider { get; set; }
+        public int? RAGProvider { get; set; }
         public int SortOrder { get; set; }
     }
 
