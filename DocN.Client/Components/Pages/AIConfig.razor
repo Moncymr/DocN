@@ -78,6 +78,19 @@
                     </div>
 
                     <div class="form-group">
+                        <label>📋 Metadata Extraction Provider</label>
+                        <select @bind="selectedMetadataExtractionProvider" class="form-control">
+                            <option value="">-- Provider Predefinito --</option>
+                            <option value="1">Gemini</option>
+                            <option value="2">OpenAI</option>
+                            <option value="3">Azure OpenAI</option>
+                            <option value="4">Ollama (Local)</option>
+                            <option value="5">Groq (Cloud)</option>
+                        </select>
+                        <small>Per estrazione automatica metadati strutturati</small>
+                    </div>
+
+                    <div class="form-group">
                         <label>🔍 RAG Provider</label>
                         <select @bind="selectedRAGProvider" class="form-control">
                             <option value="">-- Provider Predefinito --</option>
@@ -905,6 +918,7 @@
     private string selectedChatProvider = "";
     private string selectedEmbeddingsProvider = "";
     private string selectedTagExtractionProvider = "";
+    private string selectedMetadataExtractionProvider = "";
     private string selectedRAGProvider = "";
 
     protected override async Task OnInitializedAsync()
@@ -951,6 +965,7 @@
         selectedChatProvider = config.ChatProvider?.ToString("D") ?? "";
         selectedEmbeddingsProvider = config.EmbeddingsProvider?.ToString("D") ?? "";
         selectedTagExtractionProvider = config.TagExtractionProvider?.ToString("D") ?? "";
+        selectedMetadataExtractionProvider = config.MetadataExtractionProvider?.ToString("D") ?? "";
         selectedRAGProvider = config.RAGProvider?.ToString("D") ?? "";
     }
 
@@ -979,6 +994,7 @@
             config.ChatProvider = string.IsNullOrEmpty(selectedChatProvider) ? null : (AIProviderType)int.Parse(selectedChatProvider);
             config.EmbeddingsProvider = string.IsNullOrEmpty(selectedEmbeddingsProvider) ? null : (AIProviderType)int.Parse(selectedEmbeddingsProvider);
             config.TagExtractionProvider = string.IsNullOrEmpty(selectedTagExtractionProvider) ? null : (AIProviderType)int.Parse(selectedTagExtractionProvider);
+            config.MetadataExtractionProvider = string.IsNullOrEmpty(selectedMetadataExtractionProvider) ? null : (AIProviderType)int.Parse(selectedMetadataExtractionProvider);
             config.RAGProvider = string.IsNullOrEmpty(selectedRAGProvider) ? null : (AIProviderType)int.Parse(selectedRAGProvider);
 
             // If setting this as active, deactivate all others
