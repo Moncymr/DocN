@@ -199,7 +199,19 @@ public class OpenAIProvider : BaseAIProvider
 
             foreach (var property in jsonDoc.RootElement.EnumerateObject())
             {
-                var value = property.Value.GetString();
+                // Convert all JSON value types to strings
+                var value = property.Value.ValueKind switch
+                {
+                    JsonValueKind.String => property.Value.GetString() ?? string.Empty,
+                    JsonValueKind.Number => property.Value.GetRawText(), // Get the raw number as string
+                    JsonValueKind.True => "true",
+                    JsonValueKind.False => "false",
+                    JsonValueKind.Null => string.Empty,
+                    JsonValueKind.Object => property.Value.GetRawText(), // Nested objects as JSON string
+                    JsonValueKind.Array => property.Value.GetRawText(), // Arrays as JSON string
+                    _ => property.Value.GetRawText()
+                };
+                
                 if (!string.IsNullOrEmpty(value))
                 {
                     metadata[property.Name] = value;
