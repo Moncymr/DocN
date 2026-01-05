@@ -166,7 +166,7 @@
 
                         <div class="providers-section">
                             <h5>Provider Configurati:</h5>
-                            @if (config.HasGeminiKey || config.HasOpenAIKey || config.HasAzureKey)
+                            @if (config.HasGeminiKey || config.HasOpenAIKey || config.HasAzureKey || config.HasOllamaEndpoint || config.HasGroqKey)
                             {
                                 <div class="provider-badges">
                                     @if (config.HasGeminiKey)
@@ -180,6 +180,14 @@
                                     @if (config.HasAzureKey)
                                     {
                                         <span class="provider-badge azure">✅ Azure OpenAI</span>
+                                    }
+                                    @if (config.HasOllamaEndpoint)
+                                    {
+                                        <span class="provider-badge ollama">✅ Ollama</span>
+                                    }
+                                    @if (config.HasGroqKey)
+                                    {
+                                        <span class="provider-badge groq">✅ Groq</span>
                                     }
                                 </div>
                             }
@@ -197,22 +205,22 @@
                                     <div class="service-item">
                                         <span class="service-icon">💬</span>
                                         <span class="service-label">Chat:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.ChatProvider)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🧠</span>
                                         <span class="service-label">Embeddings:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.EmbeddingsProvider)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🏷️</span>
                                         <span class="service-label">Tag Extract:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.TagExtractionProvider)</span>
                                     </div>
                                     <div class="service-item">
                                         <span class="service-icon">🔍</span>
                                         <span class="service-label">RAG:</span>
-                                        <span class="service-value">@GetProviderName(config)</span>
+                                        <span class="service-value">@GetProviderTypeName(config.RAGProvider)</span>
                                     </div>
                                 </div>
                             </div>
@@ -591,6 +599,14 @@
         background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
     }
 
+    .provider-badge.ollama {
+        background: linear-gradient(135deg, #000000 0%, #2d2d2d 100%);
+    }
+
+    .provider-badge.groq {
+        background: linear-gradient(135deg, #f55036 0%, #d43f2a 100%);
+    }
+
     .no-providers {
         color: #ffc107;
         font-weight: 600;
@@ -850,6 +866,11 @@
     private string GetProviderName(ConfigurationInfo config)
     {
         // Determine which provider is configured based on available keys
+        // Return the first configured provider found
+        if (config.HasGroqKey)
+            return "Groq";
+        if (config.HasOllamaEndpoint)
+            return "Ollama";
         if (config.HasGeminiKey)
             return "Gemini";
         if (config.HasOpenAIKey)
@@ -858,6 +879,23 @@
             return "Azure OpenAI";
         
         return "Non configurato";
+    }
+
+    private string GetProviderTypeName(int? providerType)
+    {
+        if (!providerType.HasValue)
+            return "Non configurato";
+
+        // AIProviderType enum: Gemini = 1, OpenAI = 2, AzureOpenAI = 3, Ollama = 4, Groq = 5
+        return providerType.Value switch
+        {
+            1 => "Gemini",
+            2 => "OpenAI",
+            3 => "Azure OpenAI",
+            4 => "Ollama",
+            5 => "Groq",
+            _ => "Non configurato"
+        };
     }
 
     // Response models matching the API
@@ -892,7 +930,13 @@
         public bool HasGeminiKey { get; set; }
         public bool HasOpenAIKey { get; set; }
         public bool HasAzureKey { get; set; }
+        public bool HasOllamaEndpoint { get; set; }
+        public bool HasGroqKey { get; set; }
         public int ProviderType { get; set; }
+        public int? ChatProvider { get; set; }
+        public int? EmbeddingsProvider { get; set; }
+        public int? TagExtractionProvider { get; set; }
+        public int? RAGProvider { get; set; }
         public int SortOrder { get; set; }
     }
 

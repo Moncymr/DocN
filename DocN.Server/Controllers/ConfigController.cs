@@ -775,6 +775,10 @@ public class ConfigController : ControllerBase
                     HasOllamaEndpoint = !string.IsNullOrWhiteSpace(c.OllamaEndpoint),
                     HasGroqKey = !string.IsNullOrWhiteSpace(c.GroqApiKey),
                     c.ProviderType,
+                    c.ChatProvider,
+                    c.EmbeddingsProvider,
+                    c.TagExtractionProvider,
+                    c.RAGProvider,
                     SortOrder = c.IsActive ? 0 : 1
                 })
                 .ToListAsync();
