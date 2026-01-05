@@ -14,12 +14,12 @@ Il file **DocN_Documentazione_Sviluppatori.docx** contiene una documentazione te
 
 ### 2. Architettura e Progetti
 - Struttura della soluzione .NET
-- Descrizione dettagliata dei 5 progetti principali:
+- Descrizione dettagliata dei progetti principali:
   - **DocN.Server** - Backend API (ASP.NET Core Web API)
   - **DocN.Client** - Frontend (Blazor Web App)
   - **DocN.Data** - Data Access Layer (Entity Framework)
   - **DocN.Core** - Core AI Logic (Semantic Kernel)
-  - **DocN.Core.Tests** - Unit Tests (xUnit)
+  - **DocN.Core.Tests** - Unit Tests (xUnit) - Test Project
 - Relazioni e dipendenze tra progetti
 
 ### 3. Tecnologie e Stack Tecnologico
