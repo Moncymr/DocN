@@ -499,14 +499,19 @@ public class MultiProviderAIService : IMultiProviderAIService
 
     public async Task<string> GenerateChatCompletionAsync(string systemPrompt, string userPrompt)
     {
+        return await GenerateChatCompletionWithProviderAsync(systemPrompt, userPrompt, providerOverride: null);
+    }
+
+    private async Task<string> GenerateChatCompletionWithProviderAsync(string systemPrompt, string userPrompt, AIProviderType? providerOverride)
+    {
         var config = await GetActiveConfigurationAsync();
         if (config == null)
         {
             throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database o in appsettings.json. Configura un provider AI tramite l'interfaccia utente.");
         }
 
-        // Determine which provider to use for chat (use ChatProvider if specified, otherwise ProviderType)
-        var provider = config.ChatProvider ?? config.ProviderType;
+        // Determine which provider to use for chat (use providerOverride if specified, otherwise ChatProvider, otherwise ProviderType)
+        var provider = providerOverride ?? config.ChatProvider ?? config.ProviderType;
         
         // Log the configuration being used
         await _logService.LogInfoAsync("AI", $"Attempting chat with provider: {provider}");
@@ -1038,8 +1043,18 @@ Rispondi in formato JSON:
         {
             return await ExecuteWithTimeoutAsync(async (cancellationToken) =>
             {
-                // Note: This method uses GenerateChatCompletionAsync which automatically
-                // determines the correct provider based on TagExtractionProvider configuration
+                // Get configuration to determine correct provider for tag extraction
+                var config = await GetActiveConfigurationAsync();
+                if (config == null)
+                {
+                    throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database. Configura un provider AI tramite l'interfaccia utente.");
+                }
+
+                // Use TagExtractionProvider if specified, otherwise fall back to ChatProvider or ProviderType
+                var provider = config.TagExtractionProvider ?? config.ChatProvider ?? config.ProviderType;
+                
+                await _logService.LogInfoAsync("Tag", $"Extracting tags with provider: {provider}");
+                
                 var systemPrompt = "You are a tag extraction expert. Extract 5-10 relevant keywords or tags from documents.";
             
                 var userPrompt = $@"Extract 5-10 relevant tags or keywords from this document.
@@ -1054,7 +1069,7 @@ Respond in JSON format:
 
                 // TODO: Pass cancellationToken to GenerateChatCompletionAsync to properly cancel underlying HTTP requests
                 // Currently the timeout prevents indefinite waits but doesn't cancel in-flight AI API calls
-                var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
+                var response = await GenerateChatCompletionWithProviderAsync(systemPrompt, userPrompt, provider);
             
                 // Clean up response - sometimes AI adds markdown code blocks
                 response = response.Trim();
@@ -1104,6 +1119,18 @@ Respond in JSON format:
     {
         try
         {
+            // Get configuration to determine correct provider for metadata extraction
+            var config = await GetActiveConfigurationAsync();
+            if (config == null)
+            {
+                throw new InvalidOperationException("Nessuna configurazione AI attiva trovata nel database. Configura un provider AI tramite l'interfaccia utente.");
+            }
+
+            // Use MetadataExtractionProvider if specified, otherwise fall back to ChatProvider or ProviderType
+            var provider = config.MetadataExtractionProvider ?? config.ChatProvider ?? config.ProviderType;
+            
+            await _logService.LogInfoAsync("Metadata", $"Extracting metadata with provider: {provider}", fileName);
+            
             var systemPrompt = "You are a metadata extraction expert. Extract structured metadata from documents.";
             
             var userPrompt = $@"Extract structured metadata from this document. Analyze the content and identify key information.
@@ -1126,7 +1153,7 @@ Example: {{""document_type"": ""invoice"", ""invoice_number"": ""INV-2024-001"",
 
 Respond ONLY with valid JSON, no other comments.";
 
-            var response = await GenerateChatCompletionAsync(systemPrompt, userPrompt);
+            var response = await GenerateChatCompletionWithProviderAsync(systemPrompt, userPrompt, provider);
             
             // Clean up response
             response = response.Trim();

@@ -47,6 +47,7 @@ public class AIConfiguration
     public AIProviderType? ChatProvider { get; set; }
     public AIProviderType? EmbeddingsProvider { get; set; }
     public AIProviderType? TagExtractionProvider { get; set; }
+    public AIProviderType? MetadataExtractionProvider { get; set; }
     public AIProviderType? RAGProvider { get; set; }
     
     // Configuration for each provider type
