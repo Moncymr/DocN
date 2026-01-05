@@ -410,6 +410,7 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
 
     /// <summary>
     /// In-memory vector search (fallback for non-SQL Server or older versions)
+    /// Optimized to limit the number of candidates evaluated for performance
     /// </summary>
     private async Task<List<RelevantDocumentResult>> SearchDocumentsInMemoryAsync(
         float[] queryEmbedding,
@@ -417,13 +418,34 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
         int topK = 10,
         double minSimilarity = 0.7)
     {
-        // Get all documents with embeddings for the user
+        // Performance optimization: Limit the number of candidates to evaluate
+        // This prevents loading thousands of documents into memory when the user has many files
+        const int MaxDocumentCandidates = 500; // Reasonable limit for in-memory processing
+        const int MaxChunkCandidates = 1000;   // Higher limit for chunks as they're more granular
+        
+        // Get recent documents with embeddings for the user - limited to avoid performance issues
         // Note: EmbeddingVector is a computed property, so we check the actual DB fields
-        var documents = await _context.Documents
+        // Select only necessary fields to reduce memory usage
+        var embeddingDimension = queryEmbedding.Length;
+        
+        var documentsQuery = _context.Documents
             .Where(d => d.OwnerId == userId && (d.EmbeddingVector768 != null || d.EmbeddingVector1536 != null))
-            .ToListAsync();
+            .OrderByDescending(d => d.UploadedAt) // Prioritize recent documents
+            .Take(MaxDocumentCandidates)
+            .Select(d => new 
+            {
+                d.Id,
+                d.FileName,
+                d.ActualCategory,
+                d.ExtractedText,
+                d.EmbeddingVector768,
+                d.EmbeddingVector1536
+            });
 
-        _logger.LogInformation("In-memory search: Found {Count} documents with embeddings for user {UserId}", documents.Count, userId);
+        var documents = await documentsQuery.ToListAsync();
+
+        _logger.LogInformation("In-memory search: Loaded {Count} document candidates (max: {Max}) for user {UserId}", 
+            documents.Count, MaxDocumentCandidates, userId);
 
         if (!documents.Any())
         {
@@ -443,19 +465,22 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
         }
 
         // Calculate similarity scores for documents
-        var scoredDocs = new List<(Document doc, double score)>();
+        var scoredDocs = new List<(int id, string fileName, string? category, string? extractedText, double score)>();
         var allScores = new List<double>(); // Track all scores for diagnostics
         
         foreach (var doc in documents)
         {
-            if (doc.EmbeddingVector == null) continue;
+            // Get the correct embedding based on dimension
+            float[]? embedding = embeddingDimension == 768 ? doc.EmbeddingVector768 : doc.EmbeddingVector1536;
+            
+            if (embedding == null) continue;
 
-            var similarity = CalculateCosineSimilarity(queryEmbedding, doc.EmbeddingVector);
+            var similarity = CalculateCosineSimilarity(queryEmbedding, embedding);
             allScores.Add(similarity);
             
             if (similarity >= minSimilarity)
             {
-                scoredDocs.Add((doc, similarity));
+                scoredDocs.Add((doc.Id, doc.FileName, doc.ActualCategory, doc.ExtractedText, similarity));
                 _logger.LogDebug("Document {FileName} (ID: {DocId}) matched with similarity {Score:P1}", 
                     doc.FileName, doc.Id, similarity);
             }
@@ -470,7 +495,14 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             
             // Log top documents by score for debugging
             var topDocs = documents
-                .Select(d => new { Doc = d, Score = d.EmbeddingVector != null ? CalculateCosineSimilarity(queryEmbedding, d.EmbeddingVector) : 0 })
+                .Select(d => {
+                    float[]? embedding = embeddingDimension == 768 ? d.EmbeddingVector768 : d.EmbeddingVector1536;
+                    return new { 
+                        d.FileName, 
+                        d.Id, 
+                        Score = embedding != null ? CalculateCosineSimilarity(queryEmbedding, embedding) : 0 
+                    };
+                })
                 .OrderByDescending(x => x.Score)
                 .Take(5)
                 .ToList();
@@ -479,31 +511,51 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
             foreach (var item in topDocs)
             {
                 _logger.LogInformation("  - '{FileName}' (ID:{DocId}): Score={Score:P1} {Status}",
-                    item.Doc.FileName, item.Doc.Id, item.Score, 
+                    item.FileName, item.Id, item.Score, 
                     item.Score >= minSimilarity ? "✓ ABOVE threshold" : "✗ below threshold");
             }
         }
 
         _logger.LogInformation("Found {Count} documents above similarity threshold {Threshold:P0}", scoredDocs.Count, minSimilarity);
 
-        // Get chunks for better precision
+        // Get chunks for better precision - also limited for performance
         // Note: ChunkEmbedding is a computed property, so we check the actual DB fields
-        var chunks = await _context.DocumentChunks
-            .Include(c => c.Document)
-            .Where(c => c.Document!.OwnerId == userId && (c.ChunkEmbedding768 != null || c.ChunkEmbedding1536 != null))
-            .ToListAsync();
+        // Join with Documents table but select only necessary fields
+        var chunksQuery = from chunk in _context.DocumentChunks
+                          join doc in _context.Documents on chunk.DocumentId equals doc.Id
+                          where doc.OwnerId == userId && 
+                                (chunk.ChunkEmbedding768 != null || chunk.ChunkEmbedding1536 != null)
+                          orderby chunk.CreatedAt descending
+                          select new
+                          {
+                              chunk.Id,
+                              chunk.DocumentId,
+                              chunk.ChunkText,
+                              chunk.ChunkIndex,
+                              chunk.ChunkEmbedding768,
+                              chunk.ChunkEmbedding1536,
+                              DocumentFileName = doc.FileName,
+                              DocumentCategory = doc.ActualCategory
+                          };
 
-        _logger.LogInformation("Found {Count} chunks with embeddings for user {UserId}", chunks.Count, userId);
+        var chunks = await chunksQuery.Take(MaxChunkCandidates).ToListAsync();
 
-        var scoredChunks = new List<(DocumentChunk chunk, double score)>();
+        _logger.LogInformation("In-memory search: Loaded {Count} chunk candidates (max: {Max}) for user {UserId}", 
+            chunks.Count, MaxChunkCandidates, userId);
+
+        var scoredChunks = new List<(int docId, string fileName, string? category, string chunkText, int chunkIndex, double score)>();
         foreach (var chunk in chunks)
         {
-            if (chunk.ChunkEmbedding == null) continue;
+            // Get the correct embedding based on dimension
+            float[]? embedding = embeddingDimension == 768 ? chunk.ChunkEmbedding768 : chunk.ChunkEmbedding1536;
+            
+            if (embedding == null) continue;
 
-            var similarity = CalculateCosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
+            var similarity = CalculateCosineSimilarity(queryEmbedding, embedding);
             if (similarity >= minSimilarity)
             {
-                scoredChunks.Add((chunk, similarity));
+                scoredChunks.Add((chunk.DocumentId, chunk.DocumentFileName, chunk.DocumentCategory, 
+                                 chunk.ChunkText, chunk.ChunkIndex, similarity));
             }
         }
 
@@ -516,42 +568,40 @@ Il sistema non fornisce risposte basate su conoscenze generali, ma solo su infor
         var topChunks = scoredChunks.OrderByDescending(x => x.score).Take(topK).ToList();
         var existingDocIds = new HashSet<int>();
 
-        foreach (var (chunk, score) in topChunks)
+        foreach (var (docId, fileName, category, chunkText, chunkIndex, score) in topChunks)
         {
-            if (chunk.Document == null) continue;
-
             results.Add(new RelevantDocumentResult
             {
-                DocumentId = chunk.DocumentId,
-                FileName = chunk.Document.FileName,
-                Category = chunk.Document.ActualCategory,
+                DocumentId = docId,
+                FileName = fileName,
+                Category = category,
                 SimilarityScore = score,
-                RelevantChunk = chunk.ChunkText,
-                ChunkIndex = chunk.ChunkIndex
+                RelevantChunk = chunkText,
+                ChunkIndex = chunkIndex
             });
-            existingDocIds.Add(chunk.DocumentId);
+            existingDocIds.Add(docId);
         }
 
         // Add document-level results if we don't have enough chunks
         if (results.Count < topK)
         {
-            foreach (var (doc, score) in scoredDocs.OrderByDescending(x => x.score))
+            foreach (var (id, fileName, category, extractedText, score) in scoredDocs.OrderByDescending(x => x.score))
             {
                 if (results.Count >= topK)
                     break;
 
-                if (existingDocIds.Contains(doc.Id))
+                if (existingDocIds.Contains(id))
                     continue;
 
                 results.Add(new RelevantDocumentResult
                 {
-                    DocumentId = doc.Id,
-                    FileName = doc.FileName,
-                    Category = doc.ActualCategory,
+                    DocumentId = id,
+                    FileName = fileName,
+                    Category = category,
                     SimilarityScore = score,
-                    ExtractedText = doc.ExtractedText
+                    ExtractedText = extractedText
                 });
-                existingDocIds.Add(doc.Id);
+                existingDocIds.Add(id);
             }
         }
 
@@ -778,14 +828,21 @@ FORMATO DELLA RISPOSTA:
             _logger.LogInformation("Extracted {NumCount} numbers and {KeywordCount} keywords from query", 
                 numbers.Count, keywords.Count);
             
-            // Carica TUTTI i documenti dell'utente con Tags
-            // Faremo il filtro in memoria per garantire case-insensitive funzionante
+            // Performance optimization: Limit the number of documents to search through
+            // This prevents loading thousands of documents into memory for fallback search
+            const int MaxFallbackCandidates = 1000;
+            
+            // Load recent documents for the user - limited to avoid performance issues
+            // Include Tags but select only necessary fields
             var allUserDocuments = await _context.Documents
                 .Include(d => d.Tags)
                 .Where(d => d.OwnerId == userId)
+                .OrderByDescending(d => d.UploadedAt) // Prioritize recent documents
+                .Take(MaxFallbackCandidates)
                 .ToListAsync();
             
-            _logger.LogInformation("Loaded {Count} total documents for user {UserId}", allUserDocuments.Count, userId);
+            _logger.LogInformation("Loaded {Count} total documents (max: {Max}) for fallback search for user {UserId}", 
+                allUserDocuments.Count, MaxFallbackCandidates, userId);
             
             // Log document details for debugging
             if (allUserDocuments.Any())
