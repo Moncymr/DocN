@@ -864,15 +864,12 @@
         return dateTime.ToString("dd/MM/yyyy HH:mm:ss");
     }
 
-    private string GetProviderTypeName(int? providerType)
+    private string GetProviderTypeName(AIProviderType? providerType)
     {
         if (!providerType.HasValue)
             return "Non configurato";
-
-        // Convert integer to AIProviderType enum from DocN.Data.Models
-        var providerTypeEnum = (AIProviderType)providerType.Value;
         
-        return providerTypeEnum switch
+        return providerType.Value switch
         {
             AIProviderType.Gemini => "Gemini",
             AIProviderType.OpenAI => "OpenAI",
@@ -918,10 +915,10 @@
         public bool HasOllamaEndpoint { get; set; }
         public bool HasGroqKey { get; set; }
         public int ProviderType { get; set; }
-        public int? ChatProvider { get; set; }
-        public int? EmbeddingsProvider { get; set; }
-        public int? TagExtractionProvider { get; set; }
-        public int? RAGProvider { get; set; }
+        public AIProviderType? ChatProvider { get; set; }
+        public AIProviderType? EmbeddingsProvider { get; set; }
+        public AIProviderType? TagExtractionProvider { get; set; }
+        public AIProviderType? RAGProvider { get; set; }
         public int SortOrder { get; set; }
     }
 
