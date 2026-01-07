@@ -442,25 +442,29 @@ builder.Services.Configure<DocN.Core.AI.Configuration.EnhancedRAGConfiguration>(
 // Il provider RAG viene inizializzato automaticamente dal framework.
 // Configurazione: Database AIConfigurations (priorità) o appsettings.json (fallback)
 // 
-// Feature Flag: EnhancedRAG:UseEnhancedAgentRAG (disponibile in futuro)
+// Feature Flag: EnhancedRAG:UseEnhancedAgentRAG
 //   - true: Usa EnhancedAgentRAGService con Microsoft Agent Framework
 //   - false: Usa MultiProviderSemanticRAGService (attuale)
 // 
 // Per dettagli: Vedi docs/MICROSOFT_AGENT_FRAMEWORK_GUIDE.md e docs/QUICK_START_ENHANCED_RAG.md
 // ════════════════════════════════════════════════════════════════════════════════
 
-// TODO: Implementare EnhancedAgentRAGService seguendo le guide
-// var useEnhancedAgentRAG = builder.Configuration.GetValue<bool>("EnhancedRAG:UseEnhancedAgentRAG", false);
-// if (useEnhancedAgentRAG)
-// {
-//     Log.Information("Using EnhancedAgentRAGService with Microsoft Agent Framework");
-//     builder.Services.AddScoped<ISemanticRAGService, EnhancedAgentRAGService>();
-// }
-// else
-// {
+// Register enhanced RAG services (used by EnhancedAgentRAGService)
+builder.Services.AddScoped<IHyDEService, HyDEService>();
+builder.Services.AddScoped<IReRankingService, ReRankingService>();
+builder.Services.AddScoped<IContextualCompressionService, ContextualCompressionService>();
+
+var useEnhancedAgentRAG = builder.Configuration.GetValue<bool>("EnhancedRAG:UseEnhancedAgentRAG", false);
+if (useEnhancedAgentRAG)
+{
+    Log.Information("Using EnhancedAgentRAGService with Microsoft Agent Framework");
+    builder.Services.AddScoped<ISemanticRAGService, EnhancedAgentRAGService>();
+}
+else
+{
     Log.Information("Using MultiProviderSemanticRAGService (default)");
     builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
-// }
+}
 
 // Register agents (used by both implementations if needed)
 builder.Services.AddScoped<IRetrievalAgent, RetrievalAgent>();
