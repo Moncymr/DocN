@@ -10,7 +10,6 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
 using System.Text;
-using System.Runtime.CompilerServices;
 
 #pragma warning disable SKEXP0110 // Agents are experimental
 
@@ -125,8 +124,7 @@ public class EnhancedAgentRAGService : ISemanticRAGService
         string query,
         string userId,
         int? conversationId = null,
-        List<int>? specificDocumentIds = null,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        List<int>? specificDocumentIds = null)
     {
         var metadata = new Dictionary<string, object>();
 
@@ -165,8 +163,7 @@ public class EnhancedAgentRAGService : ISemanticRAGService
         chatHistory.AddSystemMessage(systemPrompt);
         chatHistory.AddUserMessage(userPrompt);
 
-        await foreach (var chunk in chatService.GetStreamingChatMessageContentsAsync(
-            chatHistory, cancellationToken: cancellationToken))
+        await foreach (var chunk in chatService.GetStreamingChatMessageContentsAsync(chatHistory))
         {
             if (!string.IsNullOrEmpty(chunk.Content))
             {
@@ -228,14 +225,14 @@ public class EnhancedAgentRAGService : ISemanticRAGService
             // Get all chunks with embeddings
             var chunks = await _context.DocumentChunks
                 .Include(c => c.Document)
-                .Where(c => c.Embedding != null && c.Document.UserId == userId)
+                .Where(c => c.ChunkEmbedding != null && c.Document != null && c.Document.OwnerId == userId)
                 .ToListAsync();
 
             foreach (var chunk in chunks)
             {
-                if (chunk.Embedding == null) continue;
+                if (chunk.ChunkEmbedding == null) continue;
 
-                var similarity = CosineSimilarity(queryEmbedding, chunk.Embedding);
+                var similarity = CosineSimilarity(queryEmbedding, chunk.ChunkEmbedding);
                 
                 if (similarity >= minSimilarity)
                 {
@@ -243,11 +240,11 @@ public class EnhancedAgentRAGService : ISemanticRAGService
                     {
                         DocumentId = chunk.DocumentId,
                         FileName = chunk.Document?.FileName ?? "Unknown",
-                        Category = chunk.Document?.Category,
+                        Category = chunk.Document?.ActualCategory ?? chunk.Document?.SuggestedCategory,
                         SimilarityScore = similarity,
-                        RelevantChunk = chunk.Content,
+                        RelevantChunk = chunk.ChunkText,
                         ChunkIndex = chunk.ChunkIndex,
-                        ExtractedText = chunk.Content
+                        ExtractedText = chunk.ChunkText
                     });
                 }
             }
@@ -280,12 +277,13 @@ public class EnhancedAgentRAGService : ISemanticRAGService
             if (_config.Caching.EnableQueryAnalysisCache)
             {
                 var cacheKey = CACHE_PREFIX_QUERY_ANALYSIS + query;
-                var cached = await _cacheService.GetCachedSearchResultsAsync<(string, string?)>(cacheKey);
+                var cached = await _cacheService.GetCachedSearchResultsAsync<EnhancedQueryAnalysisResult>(cacheKey);
                 if (cached != null && cached.Any())
                 {
                     _logger.LogDebug("Query analysis cache hit for: {Query}", query);
                     metadata["query_analysis_cached"] = true;
-                    return cached.First();
+                    var cachedResult = cached.First();
+                    return (cachedResult.AnalyzedQuery, cachedResult.HydeDocument);
                 }
             }
 
@@ -306,7 +304,11 @@ public class EnhancedAgentRAGService : ISemanticRAGService
                 }
             }
 
-            var result = (query, hydeDocument);
+            var result = new EnhancedQueryAnalysisResult
+            {
+                AnalyzedQuery = query,
+                HydeDocument = hydeDocument
+            };
 
             // Cache the result
             if (_config.Caching.EnableQueryAnalysisCache)
@@ -314,14 +316,14 @@ public class EnhancedAgentRAGService : ISemanticRAGService
                 var cacheKey = CACHE_PREFIX_QUERY_ANALYSIS + query;
                 await _cacheService.SetCachedSearchResultsAsync(
                     cacheKey,
-                    new List<(string, string?)> { result },
+                    new List<EnhancedQueryAnalysisResult> { result },
                     TimeSpan.FromHours(_config.Caching.CacheExpirationHours));
             }
 
             phaseStopwatch.Stop();
             metadata["query_analysis_time_ms"] = phaseStopwatch.ElapsedMilliseconds;
 
-            return result;
+            return (result.AnalyzedQuery, result.HydeDocument);
         }
         catch (Exception ex)
         {
@@ -598,4 +600,13 @@ Rispondi alla domanda basandoti esclusivamente sui documenti forniti.";
 
         return dotProduct / (Math.Sqrt(magnitudeA) * Math.Sqrt(magnitudeB));
     }
+}
+
+/// <summary>
+/// Internal class for caching query analysis results
+/// </summary>
+internal class EnhancedQueryAnalysisResult
+{
+    public string AnalyzedQuery { get; set; } = string.Empty;
+    public string? HydeDocument { get; set; }
 }
