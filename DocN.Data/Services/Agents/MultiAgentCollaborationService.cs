@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using DocN.Core.Interfaces;
 
 #pragma warning disable SKEXP0110 // Agents are experimental
+#pragma warning disable SKEXP0001 // Experimental features
 
 namespace DocN.Data.Services.Agents;
 
@@ -82,9 +83,13 @@ public class MultiAgentCollaborationService
 
             await foreach (var message in chat.InvokeAsync())
             {
+                var contentPreview = message.Content != null && message.Content.Length > 100 
+                    ? message.Content.Substring(0, 100) 
+                    : message.Content ?? "";
+                    
                 _logger.LogInformation("Agent {Agent}: {Content}", 
                     message.AuthorName, 
-                    message.Content?.Substring(0, Math.Min(100, message.Content.Length ?? 0)));
+                    contentPreview);
 
                 messages.Add(new AgentMessage
                 {
@@ -243,7 +248,7 @@ public class AgentMessage
 /// </summary>
 public class ApprovalTerminationStrategy : TerminationStrategy
 {
-    public int MaximumIterations { get; set; } = 10;
+    public new int MaximumIterations { get; set; } = 10;
     public bool AutomaticApproval { get; set; } = false;
 
     protected override Task<bool> ShouldAgentTerminateAsync(Agent agent, IReadOnlyList<ChatMessageContent> history, CancellationToken cancellationToken = default)
@@ -267,3 +272,4 @@ public class ApprovalTerminationStrategy : TerminationStrategy
 }
 
 #pragma warning restore SKEXP0110
+#pragma warning restore SKEXP0001

@@ -30,9 +30,10 @@
     <PackageReference Include="Tesseract" Version="5.2.0" />
     
     <!-- PostgreSQL with pgvector support for optimal vector search -->
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
-    <PackageReference Include="Pgvector" Version="0.2.2" />
-    <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.2" />
+    <!-- Using preview version compatible with EF Core 10 -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0-preview.1" />
+    <PackageReference Include="Npgsql" Version="10.0.0-preview.1" />
+    <PackageReference Include="Pgvector" Version="0.3.0" />
   </ItemGroup>
 
   <ItemGroup>

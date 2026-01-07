@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using Pgvector;
-using Pgvector.EntityFrameworkCore;
 using DocN.Core.Interfaces;
 
 namespace DocN.Data.Services;
