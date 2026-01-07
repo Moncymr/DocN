@@ -381,12 +381,3 @@ public class EnhancedAgentRAGServiceTests
         _context.Dispose();
     }
 }
-
-/// <summary>
-/// Internal class for caching query analysis results - for testing
-/// </summary>
-internal class EnhancedQueryAnalysisResult
-{
-    public string AnalyzedQuery { get; set; } = string.Empty;
-    public string? HydeDocument { get; set; }
-}

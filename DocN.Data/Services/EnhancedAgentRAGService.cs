@@ -603,9 +603,9 @@ Rispondi alla domanda basandoti esclusivamente sui documenti forniti.";
 }
 
 /// <summary>
-/// Internal class for caching query analysis results
+/// Class for caching query analysis results
 /// </summary>
-internal class EnhancedQueryAnalysisResult
+public class EnhancedQueryAnalysisResult
 {
     public string AnalyzedQuery { get; set; } = string.Empty;
     public string? HydeDocument { get; set; }
