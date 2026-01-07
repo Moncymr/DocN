@@ -432,15 +432,35 @@ builder.Services.AddScoped<IRAGASMetricsService, RAGASMetricsService>();
 builder.Services.Configure<DocN.Core.AI.Configuration.AlertManagerConfiguration>(
     builder.Configuration.GetSection("AlertManager"));
 
+// Configure Enhanced RAG settings (for future use)
+builder.Services.Configure<DocN.Core.AI.Configuration.EnhancedRAGConfiguration>(
+    builder.Configuration.GetSection("EnhancedRAG"));
+
 // ════════════════════════════════════════════════════════════════════════════════
 // RAG Provider Registration - Inizializzazione automatica via Dependency Injection
 // ════════════════════════════════════════════════════════════════════════════════
 // Il provider RAG viene inizializzato automaticamente dal framework.
 // Configurazione: Database AIConfigurations (priorità) o appsettings.json (fallback)
 // 
-// Per dettagli completi: Vedi RAG_PROVIDER_INITIALIZATION_GUIDE.md
+// Feature Flag: EnhancedRAG:UseEnhancedAgentRAG (disponibile in futuro)
+//   - true: Usa EnhancedAgentRAGService con Microsoft Agent Framework
+//   - false: Usa MultiProviderSemanticRAGService (attuale)
+// 
+// Per dettagli: Vedi docs/MICROSOFT_AGENT_FRAMEWORK_GUIDE.md e docs/QUICK_START_ENHANCED_RAG.md
 // ════════════════════════════════════════════════════════════════════════════════
-builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
+
+// TODO: Implementare EnhancedAgentRAGService seguendo le guide
+// var useEnhancedAgentRAG = builder.Configuration.GetValue<bool>("EnhancedRAG:UseEnhancedAgentRAG", false);
+// if (useEnhancedAgentRAG)
+// {
+//     Log.Information("Using EnhancedAgentRAGService with Microsoft Agent Framework");
+//     builder.Services.AddScoped<ISemanticRAGService, EnhancedAgentRAGService>();
+// }
+// else
+// {
+    Log.Information("Using MultiProviderSemanticRAGService (default)");
+    builder.Services.AddScoped<ISemanticRAGService, MultiProviderSemanticRAGService>();
+// }
 
 // Register agents (used by both implementations if needed)
 builder.Services.AddScoped<IRetrievalAgent, RetrievalAgent>();
