@@ -279,6 +279,12 @@
                         <small>Massimo token per le risposte generate</small>
                     </div>
 
+                    <div class="form-group">
+                        <label>🎯 MMR Lambda (Diversità Risultati)</label>
+                        <InputNumber @bind-Value="config.MMRLambda" class="form-control" step="0.1" min="0" max="1" />
+                        <small>0.0 - 1.0 | 0.0=Max diversità, 0.7=Bilanciato (consigliato), 1.0=Max rilevanza</small>
+                    </div>
+
                     <div class="form-group full-width">
                         <label>System Prompt</label>
                         <InputTextArea @bind-Value="config.SystemPrompt" class="form-control" rows="4" 
@@ -936,6 +942,7 @@
                 MaxDocumentsToRetrieve = 5,
                 SimilarityThreshold = 0.7,
                 MaxTokensForContext = 4000,
+                MMRLambda = 0.7, // Default: bilanciato tra rilevanza e diversità
                 EmbeddingDimensions = 768, // Default for Gemini
                 EmbeddingModel = "text-embedding-004",
                 SystemPrompt = "Sei un assistente utile che risponde a domande basandoti sui documenti forniti. Cita sempre i documenti fonte quando fornisci informazioni.",
