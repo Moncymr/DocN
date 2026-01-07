@@ -1,7 +1,6 @@
 using Xunit;
 using Moq;
 using Microsoft.Extensions.Logging;
-using DocN.Core.Interfaces;
 using DocN.Data.Services;
 
 namespace DocN.Server.Tests;
@@ -9,7 +8,7 @@ namespace DocN.Server.Tests;
 public class ContextualCompressionServiceTests
 {
     private readonly Mock<ILogger<ContextualCompressionService>> _mockLogger;
-    private readonly Mock<IEmbeddingService> _mockEmbeddingService;
+    private readonly Mock<DocN.Data.Services.IEmbeddingService> _mockEmbeddingService;
     private readonly ContextualCompressionService _service;
 
     public ContextualCompressionServiceTests()

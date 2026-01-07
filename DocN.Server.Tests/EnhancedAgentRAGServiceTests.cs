@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using DocN.Core.Interfaces;
 using DocN.Core.AI.Configuration;
 using DocN.Data.Services;
+using DocN.Data;
 using DocN.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +15,7 @@ public class EnhancedAgentRAGServiceTests
 {
     private readonly Mock<ILogger<EnhancedAgentRAGService>> _mockLogger;
     private readonly Mock<IKernelProvider> _mockKernelProvider;
-    private readonly Mock<IEmbeddingService> _mockEmbeddingService;
+    private readonly Mock<DocN.Data.Services.IEmbeddingService> _mockEmbeddingService;
     private readonly Mock<IHyDEService> _mockHydeService;
     private readonly Mock<IReRankingService> _mockReRankingService;
     private readonly Mock<IContextualCompressionService> _mockCompressionService;
@@ -26,7 +27,7 @@ public class EnhancedAgentRAGServiceTests
     {
         _mockLogger = new Mock<ILogger<EnhancedAgentRAGService>>();
         _mockKernelProvider = new Mock<IKernelProvider>();
-        _mockEmbeddingService = new Mock<IEmbeddingService>();
+        _mockEmbeddingService = new Mock<DocN.Data.Services.IEmbeddingService>();
         _mockHydeService = new Mock<IHyDEService>();
         _mockReRankingService = new Mock<IReRankingService>();
         _mockCompressionService = new Mock<IContextualCompressionService>();
@@ -146,9 +147,10 @@ public class EnhancedAgentRAGServiceTests
         var userId = "user123";
 
         // Setup cached query analysis
+        var cachedResult = new EnhancedQueryAnalysisResult { AnalyzedQuery = query, HydeDocument = null };
         _mockCacheService
-            .Setup(s => s.GetCachedSearchResultsAsync<(string, string?)>(It.IsAny<string>()))
-            .ReturnsAsync(new List<(string, string?)> { (query, null) });
+            .Setup(s => s.GetCachedSearchResultsAsync<EnhancedQueryAnalysisResult>(It.IsAny<string>()))
+            .ReturnsAsync(new List<EnhancedQueryAnalysisResult> { cachedResult });
 
         // Setup cached retrieval
         var cachedDocs = new List<RelevantDocumentResult>
@@ -351,31 +353,40 @@ public class EnhancedAgentRAGServiceTests
 
     private async Task SeedTestDocumentsAsync()
     {
-        var user = new User { Id = "user123", UserName = "testuser" };
+        var user = new ApplicationUser { Id = "user123", UserName = "testuser" };
         _context.Users.Add(user);
 
         var doc1 = new Document
         {
             Id = 1,
             FileName = "test1.pdf",
-            UserId = "user123",
-            UploadDate = DateTime.UtcNow
+            OwnerId = "user123",
+            UploadedAt = DateTime.UtcNow
         };
 
         var doc2 = new Document
         {
             Id = 2,
             FileName = "test2.pdf",
-            UserId = "user123",
-            UploadDate = DateTime.UtcNow
+            OwnerId = "user123",
+            UploadedAt = DateTime.UtcNow
         };
 
         _context.Documents.AddRange(doc1, doc2);
         await _context.SaveChangesAsync();
     }
 
-    public void Dispose()
+    private void CleanupTests()
     {
         _context.Dispose();
     }
+}
+
+/// <summary>
+/// Internal class for caching query analysis results - for testing
+/// </summary>
+internal class EnhancedQueryAnalysisResult
+{
+    public string AnalyzedQuery { get; set; } = string.Empty;
+    public string? HydeDocument { get; set; }
 }
