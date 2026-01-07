@@ -437,7 +437,7 @@ builder.Services.Configure<DocN.Core.AI.Configuration.EnhancedRAGConfiguration>(
     builder.Configuration.GetSection("EnhancedRAG"));
 
 // Configure Contextual Compression settings
-builder.Services.Configure<ContextualCompressionConfiguration>(
+builder.Services.Configure<DocN.Core.Interfaces.ContextualCompressionConfiguration>(
     builder.Configuration.GetSection("EnhancedRAG:ContextualCompression"));
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -452,11 +452,6 @@ builder.Services.Configure<ContextualCompressionConfiguration>(
 // 
 // Per dettagli: Vedi docs/MICROSOFT_AGENT_FRAMEWORK_GUIDE.md e docs/QUICK_START_ENHANCED_RAG.md
 // ════════════════════════════════════════════════════════════════════════════════
-
-// Register enhanced RAG services (used by EnhancedAgentRAGService)
-builder.Services.AddScoped<IHyDEService, HyDEService>();
-builder.Services.AddScoped<IReRankingService, ReRankingService>();
-builder.Services.AddScoped<IContextualCompressionService, ContextualCompressionService>();
 
 var useEnhancedAgentRAG = builder.Configuration.GetValue<bool>("EnhancedRAG:UseEnhancedAgentRAG", false);
 if (useEnhancedAgentRAG)

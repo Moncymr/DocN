@@ -10,6 +10,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
 using System.Text;
+using System.Linq;
 
 #pragma warning disable SKEXP0110 // Agents are experimental
 
@@ -26,9 +27,6 @@ public class EnhancedAgentRAGService : ISemanticRAGService
     private readonly ILogger<EnhancedAgentRAGService> _logger;
     private readonly IKernelProvider _kernelProvider;
     private readonly IEmbeddingService _embeddingService;
-    private readonly IHyDEService _hydeService;
-    private readonly IReRankingService _reRankingService;
-    private readonly IContextualCompressionService _compressionService;
     private readonly ICacheService _cacheService;
     private readonly EnhancedRAGConfiguration _config;
 
@@ -42,9 +40,6 @@ public class EnhancedAgentRAGService : ISemanticRAGService
         ILogger<EnhancedAgentRAGService> logger,
         IKernelProvider kernelProvider,
         IEmbeddingService embeddingService,
-        IHyDEService hydeService,
-        IReRankingService reRankingService,
-        IContextualCompressionService compressionService,
         ICacheService cacheService,
         IOptions<EnhancedRAGConfiguration> config)
     {
@@ -52,11 +47,64 @@ public class EnhancedAgentRAGService : ISemanticRAGService
         _logger = logger;
         _kernelProvider = kernelProvider;
         _embeddingService = embeddingService;
-        _hydeService = hydeService;
-        _reRankingService = reRankingService;
-        _compressionService = compressionService;
         _cacheService = cacheService;
         _config = config.Value;
+    }
+
+    /// <summary>
+    /// Creates an instance of HyDEService on-demand
+    /// </summary>
+    private async Task<IHyDEService> CreateHyDEServiceAsync()
+    {
+        var kernel = await _kernelProvider.GetKernelAsync();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<HyDEService>.Instance;
+        
+        // Create a dummy RAG service for HyDE (it won't be used in our implementation)
+        // HyDE will use embeddings directly through this service
+        var ragService = new NoOpSemanticRAGService();
+        
+        return new HyDEService(kernel, logger, _embeddingService, ragService);
+    }
+
+    /// <summary>
+    /// Creates an instance of ReRankingService on-demand
+    /// </summary>
+    private async Task<IReRankingService> CreateReRankingServiceAsync()
+    {
+        var kernel = await _kernelProvider.GetKernelAsync();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<ReRankingService>.Instance;
+        
+        return new ReRankingService(kernel, logger);
+    }
+
+    /// <summary>
+    /// Creates an instance of ContextualCompressionService on-demand
+    /// </summary>
+    private IContextualCompressionService CreateCompressionService()
+    {
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<ContextualCompressionService>.Instance;
+        
+        return new ContextualCompressionService(logger, _embeddingService, Options.Create(_config.Synthesis.EnableContextualCompression 
+            ? new ContextualCompressionConfiguration { Enabled = true }
+            : new ContextualCompressionConfiguration { Enabled = false }));
+    }
+
+    // Simplified NoOp RAG service for HyDE dependency
+    private class NoOpSemanticRAGService : ISemanticRAGService
+    {
+        public Task<SemanticRAGResponse> GenerateResponseAsync(string query, string userId, int? conversationId = null, List<int>? specificDocumentIds = null, int topK = 5)
+            => Task.FromResult(new SemanticRAGResponse());
+
+        public async IAsyncEnumerable<string> GenerateStreamingResponseAsync(string query, string userId, int? conversationId = null, List<int>? specificDocumentIds = null)
+        {
+            yield break;
+        }
+
+        public Task<List<RelevantDocumentResult>> SearchDocumentsAsync(string query, string userId, int topK = 10, double minSimilarity = 0.7)
+            => Task.FromResult(new List<RelevantDocumentResult>());
+
+        public Task<List<RelevantDocumentResult>> SearchDocumentsWithEmbeddingAsync(float[] queryEmbedding, string userId, int topK = 10, double minSimilarity = 0.7)
+            => Task.FromResult(new List<RelevantDocumentResult>());
     }
 
     /// <inheritdoc/>
@@ -184,13 +232,14 @@ public class EnhancedAgentRAGService : ISemanticRAGService
             // Use HyDE if enabled
             if (_config.QueryAnalysis.EnableHyDE)
             {
-                var hydeRecommendation = await _hydeService.AnalyzeQueryForHyDEAsync(query);
+                var hydeService = await CreateHyDEServiceAsync();
+                var hydeRecommendation = await hydeService.AnalyzeQueryForHyDEAsync(query);
                 
                 if (hydeRecommendation.IsRecommended)
                 {
                     _logger.LogInformation("Using HyDE for search (confidence: {Confidence:F2})", 
                         hydeRecommendation.Confidence);
-                    return await _hydeService.SearchWithHyDEAsync(query, userId, topK, minSimilarity);
+                    return await hydeService.SearchWithHyDEAsync(query, userId, topK, minSimilarity);
                 }
             }
 
@@ -292,11 +341,12 @@ public class EnhancedAgentRAGService : ISemanticRAGService
             // Apply HyDE if enabled
             if (_config.QueryAnalysis.EnableHyDE)
             {
-                var hydeRecommendation = await _hydeService.AnalyzeQueryForHyDEAsync(query);
+                var hydeService = await CreateHyDEServiceAsync();
+                var hydeRecommendation = await hydeService.AnalyzeQueryForHyDEAsync(query);
                 
                 if (hydeRecommendation.IsRecommended)
                 {
-                    hydeDocument = await _hydeService.GenerateHypotheticalDocumentAsync(query);
+                    hydeDocument = await hydeService.GenerateHypotheticalDocumentAsync(query);
                     _logger.LogInformation("HyDE document generated (confidence: {Confidence:F2})", 
                         hydeRecommendation.Confidence);
                     metadata["hyde_used"] = true;
@@ -430,7 +480,8 @@ public class EnhancedAgentRAGService : ISemanticRAGService
 
             _logger.LogDebug("Re-ranking {Count} results", results.Count);
 
-            var reranked = await _reRankingService.ReRankResultsAsync(query, results, topK);
+            var reRankingService = await CreateReRankingServiceAsync();
+            var reranked = await reRankingService.ReRankResultsAsync(query, results, topK);
 
             phaseStopwatch.Stop();
             metadata["reranking_enabled"] = true;
@@ -469,16 +520,17 @@ public class EnhancedAgentRAGService : ISemanticRAGService
                 .Where(c => !string.IsNullOrWhiteSpace(c))
                 .ToList();
 
+            var compressionService = CreateCompressionService();
             var targetTokens = _config.Synthesis.MaxContextLength;
-            var compressedChunks = await _compressionService.CompressChunksAsync(query, chunks, targetTokens);
+            var compressedChunks = await compressionService.CompressChunksAsync(query, chunks, targetTokens);
 
             var compressedContext = string.Join("\n\n", compressedChunks.Select(c => c.Content));
 
             phaseStopwatch.Stop();
             metadata["compression_enabled"] = true;
             metadata["compression_time_ms"] = phaseStopwatch.ElapsedMilliseconds;
-            metadata["original_tokens"] = chunks.Sum(c => _compressionService.EstimateTokenCount(c));
-            metadata["compressed_tokens"] = _compressionService.EstimateTokenCount(compressedContext);
+            metadata["original_tokens"] = chunks.Sum(c => compressionService.EstimateTokenCount(c));
+            metadata["compressed_tokens"] = compressionService.EstimateTokenCount(compressedContext);
 
             return compressedContext;
         }
