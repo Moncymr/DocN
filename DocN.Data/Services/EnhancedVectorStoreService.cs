@@ -116,12 +116,12 @@ public class EnhancedVectorStoreService : IVectorStoreService
     {
         try
         {
-            // Use configured lambda if not explicitly provided
-            var effectiveLambda = lambda == 0.5 ? _config.Reranking.MMRLambda : lambda;
+            // Get effective lambda: database config > parameter > appsettings
+            var effectiveLambda = await GetEffectiveLambdaAsync(lambda);
             
             _logger.LogInformation(
-                "Searching with MMR: topK={TopK}, lambda={Lambda} (configured={ConfiguredLambda})",
-                topK, effectiveLambda, _config.Reranking.MMRLambda);
+                "Searching with MMR: topK={TopK}, lambda={Lambda} (configured={ConfiguredLambda}, database={FromDatabase})",
+                topK, effectiveLambda, _config.Reranking.MMRLambda, effectiveLambda != lambda && effectiveLambda != _config.Reranking.MMRLambda);
 
             // First, get more candidates than needed (for better diversity)
             var candidateMultiplier = 3;
@@ -350,5 +350,41 @@ public class EnhancedVectorStoreService : IVectorStoreService
         }
 
         return dotProduct / (Math.Sqrt(magnitudeA) * Math.Sqrt(magnitudeB));
+    }
+
+    /// <summary>
+    /// Get effective lambda value with priority: explicit parameter > database config > appsettings
+    /// </summary>
+    private async Task<double> GetEffectiveLambdaAsync(double parameterLambda)
+    {
+        try
+        {
+            // If explicitly provided (not default 0.5), use it
+            if (parameterLambda != 0.5)
+            {
+                return parameterLambda;
+            }
+
+            // Try to get from database (active AIConfiguration)
+            var dbConfig = await _context.AIConfigurations
+                .Where(c => c.IsActive)
+                .OrderByDescending(c => c.Id)
+                .FirstOrDefaultAsync();
+
+            if (dbConfig != null && dbConfig.MMRLambda > 0 && dbConfig.MMRLambda <= 1.0)
+            {
+                _logger.LogDebug("Using MMR Lambda from database: {Lambda}", dbConfig.MMRLambda);
+                return dbConfig.MMRLambda;
+            }
+
+            // Fallback to appsettings.json config
+            _logger.LogDebug("Using MMR Lambda from appsettings: {Lambda}", _config.Reranking.MMRLambda);
+            return _config.Reranking.MMRLambda;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error loading MMR Lambda from database, using appsettings");
+            return _config.Reranking.MMRLambda;
+        }
     }
 }

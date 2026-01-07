@@ -93,6 +93,16 @@ public class AIConfiguration
     // Enable fallback to other providers
     public bool EnableFallback { get; set; } = true;
     
+    // MMR (Maximal Marginal Relevance) Configuration
+    /// <summary>
+    /// MMR Lambda parameter for balancing relevance vs diversity in search results (0-1)
+    /// - 0.0 = Pure diversity (maximum variety, minimum relevance)
+    /// - 0.5 = Balanced (50% relevance, 50% diversity)
+    /// - 0.7 = Recommended default (70% relevance, 30% diversity)
+    /// - 1.0 = Pure relevance (no diversity consideration)
+    /// </summary>
+    public double MMRLambda { get; set; } = 0.7;
+    
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

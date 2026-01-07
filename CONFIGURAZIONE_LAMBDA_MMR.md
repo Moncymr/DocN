@@ -61,9 +61,56 @@ var results = await vectorStore.SearchWithMMRAsync(
 
 ### 💾 Dove Si Salva
 
-Il parametro λ è salvato in **2 luoghi**:
+Il parametro λ è salvato in **3 luoghi** con priorità:
 
-#### 1. 📂 Configurazione Applicazione (Runtime)
+#### 1. 🗄️ Database (Priorità Alta - Per Utente/Tenant)
+
+**Tabella**: `AIConfigurations` (SQL Server 2025)
+
+```sql
+-- Schema della colonna
+MMRLambda FLOAT NOT NULL DEFAULT 0.7
+```
+
+**Come Configurare**:
+```sql
+-- Imposta lambda globale per configurazione attiva
+UPDATE AIConfigurations
+SET MMRLambda = 0.7
+WHERE IsActive = 1;
+
+-- Oppure crea configurazione specifica per utente
+INSERT INTO AIConfigurations (
+    ConfigurationName,
+    MMRLambda,
+    MaxDocumentsToRetrieve,
+    SimilarityThreshold,
+    IsActive
+)
+VALUES (
+    'User123 - Alta Diversità',
+    0.3,  -- Lambda basso = alta diversità
+    10,
+    0.7,
+    1
+);
+```
+
+**Dove viene letto**:
+- ✅ `EnhancedVectorStoreService` 
+- ✅ `PgVectorStoreService`
+- ✅ Automaticamente caricato dai servizi
+
+**Migrazione SQL**:
+```sql
+-- Esegui questo script per aggiungere la colonna
+-- File: Database/UpdateScripts/013_AddMMRLambdaConfiguration.sql
+sqlcmd -S YOUR_SERVER -d DocNDb -i Database/UpdateScripts/013_AddMMRLambdaConfiguration.sql
+```
+
+#### 2. 📂 Configurazione Applicazione (Priorità Media - Default)
+
+#### 2. 📂 Configurazione Applicazione (Priorità Media - Default)
 
 **Classe**: `DocN.Core/AI/Configuration/EnhancedRAGConfiguration.cs`
 
@@ -86,33 +133,7 @@ public class RerankingOptions
 - ✅ `PgVectorStoreService` (PostgreSQL)
 - ✅ Qualsiasi servizio che inietta `IOptions<EnhancedRAGConfiguration>`
 
-#### 2. 🗄️ Database (Opzionale - Per Configurazione Per Utente/Tenant)
-
-Se vuoi salvare una configurazione **specifica per utente o tenant**, puoi estendere:
-
-**Tabella**: `AIConfiguration` (già esistente nel database)
-
-```sql
--- Esempio: aggiungere colonna per lambda personalizzato
-ALTER TABLE AIConfigurations 
-ADD MMRLambda FLOAT NULL DEFAULT 0.7;
-```
-
-**Modello**: `DocN.Data/Models/AIConfiguration.cs`
-
-```csharp
-public class AIConfiguration
-{
-    // ... campi esistenti ...
-    
-    /// <summary>
-    /// MMR Lambda per questo utente/tenant (override del default)
-    /// </summary>
-    public double? MMRLambda { get; set; } = 0.7;
-}
-```
-
-**Utilizzo**:
+#### 3. 💻 Override Programmatico (Priorità Bassa - Per Query Specifica)
 ```csharp
 // Recupera configurazione utente dal database
 var userConfig = await _context.AIConfigurations
@@ -132,9 +153,15 @@ var results = await vectorStore.SearchWithMMRAsync(
 ```
 1. CONFIGURAZIONE
    ┌─────────────────────────────────┐
-   │ appsettings.json                │
+   │ PRIORITÀ ALTA: Database         │
+   │ AIConfigurations.MMRLambda      │
+   │ (per utente/tenant)             │
+   └──────────┬──────────────────────┘
+              ↓ (se non trovato)
+   ┌──────────▼──────────────────────┐
+   │ PRIORITÀ MEDIA: appsettings.json│
    │ EnhancedRAG:Reranking:MMRLambda │
-   │ = 0.7                           │
+   │ = 0.7 (default globale)         │
    └──────────┬──────────────────────┘
               ↓
 2. CARICAMENTO
@@ -146,17 +173,26 @@ var results = await vectorStore.SearchWithMMRAsync(
 3. INJECTION
    ┌──────────▼──────────────────────┐
    │ IOptions<EnhancedRAGConfig>     │
-   │ iniettato nei servizi           │
+   │ + ApplicationDbContext          │
+   │ iniettati nei servizi           │
    └──────────┬──────────────────────┘
               ↓
-4. UTILIZZO
+4. UTILIZZO RUNTIME
+   ┌──────────▼──────────────────────┐
+   │ GetEffectiveLambdaAsync()       │
+   │ 1. Check parametro esplicito    │
+   │ 2. Check database (AIConfig)    │
+   │ 3. Fallback appsettings         │
+   └──────────┬──────────────────────┘
+              ↓
+5. RICERCA
    ┌──────────▼──────────────────────┐
    │ PgVectorStoreService            │
    │ EnhancedVectorStoreService      │
    │ .SearchWithMMRAsync(lambda)     │
    └──────────┬──────────────────────┘
               ↓
-5. MMR ALGORITHM
+6. MMR ALGORITHM
    ┌──────────▼──────────────────────┐
    │ MMRService                      │
    │ .RerankWithMMRAsync(lambda)     │
@@ -303,13 +339,14 @@ if (ragConfig?.Reranking.MMRLambda < 0 || ragConfig?.Reranking.MMRLambda > 1)
 
 | Aspetto | Dettaglio |
 |---------|-----------|
-| **Dove si imposta** | `appsettings.json` → `EnhancedRAG:Reranking:MMRLambda` |
-| **Dove si salva (runtime)** | `EnhancedRAGConfiguration.Reranking.MMRLambda` |
-| **Dove si salva (database)** | Opzionale: `AIConfiguration.MMRLambda` per utente/tenant |
+| **Dove si imposta** | 1. Database `AIConfigurations.MMRLambda` (priorità)<br>2. `appsettings.json` → `EnhancedRAG:Reranking:MMRLambda`<br>3. Override per-call |
+| **Dove si salva (priorità)** | 1. **Database SQL Server 2025** `AIConfigurations` (✅ **IMPLEMENTATO**)<br>2. Runtime: `EnhancedRAGConfiguration.Reranking.MMRLambda`<br>3. Override programmatico |
+| **Migrazione database** | `Database/UpdateScripts/013_AddMMRLambdaConfiguration.sql` |
 | **Default** | 0.7 (70% rilevanza, 30% diversità) |
 | **Range valido** | 0.0 - 1.0 |
-| **Override** | Sì, passando `lambda` esplicitamente a `SearchWithMMRAsync()` |
-| **Hot reload** | Sì, se usi `IOptionsSnapshot` invece di `IOptions` |
+| **Override** | Sì, tre livelli di priorità |
+| **Hot reload** | Sì, dal database (caricato ad ogni ricerca) |
+| **Per-user/tenant** | ✅ Sì, tramite database AIConfigurations |
 
 ---
 

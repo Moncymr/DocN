@@ -4,6 +4,8 @@ using Npgsql;
 using Pgvector;
 using DocN.Core.Interfaces;
 using DocN.Core.AI.Configuration;
+using DocN.Data.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace DocN.Data.Services;
 
@@ -17,18 +19,21 @@ public class PgVectorStoreService : IVectorStoreService
     private readonly PgVectorConfiguration _config;
     private readonly IMMRService _mmrService;
     private readonly EnhancedRAGConfiguration _ragConfig;
+    private readonly ApplicationDbContext _context;
     private readonly string _connectionString;
 
     public PgVectorStoreService(
         ILogger<PgVectorStoreService> logger,
         IOptions<PgVectorConfiguration> config,
         IMMRService mmrService,
-        IOptions<EnhancedRAGConfiguration> ragConfig)
+        IOptions<EnhancedRAGConfiguration> ragConfig,
+        ApplicationDbContext context)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         _mmrService = mmrService ?? throw new ArgumentNullException(nameof(mmrService));
         _ragConfig = ragConfig?.Value ?? throw new ArgumentNullException(nameof(ragConfig));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
         _connectionString = _config.ConnectionString;
 
         // Initialize pgvector
@@ -183,12 +188,12 @@ public class PgVectorStoreService : IVectorStoreService
                 return new List<VectorSearchResult>();
             }
 
-            // Use configured lambda if not explicitly provided (default 0.5 means use config)
-            var effectiveLambda = lambda == 0.5 ? _ragConfig.Reranking.MMRLambda : lambda;
+            // Get effective lambda: database config > parameter > appsettings
+            var effectiveLambda = await GetEffectiveLambdaAsync(lambda);
             
             _logger.LogInformation(
-                "MMR reranking with lambda={Lambda} (configured={ConfiguredLambda})",
-                effectiveLambda, _ragConfig.Reranking.MMRLambda);
+                "MMR reranking with lambda={Lambda} (configured={ConfiguredLambda}, database={FromDatabase})",
+                effectiveLambda, _ragConfig.Reranking.MMRLambda, effectiveLambda != lambda && effectiveLambda != _ragConfig.Reranking.MMRLambda);
 
             // Convert to MMR candidates
             var mmrCandidates = candidates.Select(c => new CandidateVector
@@ -429,6 +434,42 @@ public class PgVectorStoreService : IVectorStoreService
         }
 
         return conditions.Any() ? "WHERE " + string.Join(" AND ", conditions) : "";
+    }
+
+    /// <summary>
+    /// Get effective lambda value with priority: explicit parameter > database config > appsettings
+    /// </summary>
+    private async Task<double> GetEffectiveLambdaAsync(double parameterLambda)
+    {
+        try
+        {
+            // If explicitly provided (not default 0.5), use it
+            if (parameterLambda != 0.5)
+            {
+                return parameterLambda;
+            }
+
+            // Try to get from database (active AIConfiguration)
+            var dbConfig = await _context.AIConfigurations
+                .Where(c => c.IsActive)
+                .OrderByDescending(c => c.Id)
+                .FirstOrDefaultAsync();
+
+            if (dbConfig != null && dbConfig.MMRLambda > 0 && dbConfig.MMRLambda <= 1.0)
+            {
+                _logger.LogDebug("Using MMR Lambda from database: {Lambda}", dbConfig.MMRLambda);
+                return dbConfig.MMRLambda;
+            }
+
+            // Fallback to appsettings.json config
+            _logger.LogDebug("Using MMR Lambda from appsettings: {Lambda}", _ragConfig.Reranking.MMRLambda);
+            return _ragConfig.Reranking.MMRLambda;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error loading MMR Lambda from database, using appsettings");
+            return _ragConfig.Reranking.MMRLambda;
+        }
     }
 }
 
