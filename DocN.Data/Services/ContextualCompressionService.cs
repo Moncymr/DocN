@@ -1,6 +1,7 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using DocN.Core.Interfaces;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -23,11 +24,11 @@ public class ContextualCompressionService : IContextualCompressionService
     public ContextualCompressionService(
         ILogger<ContextualCompressionService> logger,
         IEmbeddingService embeddingService,
-        ContextualCompressionConfiguration? config = null)
+        IOptions<ContextualCompressionConfiguration>? config = null)
     {
         _logger = logger;
         _embeddingService = embeddingService;
-        _config = config ?? new ContextualCompressionConfiguration();
+        _config = config?.Value ?? new ContextualCompressionConfiguration();
     }
 
     /// <inheritdoc/>

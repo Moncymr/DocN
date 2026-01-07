@@ -432,9 +432,13 @@ builder.Services.AddScoped<IRAGASMetricsService, RAGASMetricsService>();
 builder.Services.Configure<DocN.Core.AI.Configuration.AlertManagerConfiguration>(
     builder.Configuration.GetSection("AlertManager"));
 
-// Configure Enhanced RAG settings (for future use)
+// Configure Enhanced RAG settings
 builder.Services.Configure<DocN.Core.AI.Configuration.EnhancedRAGConfiguration>(
     builder.Configuration.GetSection("EnhancedRAG"));
+
+// Configure Contextual Compression settings
+builder.Services.Configure<ContextualCompressionConfiguration>(
+    builder.Configuration.GetSection("EnhancedRAG:ContextualCompression"));
 
 // ════════════════════════════════════════════════════════════════════════════════
 // RAG Provider Registration - Inizializzazione automatica via Dependency Injection
