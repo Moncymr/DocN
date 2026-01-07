@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using Pgvector;
 using DocN.Core.Interfaces;
+using DocN.Core.AI.Configuration;
 
 namespace DocN.Data.Services;
 
@@ -15,16 +16,19 @@ public class PgVectorStoreService : IVectorStoreService
     private readonly ILogger<PgVectorStoreService> _logger;
     private readonly PgVectorConfiguration _config;
     private readonly IMMRService _mmrService;
+    private readonly EnhancedRAGConfiguration _ragConfig;
     private readonly string _connectionString;
 
     public PgVectorStoreService(
         ILogger<PgVectorStoreService> logger,
         IOptions<PgVectorConfiguration> config,
-        IMMRService mmrService)
+        IMMRService mmrService,
+        IOptions<EnhancedRAGConfiguration> ragConfig)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         _mmrService = mmrService ?? throw new ArgumentNullException(nameof(mmrService));
+        _ragConfig = ragConfig?.Value ?? throw new ArgumentNullException(nameof(ragConfig));
         _connectionString = _config.ConnectionString;
 
         // Initialize pgvector
@@ -179,6 +183,13 @@ public class PgVectorStoreService : IVectorStoreService
                 return new List<VectorSearchResult>();
             }
 
+            // Use configured lambda if not explicitly provided (default 0.5 means use config)
+            var effectiveLambda = lambda == 0.5 ? _ragConfig.Reranking.MMRLambda : lambda;
+            
+            _logger.LogInformation(
+                "MMR reranking with lambda={Lambda} (configured={ConfiguredLambda})",
+                effectiveLambda, _ragConfig.Reranking.MMRLambda);
+
             // Convert to MMR candidates
             var mmrCandidates = candidates.Select(c => new CandidateVector
             {
@@ -188,12 +199,12 @@ public class PgVectorStoreService : IVectorStoreService
                 Metadata = c.Metadata
             }).ToList();
 
-            // Apply MMR reranking
+            // Apply MMR reranking with configured lambda
             var mmrResults = await _mmrService.RerankWithMMRAsync(
                 queryVector,
                 mmrCandidates,
                 topK,
-                lambda);
+                effectiveLambda);
 
             // Convert back to VectorSearchResult
             return mmrResults.Select(r => new VectorSearchResult

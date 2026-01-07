@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using DocN.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using DocN.Core.Interfaces;
+using DocN.Core.AI.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace DocN.Data.Services;
 
@@ -14,15 +16,18 @@ public class EnhancedVectorStoreService : IVectorStoreService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<EnhancedVectorStoreService> _logger;
     private readonly IMMRService _mmrService;
+    private readonly EnhancedRAGConfiguration _config;
 
     public EnhancedVectorStoreService(
         ApplicationDbContext context,
         ILogger<EnhancedVectorStoreService> logger,
-        IMMRService mmrService)
+        IMMRService mmrService,
+        IOptions<EnhancedRAGConfiguration> config)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _mmrService = mmrService ?? throw new ArgumentNullException(nameof(mmrService));
+        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
     }
 
     /// <inheritdoc/>
@@ -111,9 +116,12 @@ public class EnhancedVectorStoreService : IVectorStoreService
     {
         try
         {
+            // Use configured lambda if not explicitly provided
+            var effectiveLambda = lambda == 0.5 ? _config.Reranking.MMRLambda : lambda;
+            
             _logger.LogInformation(
-                "Searching with MMR: topK={TopK}, lambda={Lambda}",
-                topK, lambda);
+                "Searching with MMR: topK={TopK}, lambda={Lambda} (configured={ConfiguredLambda})",
+                topK, effectiveLambda, _config.Reranking.MMRLambda);
 
             // First, get more candidates than needed (for better diversity)
             var candidateMultiplier = 3;
@@ -138,12 +146,12 @@ public class EnhancedVectorStoreService : IVectorStoreService
                 Metadata = c.Metadata
             }).ToList();
 
-            // Apply MMR reranking
+            // Apply MMR reranking with configured lambda
             var mmrResults = await _mmrService.RerankWithMMRAsync(
                 queryVector,
                 mmrCandidates,
                 topK,
-                lambda);
+                effectiveLambda);
 
             // Convert back to VectorSearchResult
             return mmrResults.Select(r => new VectorSearchResult

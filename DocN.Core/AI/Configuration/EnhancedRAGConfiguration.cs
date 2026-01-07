@@ -137,6 +137,15 @@ public class RerankingOptions
     /// Weight for recency in scoring (0-1)
     /// </summary>
     public double RecencyWeight { get; set; } = 0.1;
+
+    /// <summary>
+    /// MMR Lambda parameter for balancing relevance vs diversity (0-1)
+    /// - 0.0 = Pure diversity (maximum variety, minimum relevance)
+    /// - 0.5 = Balanced (recommended default)
+    /// - 0.7 = Mostly relevant with some diversity (good for most use cases)
+    /// - 1.0 = Pure relevance (no diversity consideration)
+    /// </summary>
+    public double MMRLambda { get; set; } = 0.7;
 }
 
 /// <summary>
