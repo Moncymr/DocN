@@ -8,6 +8,39 @@ using Microsoft.Extensions.Logging;
 namespace DocN.Data.Services;
 
 /// <summary>
+/// Informazioni sulle condivisioni di un documento
+/// </summary>
+public class DocumentShareInfo
+{
+    public List<UserShareInfo> UserShares { get; set; } = new();
+    public List<GroupShareInfo> GroupShares { get; set; } = new();
+}
+
+/// <summary>
+/// Informazioni su una condivisione con un utente
+/// </summary>
+public class UserShareInfo
+{
+    public string UserId { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string? UserEmail { get; set; }
+    public DocumentPermission Permission { get; set; }
+    public DateTime SharedAt { get; set; }
+}
+
+/// <summary>
+/// Informazioni su una condivisione con un gruppo
+/// </summary>
+public class GroupShareInfo
+{
+    public int GroupId { get; set; }
+    public string GroupName { get; set; } = string.Empty;
+    public int MemberCount { get; set; }
+    public DocumentPermission Permission { get; set; }
+    public DateTime SharedAt { get; set; }
+}
+
+/// <summary>
 /// Interfaccia per il servizio di gestione documenti.
 /// Fornisce operazioni CRUD, condivisione, controllo accessi e gestione visibilità.
 /// </summary>
@@ -62,6 +95,42 @@ public interface IDocumentService
     /// <param name="currentUserId">ID dell'utente proprietario che condivide</param>
     /// <returns>True se condivisione riuscita, altrimenti false</returns>
     Task<bool> ShareDocumentAsync(int documentId, string shareWithUserId, DocumentPermission permission, string currentUserId);
+    
+    /// <summary>
+    /// Condivide un documento con un gruppo di utenti.
+    /// </summary>
+    /// <param name="documentId">ID del documento da condividere</param>
+    /// <param name="groupId">ID del gruppo con cui condividere</param>
+    /// <param name="permission">Livello di permesso da assegnare</param>
+    /// <param name="currentUserId">ID dell'utente proprietario che condivide</param>
+    /// <returns>True se condivisione riuscita, altrimenti false</returns>
+    Task<bool> ShareDocumentWithGroupAsync(int documentId, int groupId, DocumentPermission permission, string currentUserId);
+    
+    /// <summary>
+    /// Rimuove la condivisione di un documento con un utente specifico.
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <param name="userId">ID dell'utente da rimuovere dalla condivisione</param>
+    /// <param name="currentUserId">ID dell'utente proprietario</param>
+    /// <returns>True se rimozione riuscita, altrimenti false</returns>
+    Task<bool> RemoveUserShareAsync(int documentId, string userId, string currentUserId);
+    
+    /// <summary>
+    /// Rimuove la condivisione di un documento con un gruppo.
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <param name="groupId">ID del gruppo da rimuovere dalla condivisione</param>
+    /// <param name="currentUserId">ID dell'utente proprietario</param>
+    /// <returns>True se rimozione riuscita, altrimenti false</returns>
+    Task<bool> RemoveGroupShareAsync(int documentId, int groupId, string currentUserId);
+    
+    /// <summary>
+    /// Ottiene tutte le condivisioni (utenti e gruppi) di un documento.
+    /// </summary>
+    /// <param name="documentId">ID del documento</param>
+    /// <param name="userId">ID dell'utente richiedente (deve essere proprietario)</param>
+    /// <returns>Oggetto con liste di condivisioni utenti e gruppi</returns>
+    Task<DocumentShareInfo?> GetDocumentSharesAsync(int documentId, string userId);
     
     /// <summary>
     /// Aggiorna il livello di visibilità di un documento.
@@ -168,20 +237,23 @@ public class DocumentService : IDocumentService
     }
 
     /// <summary>
-    /// Verifica permessi accesso documento considerando: proprietà, visibilità, condivisioni e multi-tenancy.
+    /// Verifica permessi accesso documento considerando: proprietà, visibilità, condivisioni (utente e gruppo) e multi-tenancy.
     /// </summary>
     /// <param name="documentId">ID del documento</param>
     /// <param name="userId">ID dell'utente da verificare</param>
     /// <returns>True se l'utente ha accesso, false altrimenti</returns>
     /// <remarks>
     /// Scopo: Controllo centralizzato permessi con logica multi-tenant.
-    /// Logica: Owner → Public → Organization → Shared → Denied
+    /// Logica: Owner → Public → Organization → Shared (Direct or via Group) → Denied
     /// Output: Boolean indicante permesso accesso.
     /// </remarks>
     public async Task<bool> CanUserAccessDocument(int documentId, string userId)
     {
         var document = await _context.Documents
             .Include(d => d.Shares)
+            .Include(d => d.GroupShares)
+                .ThenInclude(gs => gs.Group)
+                    .ThenInclude(g => g.Members)
             .FirstOrDefaultAsync(d => d.Id == documentId);
 
         if (document == null)
@@ -205,10 +277,17 @@ public class DocumentService : IDocumentService
         if (document.Visibility == DocumentVisibility.Organization)
             return true; // In a real app, check if user is in same organization
 
-        // Check if document is shared with user
+        // Check if document is shared with user directly
         if (document.Visibility == DocumentVisibility.Shared)
         {
-            return document.Shares.Any(s => s.SharedWithUserId == userId);
+            // Direct share with user
+            if (document.Shares.Any(s => s.SharedWithUserId == userId))
+                return true;
+            
+            // Share via group membership
+            if (document.GroupShares.Any(gs => 
+                gs.Group.Members.Any(m => m.UserId == userId)))
+                return true;
         }
 
         return false;
@@ -395,6 +474,159 @@ public class DocumentService : IDocumentService
 
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Condivide documento con un gruppo di utenti creando o aggiornando DocumentGroupShare.
+    /// </summary>
+    /// <param name="documentId">ID documento da condividere</param>
+    /// <param name="groupId">ID gruppo destinatario</param>
+    /// <param name="permission">Permesso da assegnare (Read, Write, Delete)</param>
+    /// <param name="currentUserId">ID proprietario che condivide</param>
+    /// <returns>True se condivisione riuscita, false se negata (solo owner può condividere)</returns>
+    public async Task<bool> ShareDocumentWithGroupAsync(int documentId, int groupId, DocumentPermission permission, string currentUserId)
+    {
+        var document = await _context.Documents.FindAsync(documentId);
+        
+        if (document == null)
+            return false;
+
+        // Only owner can share (documents without owner cannot be shared)
+        if (string.IsNullOrEmpty(document.OwnerId) || document.OwnerId != currentUserId)
+            return false;
+
+        // Verify group exists
+        var group = await _context.UserGroups.FindAsync(groupId);
+        if (group == null)
+            return false;
+
+        // Check if already shared
+        var existingShare = await _context.DocumentGroupShares
+            .FirstOrDefaultAsync(s => s.DocumentId == documentId && s.GroupId == groupId);
+
+        if (existingShare != null)
+        {
+            existingShare.Permission = permission;
+        }
+        else
+        {
+            var share = new DocumentGroupShare
+            {
+                DocumentId = documentId,
+                GroupId = groupId,
+                Permission = permission,
+                SharedByUserId = currentUserId,
+                SharedAt = DateTime.UtcNow
+            };
+            _context.DocumentGroupShares.Add(share);
+        }
+
+        // Update document visibility to Shared if it's Private
+        if (document.Visibility == DocumentVisibility.Private)
+        {
+            document.Visibility = DocumentVisibility.Shared;
+        }
+
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Rimuove la condivisione di un documento con un utente specifico.
+    /// </summary>
+    public async Task<bool> RemoveUserShareAsync(int documentId, string userId, string currentUserId)
+    {
+        var document = await _context.Documents.FindAsync(documentId);
+        
+        if (document == null)
+            return false;
+
+        // Only owner can remove shares
+        if (string.IsNullOrEmpty(document.OwnerId) || document.OwnerId != currentUserId)
+            return false;
+
+        var share = await _context.DocumentShares
+            .FirstOrDefaultAsync(s => s.DocumentId == documentId && s.SharedWithUserId == userId);
+
+        if (share == null)
+            return false;
+
+        _context.DocumentShares.Remove(share);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Rimuove la condivisione di un documento con un gruppo.
+    /// </summary>
+    public async Task<bool> RemoveGroupShareAsync(int documentId, int groupId, string currentUserId)
+    {
+        var document = await _context.Documents.FindAsync(documentId);
+        
+        if (document == null)
+            return false;
+
+        // Only owner can remove shares
+        if (string.IsNullOrEmpty(document.OwnerId) || document.OwnerId != currentUserId)
+            return false;
+
+        var share = await _context.DocumentGroupShares
+            .FirstOrDefaultAsync(s => s.DocumentId == documentId && s.GroupId == groupId);
+
+        if (share == null)
+            return false;
+
+        _context.DocumentGroupShares.Remove(share);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Ottiene tutte le condivisioni (utenti e gruppi) di un documento.
+    /// </summary>
+    public async Task<DocumentShareInfo?> GetDocumentSharesAsync(int documentId, string userId)
+    {
+        var document = await _context.Documents.FindAsync(documentId);
+        
+        if (document == null)
+            return null;
+
+        // Only owner can view shares
+        if (string.IsNullOrEmpty(document.OwnerId) || document.OwnerId != userId)
+            return null;
+
+        var userShares = await _context.DocumentShares
+            .Where(s => s.DocumentId == documentId)
+            .Include(s => s.SharedWithUser)
+            .Select(s => new UserShareInfo
+            {
+                UserId = s.SharedWithUserId,
+                UserName = s.SharedWithUser.UserName ?? string.Empty,
+                UserEmail = s.SharedWithUser.Email,
+                Permission = s.Permission,
+                SharedAt = s.SharedAt
+            })
+            .ToListAsync();
+
+        var groupShares = await _context.DocumentGroupShares
+            .Where(s => s.DocumentId == documentId)
+            .Include(s => s.Group)
+                .ThenInclude(g => g.Members)
+            .Select(s => new GroupShareInfo
+            {
+                GroupId = s.GroupId,
+                GroupName = s.Group.Name,
+                MemberCount = s.Group.Members.Count,
+                Permission = s.Permission,
+                SharedAt = s.SharedAt
+            })
+            .ToListAsync();
+
+        return new DocumentShareInfo
+        {
+            UserShares = userShares,
+            GroupShares = groupShares
+        };
     }
 
     /// <summary>

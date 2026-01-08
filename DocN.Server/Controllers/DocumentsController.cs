@@ -42,19 +42,22 @@ public class DocumentsController : ControllerBase
     private readonly IChunkingService _chunkingService;
     private readonly IBatchProcessingService _batchProcessingService;
     private readonly IEmbeddingService _embeddingService;
+    private readonly IDocumentService _documentService;
 
     public DocumentsController(
         DocArcContext context, 
         ILogger<DocumentsController> logger,
         IChunkingService chunkingService,
         IBatchProcessingService batchProcessingService,
-        IEmbeddingService embeddingService)
+        IEmbeddingService embeddingService,
+        IDocumentService documentService)
     {
         _context = context;
         _logger = logger;
         _chunkingService = chunkingService;
         _batchProcessingService = batchProcessingService;
         _embeddingService = embeddingService;
+        _documentService = documentService;
     }
 
     /// <summary>
@@ -714,4 +717,258 @@ public class DocumentsController : ControllerBase
             semaphore.Release();
         }
     }
+
+    /// <summary>
+    /// Aggiorna la visibilità di un documento
+    /// </summary>
+    /// <param name="id">ID del documento</param>
+    /// <param name="request">Richiesta con nuovo livello di visibilità</param>
+    /// <returns>Risultato dell'operazione</returns>
+    [HttpPatch("{id}/visibility")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> UpdateDocumentVisibility(int id, [FromBody] UpdateVisibilityRequest request)
+    {
+        try
+        {
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Unauthorized("User must be authenticated");
+            }
+
+            var success = await _documentService.UpdateDocumentVisibilityAsync(id, request.Visibility, currentUserId);
+            
+            if (!success)
+            {
+                return NotFound("Document not found or you don't have permission to update it");
+            }
+
+            _logger.LogInformation("User {UserId} updated visibility of document {DocumentId} to {Visibility}", 
+                currentUserId, id, request.Visibility);
+            
+            return Ok(new { message = "Visibility updated successfully", visibility = request.Visibility });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating visibility for document {DocumentId}", id);
+            return StatusCode(500, "An error occurred while updating document visibility");
+        }
+    }
+
+    /// <summary>
+    /// Condivide un documento con un utente specifico
+    /// </summary>
+    /// <param name="id">ID del documento</param>
+    /// <param name="request">Richiesta con ID utente e permesso</param>
+    /// <returns>Risultato dell'operazione</returns>
+    [HttpPost("{id}/shares/user")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ShareWithUser(int id, [FromBody] ShareWithUserRequest request)
+    {
+        try
+        {
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Unauthorized("User must be authenticated");
+            }
+
+            var success = await _documentService.ShareDocumentAsync(id, request.UserId, request.Permission, currentUserId);
+            
+            if (!success)
+            {
+                return NotFound("Document not found or you don't have permission to share it");
+            }
+
+            _logger.LogInformation("User {UserId} shared document {DocumentId} with user {SharedWithUserId}", 
+                currentUserId, id, request.UserId);
+            
+            return Ok(new { message = "Document shared successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sharing document {DocumentId}", id);
+            return StatusCode(500, "An error occurred while sharing document");
+        }
+    }
+
+    /// <summary>
+    /// Condivide un documento con un gruppo
+    /// </summary>
+    /// <param name="id">ID del documento</param>
+    /// <param name="request">Richiesta con ID gruppo e permesso</param>
+    /// <returns>Risultato dell'operazione</returns>
+    [HttpPost("{id}/shares/group")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ShareWithGroup(int id, [FromBody] ShareWithGroupRequest request)
+    {
+        try
+        {
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Unauthorized("User must be authenticated");
+            }
+
+            var success = await _documentService.ShareDocumentWithGroupAsync(id, request.GroupId, request.Permission, currentUserId);
+            
+            if (!success)
+            {
+                return NotFound("Document or group not found, or you don't have permission to share");
+            }
+
+            _logger.LogInformation("User {UserId} shared document {DocumentId} with group {GroupId}", 
+                currentUserId, id, request.GroupId);
+            
+            return Ok(new { message = "Document shared with group successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sharing document {DocumentId} with group", id);
+            return StatusCode(500, "An error occurred while sharing document with group");
+        }
+    }
+
+    /// <summary>
+    /// Ottiene le condivisioni di un documento
+    /// </summary>
+    /// <param name="id">ID del documento</param>
+    /// <returns>Lista delle condivisioni</returns>
+    [HttpGet("{id}/shares")]
+    [ProducesResponseType(typeof(DocumentShareInfo), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetDocumentShares(int id)
+    {
+        try
+        {
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Unauthorized("User must be authenticated");
+            }
+
+            var shares = await _documentService.GetDocumentSharesAsync(id, currentUserId);
+            
+            if (shares == null)
+            {
+                return NotFound("Document not found or you don't have permission to view shares");
+            }
+
+            return Ok(shares);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving shares for document {DocumentId}", id);
+            return StatusCode(500, "An error occurred while retrieving document shares");
+        }
+    }
+
+    /// <summary>
+    /// Rimuove la condivisione con un utente
+    /// </summary>
+    /// <param name="id">ID del documento</param>
+    /// <param name="userId">ID dell'utente</param>
+    /// <returns>Risultato dell'operazione</returns>
+    [HttpDelete("{id}/shares/user/{userId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> RemoveUserShare(int id, string userId)
+    {
+        try
+        {
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Unauthorized("User must be authenticated");
+            }
+
+            var success = await _documentService.RemoveUserShareAsync(id, userId, currentUserId);
+            
+            if (!success)
+            {
+                return NotFound("Document or share not found, or you don't have permission");
+            }
+
+            _logger.LogInformation("User {UserId} removed share for user {SharedUserId} from document {DocumentId}", 
+                currentUserId, userId, id);
+            
+            return Ok(new { message = "Share removed successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing user share from document {DocumentId}", id);
+            return StatusCode(500, "An error occurred while removing share");
+        }
+    }
+
+    /// <summary>
+    /// Rimuove la condivisione con un gruppo
+    /// </summary>
+    /// <param name="id">ID del documento</param>
+    /// <param name="groupId">ID del gruppo</param>
+    /// <returns>Risultato dell'operazione</returns>
+    [HttpDelete("{id}/shares/group/{groupId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> RemoveGroupShare(int id, int groupId)
+    {
+        try
+        {
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Unauthorized("User must be authenticated");
+            }
+
+            var success = await _documentService.RemoveGroupShareAsync(id, groupId, currentUserId);
+            
+            if (!success)
+            {
+                return NotFound("Document or share not found, or you don't have permission");
+            }
+
+            _logger.LogInformation("User {UserId} removed share for group {GroupId} from document {DocumentId}", 
+                currentUserId, groupId, id);
+            
+            return Ok(new { message = "Group share removed successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing group share from document {DocumentId}", id);
+            return StatusCode(500, "An error occurred while removing group share");
+        }
+    }
+}
+
+// Request DTOs
+public class UpdateVisibilityRequest
+{
+    public DocumentVisibility Visibility { get; set; }
+}
+
+public class ShareWithUserRequest
+{
+    public string UserId { get; set; } = string.Empty;
+    public DocumentPermission Permission { get; set; } = DocumentPermission.Read;
+}
+
+public class ShareWithGroupRequest
+{
+    public int GroupId { get; set; }
+    public DocumentPermission Permission { get; set; } = DocumentPermission.Read;
 }
