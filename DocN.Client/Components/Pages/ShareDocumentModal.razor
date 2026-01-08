@@ -11,6 +11,22 @@
             <button class="btn-close-modal" @onclick="Close">✕</button>
         </div>
         
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-banner">
+                ⚠️ @errorMessage
+                <button class="btn-dismiss-error" @onclick='() => errorMessage = ""'>✕</button>
+            </div>
+        }
+        
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="success-banner">
+                ✓ @successMessage
+                <button class="btn-dismiss-success" @onclick='() => successMessage = ""'>✕</button>
+            </div>
+        }
+        
         <div class="modal-body">
             @if (Document != null)
             {
@@ -265,6 +281,58 @@
     .btn-close-modal:hover {
         background: rgba(255, 255, 255, 0.3);
         transform: rotate(90deg);
+    }
+
+    .error-banner, .success-banner {
+        padding: 1rem 1.5rem;
+        margin: 0 2rem;
+        margin-top: 1rem;
+        border-radius: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    .error-banner {
+        background: linear-gradient(135deg, #fee 0%, #fdd 100%);
+        border-left: 4px solid #dc3545;
+        color: #721c24;
+    }
+
+    .success-banner {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border-left: 4px solid #28a745;
+        color: #155724;
+    }
+
+    .btn-dismiss-error, .btn-dismiss-success {
+        background: transparent;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        transition: all 0.3s;
+    }
+
+    .btn-dismiss-error:hover {
+        background: rgba(220, 53, 69, 0.1);
+    }
+
+    .btn-dismiss-success:hover {
+        background: rgba(40, 167, 69, 0.1);
+    }
+
+    @@keyframes slideDown {
+        from {
+            transform: translateY(-20px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
     }
 
     .modal-body {
@@ -557,6 +625,8 @@
     private string groupSearchQuery = string.Empty;
     private bool isSaving = false;
     private DocumentShareInfo? currentShares;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -582,43 +652,49 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading shares: {ex.Message}");
+            errorMessage = $"Errore durante il caricamento delle condivisioni: {ex.Message}";
         }
     }
 
     private void SelectVisibility(DocumentVisibility visibility)
     {
         selectedVisibility = visibility;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
     }
 
-    private async Task AddUserShare()
+    private void AddUserShare()
     {
-        // TODO: Implement user search and add share
-        await JSRuntime.InvokeVoidAsync("alert", "Funzionalità in sviluppo: ricerca utente");
+        errorMessage = "Funzionalità in sviluppo: la ricerca utenti sarà disponibile nella prossima versione";
     }
 
-    private async Task AddGroupShare()
+    private void AddGroupShare()
     {
-        // TODO: Implement group search and add share
-        await JSRuntime.InvokeVoidAsync("alert", "Funzionalità in sviluppo: ricerca gruppo");
+        errorMessage = "Funzionalità in sviluppo: la ricerca gruppi sarà disponibile nella prossima versione";
     }
 
     private async Task RemoveUserShare(string userId)
     {
         try
         {
+            errorMessage = string.Empty;
             if (Document != null)
             {
                 var response = await Http.DeleteAsync($"Documents/{Document.Id}/shares/user/{userId}");
                 if (response.IsSuccessStatusCode)
                 {
+                    successMessage = "Condivisione rimossa con successo";
                     await LoadCurrentShares();
+                }
+                else
+                {
+                    errorMessage = "Impossibile rimuovere la condivisione. Verifica i permessi.";
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error removing user share: {ex.Message}");
+            errorMessage = $"Errore durante la rimozione: {ex.Message}";
         }
     }
 
@@ -626,18 +702,24 @@
     {
         try
         {
+            errorMessage = string.Empty;
             if (Document != null)
             {
                 var response = await Http.DeleteAsync($"Documents/{Document.Id}/shares/group/{groupId}");
                 if (response.IsSuccessStatusCode)
                 {
+                    successMessage = "Condivisione gruppo rimossa con successo";
                     await LoadCurrentShares();
+                }
+                else
+                {
+                    errorMessage = "Impossibile rimuovere la condivisione gruppo. Verifica i permessi.";
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error removing group share: {ex.Message}");
+            errorMessage = $"Errore durante la rimozione: {ex.Message}";
         }
     }
 
@@ -646,6 +728,7 @@
         try
         {
             isSaving = true;
+            errorMessage = string.Empty;
             
             if (Document != null && selectedVisibility != Document.Visibility)
             {
@@ -655,16 +738,24 @@
                 if (response.IsSuccessStatusCode)
                 {
                     Document.Visibility = selectedVisibility;
+                    successMessage = "Visibilità aggiornata con successo";
+                    await Task.Delay(1000); // Show success message briefly
                     await OnSaved.InvokeAsync();
+                    await Close();
+                }
+                else
+                {
+                    errorMessage = "Impossibile aggiornare la visibilità. Verifica di essere il proprietario del documento.";
                 }
             }
-            
-            await Close();
+            else
+            {
+                await Close();
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving changes: {ex.Message}");
-            await JSRuntime.InvokeVoidAsync("alert", "Errore durante il salvataggio delle modifiche");
+            errorMessage = $"Errore durante il salvataggio: {ex.Message}";
         }
         finally
         {
@@ -675,6 +766,8 @@
     private async Task Close()
     {
         IsVisible = false;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
         await OnClose.InvokeAsync();
     }
 }

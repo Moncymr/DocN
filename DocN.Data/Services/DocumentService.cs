@@ -275,7 +275,24 @@ public class DocumentService : IDocumentService
             return true;
 
         if (document.Visibility == DocumentVisibility.Organization)
-            return true; // In a real app, check if user is in same organization
+        {
+            // Check if user is in the same organization/tenant as the document
+            if (string.IsNullOrEmpty(userId))
+                return false;
+                
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                return false;
+                
+            // Check if both document and user have a tenant and they match
+            if (document.TenantId.HasValue && user.TenantId.HasValue)
+            {
+                return document.TenantId.Value == user.TenantId.Value;
+            }
+            
+            // If document has no tenant, organization visibility is equivalent to public
+            return !document.TenantId.HasValue;
+        }
 
         // Check if document is shared with user directly
         if (document.Visibility == DocumentVisibility.Shared)

@@ -11,13 +11,6 @@ namespace DocN.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<double>(
-                name: "MMRLambda",
-                table: "AIConfigurations",
-                type: "float",
-                nullable: false,
-                defaultValue: 0.0);
-
             migrationBuilder.CreateTable(
                 name: "UserGroups",
                 columns: table => new
@@ -155,10 +148,6 @@ namespace DocN.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "UserGroups");
-
-            migrationBuilder.DropColumn(
-                name: "MMRLambda",
-                table: "AIConfigurations");
         }
     }
 }
