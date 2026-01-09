@@ -17,4 +17,6 @@ public class ApplicationUser : IdentityUser
     // Navigation properties
     public virtual ICollection<Document> Documents { get; set; } = new List<Document>();
     public virtual ICollection<DocumentShare> SharedDocuments { get; set; } = new List<DocumentShare>();
+    public virtual ICollection<UserGroup> OwnedGroups { get; set; } = new List<UserGroup>();
+    public virtual ICollection<UserGroupMember> GroupMemberships { get; set; } = new List<UserGroupMember>();
 }

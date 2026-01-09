@@ -17,8 +17,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Document> Documents { get; set; } = null!;
     public DbSet<DocumentChunk> DocumentChunks { get; set; } = null!;
     public DbSet<DocumentShare> DocumentShares { get; set; } = null!;
+    public DbSet<DocumentGroupShare> DocumentGroupShares { get; set; } = null!;
     public DbSet<DocumentTag> DocumentTags { get; set; } = null!;
     public DbSet<SimilarDocument> SimilarDocuments { get; set; } = null!;
+    public DbSet<UserGroup> UserGroups { get; set; } = null!;
+    public DbSet<UserGroupMember> UserGroupMembers { get; set; } = null!;
     public DbSet<AIConfiguration> AIConfigurations { get; set; } = null!;
     
     // Conversazioni e messaggi per RAG
@@ -134,6 +137,68 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             
             // Index for performance
             entity.HasIndex(e => e.SharedWithUserId);
+        });
+
+        // UserGroup configuration
+        modelBuilder.Entity<UserGroup>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            
+            entity.HasOne(e => e.Owner)
+                .WithMany(u => u.OwnedGroups)
+                .HasForeignKey(e => e.OwnerId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasOne(e => e.Tenant)
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            // Index for performance
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.TenantId);
+        });
+
+        // UserGroupMember configuration
+        modelBuilder.Entity<UserGroupMember>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            entity.HasOne(e => e.Group)
+                .WithMany(g => g.Members)
+                .HasForeignKey(e => e.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.GroupMemberships)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Ensure unique membership (one user can't be in the same group twice)
+            entity.HasIndex(e => new { e.GroupId, e.UserId }).IsUnique();
+            entity.HasIndex(e => e.UserId);
+        });
+
+        // DocumentGroupShare configuration
+        modelBuilder.Entity<DocumentGroupShare>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            entity.HasOne(e => e.Document)
+                .WithMany(d => d.GroupShares)
+                .HasForeignKey(e => e.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasOne(e => e.Group)
+                .WithMany(g => g.DocumentShares)
+                .HasForeignKey(e => e.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Ensure unique share (one document can't be shared with the same group twice)
+            entity.HasIndex(e => new { e.DocumentId, e.GroupId }).IsUnique();
+            entity.HasIndex(e => e.GroupId);
         });
 
         // DocumentTag configuration

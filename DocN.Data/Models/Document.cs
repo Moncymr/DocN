@@ -110,6 +110,7 @@ public class Document
     
     // Document sharing
     public virtual ICollection<DocumentShare> Shares { get; set; } = new List<DocumentShare>();
+    public virtual ICollection<DocumentGroupShare> GroupShares { get; set; } = new List<DocumentGroupShare>();
     
     // Tags
     public virtual ICollection<DocumentTag> Tags { get; set; } = new List<DocumentTag>();

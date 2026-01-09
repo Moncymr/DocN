@@ -366,6 +366,9 @@
                             <span class="badge badge-@selectedDocument.Visibility.ToString().ToLower()">
                                 @GetVisibilityIcon(selectedDocument.Visibility) @GetVisibilityLabel(selectedDocument.Visibility)
                             </span>
+                            <button class="btn-change-visibility" @onclick="() => ShareDocument(selectedDocument)" title="Modifica visibilità">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>
+                            </button>
                         </dd>
                     </dl>
                 </div>
@@ -463,6 +466,13 @@
             </div>
         </div>
     }
+    
+    <!-- Share Document Modal -->
+    <ShareDocumentModal 
+        IsVisible="@showShareModal" 
+        Document="@selectedDocument" 
+        OnClose="@CloseShareModal"
+        OnSaved="@HandleShareSaved" />
 </div>
 
 <style>
@@ -1184,6 +1194,32 @@
     .detail-list dd {
         margin: 0;
         color: #333;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-change-visibility {
+        background: transparent;
+        border: none;
+        color: #FF6B35;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-change-visibility:hover {
+        background: #fff7f4;
+        transform: scale(1.1);
+    }
+
+    .btn-change-visibility svg {
+        width: 14px;
+        height: 14px;
     }
 
     .reasoning-text {
@@ -1479,6 +1515,9 @@
     private bool showDetailsPanel = false;
     private Document? selectedDocument = null;
     
+    // Share modal
+    private bool showShareModal = false;
+    
     // Auto-refresh for processing documents
     private System.Threading.Timer? refreshTimer;
     private bool hasProcessingDocuments = false;
@@ -1744,20 +1783,21 @@
         }
     }
 
-    private async Task ShareDocument(Document doc)
+    private void ShareDocument(Document doc)
     {
-        try
-        {
-            var shareUrl = $"{Navigation.BaseUri}documents?id={doc.Id}";
-            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
-            // Show a temporary success message
-            await JSRuntime.InvokeVoidAsync("alert", $"Link copiato negli appunti!\n{shareUrl}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error sharing: {ex.Message}");
-            await JSRuntime.InvokeVoidAsync("alert", "Errore durante la copia del link di condivisione.");
-        }
+        selectedDocument = doc;
+        showShareModal = true;
+    }
+
+    private void CloseShareModal()
+    {
+        showShareModal = false;
+    }
+
+    private async Task HandleShareSaved()
+    {
+        // Reload documents to reflect visibility changes
+        await LoadDocuments();
     }
 
     private async Task DeleteDocument(Document doc)
