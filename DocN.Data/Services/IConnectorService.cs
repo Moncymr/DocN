@@ -1,6 +1,6 @@
 using DocN.Data.Models;
 
-namespace DocN.Core.Interfaces;
+namespace DocN.Data.Services;
 
 /// <summary>
 /// Service for managing document connectors to external repositories
