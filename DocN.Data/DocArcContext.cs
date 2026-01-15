@@ -177,10 +177,11 @@ public class DocArcContext : DbContext
             entity.Property(e => e.OwnerId).HasMaxLength(450).IsRequired(false);
             entity.Property(e => e.Description).HasMaxLength(1000).IsRequired(false);
             
-            // Relationship with Tenant
+            // Relationship with Tenant (optional)
             entity.HasOne(e => e.Tenant)
                 .WithMany()
                 .HasForeignKey(e => e.TenantId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
             
             // Indexes for performance
