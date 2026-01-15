@@ -15,18 +15,15 @@ public class IngestionService : IIngestionService
     private readonly DocArcContext _context;
     private readonly ILogger<IngestionService> _logger;
     private readonly IConnectorService _connectorService;
-    private readonly IDocumentService _documentService;
 
     public IngestionService(
         DocArcContext context, 
         ILogger<IngestionService> logger,
-        IConnectorService connectorService,
-        IDocumentService documentService)
+        IConnectorService connectorService)
     {
         _context = context;
         _logger = logger;
         _connectorService = connectorService;
-        _documentService = documentService;
     }
 
     public async Task<List<IngestionSchedule>> GetUserSchedulesAsync(string userId)
