@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using DocN.Data.Services;
 using DocN.Data.Models;
 
@@ -10,7 +9,6 @@ namespace DocN.Server.Controllers;
 /// </summary>
 [ApiController]
 [Route("[controller]")]
-[Authorize]
 public class ConnectorsController : ControllerBase
 {
     private readonly IConnectorService _connectorService;
@@ -30,11 +28,7 @@ public class ConnectorsController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var connectors = await _connectorService.GetUserConnectorsAsync(userId);
             return Ok(connectors);
@@ -54,11 +48,7 @@ public class ConnectorsController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var connector = await _connectorService.GetConnectorAsync(id, userId);
             if (connector == null)
@@ -83,11 +73,7 @@ public class ConnectorsController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             connector.OwnerId = userId;
             var created = await _connectorService.CreateConnectorAsync(connector);
@@ -114,11 +100,7 @@ public class ConnectorsController : ControllerBase
                 return BadRequest("ID mismatch");
             }
             
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var updated = await _connectorService.UpdateConnectorAsync(connector, userId);
             return Ok(updated);
@@ -142,11 +124,7 @@ public class ConnectorsController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var result = await _connectorService.DeleteConnectorAsync(id, userId);
             if (!result)
@@ -171,11 +149,7 @@ public class ConnectorsController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var (success, message) = await _connectorService.TestConnectionAsync(id, userId);
             return Ok(new { success, message });
@@ -195,11 +169,7 @@ public class ConnectorsController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var files = await _connectorService.ListFilesAsync(id, userId, path);
             return Ok(files);
