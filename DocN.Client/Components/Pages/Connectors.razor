@@ -548,22 +548,58 @@
         {
             errorMessage = null;
             isSaving = true;
+            
+            // Validate required fields
+            if (string.IsNullOrWhiteSpace(currentConnector.Name))
+            {
+                errorMessage = "Name is required";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(currentConnector.ConnectorType))
+            {
+                errorMessage = "Connector Type is required";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(currentConnector.Configuration))
+            {
+                errorMessage = "Configuration is required";
+                return;
+            }
+            
+            await JSRuntime.InvokeVoidAsync("console.log", $"Saving connector: {currentConnector.Name}, Type: {currentConnector.ConnectorType}");
+            
             var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            HttpResponseMessage response;
 
             if (isEditMode)
             {
-                await httpClient.PutAsJsonAsync($"Connectors/{currentConnector.Id}", currentConnector);
+                await JSRuntime.InvokeVoidAsync("console.log", $"Updating connector ID: {currentConnector.Id}");
+                response = await httpClient.PutAsJsonAsync($"Connectors/{currentConnector.Id}", currentConnector);
             }
             else
             {
-                await httpClient.PostAsJsonAsync("Connectors", currentConnector);
+                await JSRuntime.InvokeVoidAsync("console.log", "Creating new connector");
+                response = await httpClient.PostAsJsonAsync("Connectors", currentConnector);
             }
 
-            await LoadConnectors();
-            CloseModal();
+            await JSRuntime.InvokeVoidAsync("console.log", $"Response status: {response.StatusCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await JSRuntime.InvokeVoidAsync("console.log", "Connector saved successfully!");
+                await LoadConnectors();
+                CloseModal();
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                await JSRuntime.InvokeVoidAsync("console.error", $"Error response: {errorContent}");
+                errorMessage = $"Error saving connector: {response.StatusCode} - {errorContent}";
+            }
         }
         catch (Exception ex)
         {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Exception: {ex}");
             errorMessage = $"Error saving connector: {ex.Message}";
         }
         finally
