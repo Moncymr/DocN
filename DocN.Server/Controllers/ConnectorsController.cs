@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using DocN.Core.Interfaces;
+using DocN.Data.Services;
 using DocN.Data.Models;
 
 namespace DocN.Server.Controllers;
