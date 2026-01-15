@@ -319,20 +319,22 @@
         }
     }
 
-    private void ShowCreateModal()
+    private async Task ShowCreateModal()
     {
-        // TODO: Implement create modal
-        Navigation.NavigateTo("/ingestion/new");
+        // TODO: Implement create modal or page
+        await JSRuntime.InvokeVoidAsync("alert", "Per creare una nuova pianificazione, usa l'API POST /Ingestion/schedules con i parametri JSON appropriati. Vedi la documentazione per esempi.");
     }
 
-    private void EditSchedule(IngestionSchedule schedule)
+    private async Task EditSchedule(IngestionSchedule schedule)
     {
-        Navigation.NavigateTo($"/ingestion/edit/{schedule.Id}");
+        // TODO: Implement edit modal or page
+        await JSRuntime.InvokeVoidAsync("alert", $"Per modificare la pianificazione '{schedule.Name}', usa l'API PUT /Ingestion/schedules/{schedule.Id}. Funzionalità UI in sviluppo.");
     }
 
-    private void ViewLogs(IngestionSchedule schedule)
+    private async Task ViewLogs(IngestionSchedule schedule)
     {
-        Navigation.NavigateTo($"/ingestion/logs/{schedule.Id}");
+        // TODO: Implement logs view modal or page
+        await JSRuntime.InvokeVoidAsync("alert", $"Per vedere i log della pianificazione '{schedule.Name}', usa l'API GET /Ingestion/schedules/{schedule.Id}/logs. Funzionalità UI in sviluppo.");
     }
 
     private async Task ExecuteNow(IngestionSchedule schedule)
