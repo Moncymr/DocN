@@ -2,7 +2,7 @@
 @using System.Net.Http.Json
 @using DocN.Data.Models
 @using DocN.Data.Constants
-@inject HttpClient Http
+@inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
@@ -499,7 +499,8 @@
         try
         {
             isLoading = true;
-            connectors = await Http.GetFromJsonAsync<List<DocumentConnector>>("Connectors") ?? new();
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            connectors = await httpClient.GetFromJsonAsync<List<DocumentConnector>>("Connectors") ?? new();
         }
         catch (Exception ex)
         {
@@ -547,14 +548,15 @@
         {
             errorMessage = null;
             isSaving = true;
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
 
             if (isEditMode)
             {
-                await Http.PutAsJsonAsync($"Connectors/{currentConnector.Id}", currentConnector);
+                await httpClient.PutAsJsonAsync($"Connectors/{currentConnector.Id}", currentConnector);
             }
             else
             {
-                await Http.PostAsJsonAsync("Connectors", currentConnector);
+                await httpClient.PostAsJsonAsync("Connectors", currentConnector);
             }
 
             await LoadConnectors();
@@ -574,7 +576,8 @@
     {
         try
         {
-            var response = await Http.PostAsync($"Connectors/{connector.Id}/test", null);
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var response = await httpClient.PostAsync($"Connectors/{connector.Id}/test", null);
             if (response.IsSuccessStatusCode)
             {
                 await LoadConnectors();
@@ -592,7 +595,8 @@
         {
             try
             {
-                await Http.DeleteAsync($"Connectors/{connector.Id}");
+                var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+                await httpClient.DeleteAsync($"Connectors/{connector.Id}");
                 await LoadConnectors();
             }
             catch (Exception ex)

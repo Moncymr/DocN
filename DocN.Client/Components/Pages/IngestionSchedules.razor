@@ -2,7 +2,7 @@
 @using System.Net.Http.Json
 @using DocN.Data.Models
 @using DocN.Data.Constants
-@inject HttpClient Http
+@inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
@@ -307,7 +307,8 @@
         try
         {
             isLoading = true;
-            schedules = await Http.GetFromJsonAsync<List<IngestionSchedule>>("Ingestion/schedules") ?? new();
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            schedules = await httpClient.GetFromJsonAsync<List<IngestionSchedule>>("Ingestion/schedules") ?? new();
         }
         catch (Exception ex)
         {
@@ -341,7 +342,8 @@
     {
         try
         {
-            var response = await Http.PostAsync($"Ingestion/schedules/{schedule.Id}/execute", null);
+            var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+            var response = await httpClient.PostAsync($"Ingestion/schedules/{schedule.Id}/execute", null);
             if (response.IsSuccessStatusCode)
             {
                 await LoadSchedules();
@@ -359,7 +361,8 @@
         {
             try
             {
-                await Http.DeleteAsync($"Ingestion/schedules/{schedule.Id}");
+                var httpClient = HttpClientFactory.CreateClient("BackendAPI");
+                await httpClient.DeleteAsync($"Ingestion/schedules/{schedule.Id}");
                 await LoadSchedules();
             }
             catch (Exception ex)
