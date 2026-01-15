@@ -1,0 +1,370 @@
+@page "/ingestion"
+@using System.Net.Http.Json
+@using DocN.Data.Models
+@using DocN.Data.Constants
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<PageTitle>Ingestion Schedules - DocN</PageTitle>
+
+<style>
+    .ingestion-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 2rem;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .header-left h1 {
+        margin: 0;
+        font-size: 2.5rem;
+        background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .subtitle {
+        margin: 0.5rem 0 0 0;
+        color: #666;
+    }
+    
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 25px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+        color: white;
+        box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
+    }
+    
+    .loading-state, .empty-state {
+        text-align: center;
+        padding: 5rem 2rem;
+        background: white;
+        border-radius: 15px;
+    }
+    
+    .spinner-large {
+        width: 60px;
+        height: 60px;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #FF6B35;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 2rem;
+    }
+    
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .empty-icon {
+        font-size: 5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .schedules-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+    
+    .schedule-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        transition: all 0.3s;
+    }
+    
+    .schedule-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 28px rgba(0,0,0,0.15);
+    }
+    
+    .schedule-card.disabled {
+        opacity: 0.6;
+    }
+    
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .card-header h3 {
+        margin: 0;
+        font-size: 1.4rem;
+        color: #333;
+    }
+    
+    .badge {
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    
+    .badge-success {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .badge-secondary {
+        background: #e2e3e5;
+        color: #383d41;
+    }
+    
+    .schedule-info {
+        margin: 1rem 0;
+    }
+    
+    .info-row {
+        display: flex;
+        align-items: center;
+        margin: 0.5rem 0;
+        font-size: 0.9rem;
+    }
+    
+    .info-label {
+        font-weight: 600;
+        color: #666;
+        width: 100px;
+    }
+    
+    .info-value {
+        color: #333;
+    }
+    
+    .card-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f0f0f0;
+    }
+    
+    .btn-action {
+        flex: 1;
+        padding: 0.6rem;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-weight: 600;
+    }
+    
+    .btn-action:hover {
+        background: #e9ecef;
+        transform: translateY(-2px);
+    }
+    
+    .btn-danger:hover {
+        background: #dc3545;
+        color: white;
+    }
+</style>
+
+<div class="ingestion-page">
+    <div class="page-header">
+        <div class="header-left">
+            <h1>📅 Ingestion Schedules</h1>
+            <p class="subtitle">Manage document ingestion schedules</p>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-primary" @onclick="ShowCreateModal">
+                <span>➕ New Schedule</span>
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner-large"></div>
+            <p>Loading schedules...</p>
+        </div>
+    }
+    else if (!schedules.Any())
+    {
+        <div class="empty-state">
+            <div class="empty-icon">📅</div>
+            <h3>No Schedules Yet</h3>
+            <p>Create your first ingestion schedule to automate document imports</p>
+            <button class="btn btn-primary" @onclick="ShowCreateModal">
+                ➕ Create Schedule
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="schedules-list">
+            @foreach (var schedule in schedules)
+            {
+                <div class="schedule-card @(schedule.IsEnabled ? "enabled" : "disabled")">
+                    <div class="card-header">
+                        <h3>@schedule.Name</h3>
+                        <div class="schedule-status">
+                            @if (schedule.IsEnabled)
+                            {
+                                <span class="badge badge-success">✓ Enabled</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-secondary">○ Disabled</span>
+                            }
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="schedule-info">
+                            <div class="info-row">
+                                <span class="info-label">Type:</span>
+                                <span class="info-value">@schedule.ScheduleType</span>
+                            </div>
+                            @if (schedule.ScheduleType == "Scheduled" && !string.IsNullOrEmpty(schedule.CronExpression))
+                            {
+                                <div class="info-row">
+                                    <span class="info-label">Cron:</span>
+                                    <span class="info-value">@schedule.CronExpression</span>
+                                </div>
+                            }
+                            @if (schedule.NextExecutionAt.HasValue)
+                            {
+                                <div class="info-row">
+                                    <span class="info-label">Next run:</span>
+                                    <span class="info-value">@schedule.NextExecutionAt.Value.ToLocalTime().ToString("g")</span>
+                                </div>
+                            }
+                            @if (schedule.LastExecutedAt.HasValue)
+                            {
+                                <div class="info-row">
+                                    <span class="info-label">Last run:</span>
+                                    <span class="info-value">@schedule.LastExecutedAt.Value.ToLocalTime().ToString("g") (@schedule.LastExecutionDocumentCount docs)</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    
+                    <div class="card-actions">
+                        <button class="btn-action" @onclick="() => ExecuteNow(schedule)" title="Execute Now">
+                            ▶️ Run Now
+                        </button>
+                        <button class="btn-action" @onclick="() => ViewLogs(schedule)" title="View Logs">
+                            📋 Logs
+                        </button>
+                        <button class="btn-action" @onclick="() => EditSchedule(schedule)" title="Edit">
+                            ✏️ Edit
+                        </button>
+                        <button class="btn-action btn-danger" @onclick="() => DeleteSchedule(schedule)" title="Delete">
+                            🗑️ Delete
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<IngestionSchedule> schedules = new();
+    private bool isLoading = true;
+    private bool showModal = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSchedules();
+    }
+
+    private async Task LoadSchedules()
+    {
+        try
+        {
+            isLoading = true;
+            schedules = await Http.GetFromJsonAsync<List<IngestionSchedule>>("Ingestion/schedules") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading schedules: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowCreateModal()
+    {
+        // TODO: Implement create modal
+        Navigation.NavigateTo("/ingestion/new");
+    }
+
+    private void EditSchedule(IngestionSchedule schedule)
+    {
+        Navigation.NavigateTo($"/ingestion/edit/{schedule.Id}");
+    }
+
+    private void ViewLogs(IngestionSchedule schedule)
+    {
+        Navigation.NavigateTo($"/ingestion/logs/{schedule.Id}");
+    }
+
+    private async Task ExecuteNow(IngestionSchedule schedule)
+    {
+        try
+        {
+            var response = await Http.PostAsync($"Ingestion/schedules/{schedule.Id}/execute", null);
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadSchedules();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error executing schedule: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteSchedule(IngestionSchedule schedule)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to delete '{schedule.Name}'?"))
+        {
+            try
+            {
+                await Http.DeleteAsync($"Ingestion/schedules/{schedule.Id}");
+                await LoadSchedules();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error deleting schedule: {ex.Message}";
+            }
+        }
+    }
+}

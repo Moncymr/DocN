@@ -428,6 +428,10 @@ builder.Services.AddScoped<IAlertingService, AlertingService>();
 builder.Services.AddScoped<IRAGQualityService, RAGQualityService>();
 builder.Services.AddScoped<IRAGASMetricsService, RAGASMetricsService>();
 
+// Register Connector and Ingestion Services
+builder.Services.AddScoped<IConnectorService, ConnectorService>();
+builder.Services.AddScoped<IIngestionService, IngestionService>();
+
 // Configure AlertManager settings
 builder.Services.Configure<DocN.Core.AI.Configuration.AlertManagerConfiguration>(
     builder.Configuration.GetSection("AlertManager"));

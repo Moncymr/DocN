@@ -14,6 +14,9 @@ public class DocArcContext : DbContext
     public DbSet<DocumentChunk> DocumentChunks { get; set; } = null!;
     public DbSet<SimilarDocument> SimilarDocuments { get; set; } = null!;
     public DbSet<LogEntry> LogEntries { get; set; } = null!;
+    public DbSet<DocumentConnector> DocumentConnectors { get; set; } = null!;
+    public DbSet<IngestionSchedule> IngestionSchedules { get; set; } = null!;
+    public DbSet<IngestionLog> IngestionLogs { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -158,6 +161,80 @@ public class DocArcContext : DbContext
             entity.HasIndex(e => e.Timestamp);
             entity.HasIndex(e => new { e.Category, e.Timestamp });
             entity.HasIndex(e => new { e.UserId, e.Timestamp });
+        });
+
+        // DocumentConnector configuration
+        modelBuilder.Entity<DocumentConnector>(entity =>
+        {
+            entity.ToTable("DocumentConnectors");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.ConnectorType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Configuration).IsRequired().HasColumnType("nvarchar(max)");
+            entity.Property(e => e.EncryptedCredentials).HasColumnType("nvarchar(max)").IsRequired(false);
+            entity.Property(e => e.IsActive).IsRequired();
+            entity.Property(e => e.LastConnectionTestResult).HasMaxLength(500).IsRequired(false);
+            entity.Property(e => e.OwnerId).HasMaxLength(450).IsRequired(false);
+            entity.Property(e => e.Description).HasMaxLength(1000).IsRequired(false);
+            
+            // Relationship with Tenant
+            entity.HasOne(e => e.Tenant)
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.OwnerId);
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => new { e.ConnectorType, e.IsActive });
+        });
+
+        // IngestionSchedule configuration
+        modelBuilder.Entity<IngestionSchedule>(entity =>
+        {
+            entity.ToTable("IngestionSchedules");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.ScheduleType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.CronExpression).HasMaxLength(100).IsRequired(false);
+            entity.Property(e => e.DefaultCategory).HasMaxLength(255).IsRequired(false);
+            entity.Property(e => e.FilterConfiguration).HasColumnType("nvarchar(max)").IsRequired(false);
+            entity.Property(e => e.LastExecutionStatus).HasMaxLength(50).IsRequired(false);
+            entity.Property(e => e.OwnerId).HasMaxLength(450).IsRequired(false);
+            entity.Property(e => e.Description).HasMaxLength(1000).IsRequired(false);
+            
+            // Relationship with DocumentConnector
+            entity.HasOne(e => e.Connector)
+                .WithMany(c => c.IngestionSchedules)
+                .HasForeignKey(e => e.ConnectorId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.ConnectorId);
+            entity.HasIndex(e => new { e.IsEnabled, e.NextExecutionAt });
+            entity.HasIndex(e => e.OwnerId);
+        });
+
+        // IngestionLog configuration
+        modelBuilder.Entity<IngestionLog>(entity =>
+        {
+            entity.ToTable("IngestionLogs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ErrorMessage).HasColumnType("nvarchar(max)").IsRequired(false);
+            entity.Property(e => e.DetailedLog).HasColumnType("nvarchar(max)").IsRequired(false);
+            entity.Property(e => e.TriggeredByUserId).HasMaxLength(450).IsRequired(false);
+            
+            // Relationship with IngestionSchedule
+            entity.HasOne(e => e.IngestionSchedule)
+                .WithMany(s => s.IngestionLogs)
+                .HasForeignKey(e => e.IngestionScheduleId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.IngestionScheduleId);
+            entity.HasIndex(e => new { e.StartedAt, e.Status });
+            entity.HasIndex(e => e.TriggeredByUserId);
         });
     }
     
