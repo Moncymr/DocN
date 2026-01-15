@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
 using DocN.Data.Services;
 using DocN.Data.Models;
 
@@ -10,7 +9,6 @@ namespace DocN.Server.Controllers;
 /// </summary>
 [ApiController]
 [Route("[controller]")]
-[Authorize]
 public class IngestionController : ControllerBase
 {
     private readonly IIngestionService _ingestionService;
@@ -30,11 +28,7 @@ public class IngestionController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var schedules = await _ingestionService.GetUserSchedulesAsync(userId);
             return Ok(schedules);
@@ -54,11 +48,7 @@ public class IngestionController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var schedule = await _ingestionService.GetScheduleAsync(id, userId);
             if (schedule == null)
@@ -83,11 +73,7 @@ public class IngestionController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             schedule.OwnerId = userId;
             var created = await _ingestionService.CreateScheduleAsync(schedule);
@@ -114,11 +100,7 @@ public class IngestionController : ControllerBase
                 return BadRequest("ID mismatch");
             }
             
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var updated = await _ingestionService.UpdateScheduleAsync(schedule, userId);
             return Ok(updated);
@@ -142,11 +124,7 @@ public class IngestionController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var result = await _ingestionService.DeleteScheduleAsync(id, userId);
             if (!result)
@@ -171,11 +149,7 @@ public class IngestionController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var log = await _ingestionService.ExecuteIngestionAsync(id, userId);
             return Ok(log);
@@ -199,11 +173,7 @@ public class IngestionController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "system";
             
             var logs = await _ingestionService.GetIngestionLogsAsync(id, userId, count);
             return Ok(logs);
