@@ -90,7 +90,7 @@ public class DocumentConnector
     /// <summary>
     /// Navigation property for associated ingestion schedules
     /// </summary>
-    public virtual ICollection<IngestionSchedule> IngestionSchedules { get; set; } = new List<IngestionSchedule>();
+    public virtual ICollection<IngestionSchedule>? IngestionSchedules { get; set; }
     
     /// <summary>
     /// Navigation property for tenant

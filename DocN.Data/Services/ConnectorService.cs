@@ -108,8 +108,8 @@ public class ConnectorService : IConnectorService
             };
             
             // Explicitly ensure navigation properties are not tracked
-            newConnector.Tenant = null!;
-            newConnector.IngestionSchedules = null!;
+            newConnector.Tenant = null;
+            newConnector.IngestionSchedules = null;
             
             _context.DocumentConnectors.Add(newConnector);
             await _context.SaveChangesAsync();
