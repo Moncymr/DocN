@@ -24,8 +24,26 @@ public class ConnectorService : IConnectorService
         try
         {
             return await _context.DocumentConnectors
+                .AsNoTracking()
                 .Where(c => c.OwnerId == userId)
                 .OrderByDescending(c => c.CreatedAt)
+                .Select(c => new DocumentConnector
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    ConnectorType = c.ConnectorType,
+                    Configuration = c.Configuration,
+                    EncryptedCredentials = c.EncryptedCredentials,
+                    IsActive = c.IsActive,
+                    LastConnectionTest = c.LastConnectionTest,
+                    LastConnectionTestResult = c.LastConnectionTestResult,
+                    LastSyncedAt = c.LastSyncedAt,
+                    OwnerId = c.OwnerId,
+                    TenantId = c.TenantId,
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt,
+                    Description = c.Description
+                })
                 .ToListAsync();
         }
         catch (Exception ex)
@@ -40,6 +58,24 @@ public class ConnectorService : IConnectorService
         try
         {
             return await _context.DocumentConnectors
+                .AsNoTracking()
+                .Select(c => new DocumentConnector
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    ConnectorType = c.ConnectorType,
+                    Configuration = c.Configuration,
+                    EncryptedCredentials = c.EncryptedCredentials,
+                    IsActive = c.IsActive,
+                    LastConnectionTest = c.LastConnectionTest,
+                    LastConnectionTestResult = c.LastConnectionTestResult,
+                    LastSyncedAt = c.LastSyncedAt,
+                    OwnerId = c.OwnerId,
+                    TenantId = c.TenantId,
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt,
+                    Description = c.Description
+                })
                 .FirstOrDefaultAsync(c => c.Id == connectorId && c.OwnerId == userId);
         }
         catch (Exception ex)
@@ -55,12 +91,33 @@ public class ConnectorService : IConnectorService
         {
             connector.CreatedAt = DateTime.UtcNow;
             connector.UpdatedAt = DateTime.UtcNow;
+            // Ensure Tenant navigation is not tracked
+            connector.Tenant = null;
+            connector.IngestionSchedules = new List<IngestionSchedule>();
             
             _context.DocumentConnectors.Add(connector);
             await _context.SaveChangesAsync();
             
             _logger.LogInformation("Created connector {ConnectorId} for user {UserId}", connector.Id, connector.OwnerId);
-            return connector;
+            
+            // Return a clean copy without navigation properties
+            return new DocumentConnector
+            {
+                Id = connector.Id,
+                Name = connector.Name,
+                ConnectorType = connector.ConnectorType,
+                Configuration = connector.Configuration,
+                EncryptedCredentials = connector.EncryptedCredentials,
+                IsActive = connector.IsActive,
+                LastConnectionTest = connector.LastConnectionTest,
+                LastConnectionTestResult = connector.LastConnectionTestResult,
+                LastSyncedAt = connector.LastSyncedAt,
+                OwnerId = connector.OwnerId,
+                TenantId = connector.TenantId,
+                CreatedAt = connector.CreatedAt,
+                UpdatedAt = connector.UpdatedAt,
+                Description = connector.Description
+            };
         }
         catch (Exception ex)
         {
