@@ -80,6 +80,12 @@ public class DocArcContext : DbContext
             entity.Ignore(e => e.Tenant);
             entity.Ignore(e => e.Owner);  // ApplicationUser is also in ApplicationDbContext
             entity.Property(e => e.TenantId).IsRequired(false);
+            
+            // Ignore cross-context collection navigation properties
+            // These entities (DocumentShare, DocumentGroupShare, DocumentTag) are in ApplicationDbContext
+            entity.Ignore(e => e.Shares);
+            entity.Ignore(e => e.GroupShares);
+            entity.Ignore(e => e.Tags);
         });
 
         // DocumentChunk configuration
