@@ -184,6 +184,13 @@ public class DocArcContext : DbContext
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
             
+            // Configure the collection navigation property to IngestionSchedules
+            // This is the inverse of the relationship defined in IngestionSchedule configuration
+            entity.HasMany(e => e.IngestionSchedules)
+                .WithOne(s => s.Connector)
+                .HasForeignKey(s => s.ConnectorId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
             // Indexes for performance
             entity.HasIndex(e => e.OwnerId);
             entity.HasIndex(e => e.TenantId);
@@ -204,11 +211,8 @@ public class DocArcContext : DbContext
             entity.Property(e => e.OwnerId).HasMaxLength(450).IsRequired(false);
             entity.Property(e => e.Description).HasMaxLength(1000).IsRequired(false);
             
-            // Relationship with DocumentConnector
-            entity.HasOne(e => e.Connector)
-                .WithMany(c => c.IngestionSchedules)
-                .HasForeignKey(e => e.ConnectorId)
-                .OnDelete(DeleteBehavior.Cascade);
+            // Relationship with DocumentConnector is configured on the DocumentConnector side
+            // to avoid duplicate configuration and ensure proper collection mapping
             
             // Indexes for performance
             entity.HasIndex(e => e.ConnectorId);
@@ -230,7 +234,8 @@ public class DocArcContext : DbContext
             entity.HasOne(e => e.IngestionSchedule)
                 .WithMany(s => s.IngestionLogs)
                 .HasForeignKey(e => e.IngestionScheduleId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
             
             // Indexes for performance
             entity.HasIndex(e => e.IngestionScheduleId);
