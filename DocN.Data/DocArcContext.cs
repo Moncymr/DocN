@@ -197,7 +197,8 @@ public class DocArcContext : DbContext
             entity.HasMany(e => e.IngestionSchedules)
                 .WithOne(schedule => schedule.Connector)
                 .HasForeignKey(schedule => schedule.ConnectorId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
             
             // Indexes for performance
             entity.HasIndex(e => e.OwnerId);
