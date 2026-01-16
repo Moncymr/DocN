@@ -75,6 +75,10 @@ public class DocArcContext : DbContext
             entity.Property(e => e.OwnerId).IsRequired(false);
             
             // Multi-tenant support
+            // TenantId is a foreign key but Tenant entity is in ApplicationDbContext
+            // Ignore the navigation property to avoid cross-context relationship issues
+            entity.Ignore(e => e.Tenant);
+            entity.Ignore(e => e.Owner);  // ApplicationUser is also in ApplicationDbContext
             entity.Property(e => e.TenantId).IsRequired(false);
         });
 
