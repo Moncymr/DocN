@@ -89,21 +89,9 @@ public class ConnectorService : IConnectorService
     {
         try
         {
-            connector.CreatedAt = DateTime.UtcNow;
-            connector.UpdatedAt = DateTime.UtcNow;
-            // Ensure navigation properties are null to prevent EF from trying to track them
-            connector.Tenant = null!;
-            connector.IngestionSchedules = null!; // Prevent EF from tracking the collection
-            
-            _context.DocumentConnectors.Add(connector);
-            await _context.SaveChangesAsync();
-            
-            _logger.LogInformation("Created connector {ConnectorId} for user {UserId}", connector.Id, connector.OwnerId);
-            
-            // Return a clean copy without navigation properties
-            return new DocumentConnector
+            // Create a new entity without navigation properties to avoid EF tracking issues
+            var newConnector = new DocumentConnector
             {
-                Id = connector.Id,
                 Name = connector.Name,
                 ConnectorType = connector.ConnectorType,
                 Configuration = connector.Configuration,
@@ -114,9 +102,37 @@ public class ConnectorService : IConnectorService
                 LastSyncedAt = connector.LastSyncedAt,
                 OwnerId = connector.OwnerId,
                 TenantId = connector.TenantId,
-                CreatedAt = connector.CreatedAt,
-                UpdatedAt = connector.UpdatedAt,
-                Description = connector.Description
+                Description = connector.Description,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            
+            // Explicitly ensure navigation properties are not tracked
+            newConnector.Tenant = null!;
+            newConnector.IngestionSchedules = null!;
+            
+            _context.DocumentConnectors.Add(newConnector);
+            await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Created connector {ConnectorId} for user {UserId}", newConnector.Id, newConnector.OwnerId);
+            
+            // Return a clean copy without navigation properties
+            return new DocumentConnector
+            {
+                Id = newConnector.Id,
+                Name = newConnector.Name,
+                ConnectorType = newConnector.ConnectorType,
+                Configuration = newConnector.Configuration,
+                EncryptedCredentials = newConnector.EncryptedCredentials,
+                IsActive = newConnector.IsActive,
+                LastConnectionTest = newConnector.LastConnectionTest,
+                LastConnectionTestResult = newConnector.LastConnectionTestResult,
+                LastSyncedAt = newConnector.LastSyncedAt,
+                OwnerId = newConnector.OwnerId,
+                TenantId = newConnector.TenantId,
+                CreatedAt = newConnector.CreatedAt,
+                UpdatedAt = newConnector.UpdatedAt,
+                Description = newConnector.Description
             };
         }
         catch (Exception ex)
