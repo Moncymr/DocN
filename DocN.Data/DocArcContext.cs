@@ -187,8 +187,8 @@ public class DocArcContext : DbContext
             // Configure the collection navigation property to IngestionSchedules
             // This is the inverse of the relationship defined in IngestionSchedule configuration
             entity.HasMany(e => e.IngestionSchedules)
-                .WithOne(s => s.Connector)
-                .HasForeignKey(s => s.ConnectorId)
+                .WithOne(schedule => schedule.Connector)
+                .HasForeignKey(schedule => schedule.ConnectorId)
                 .OnDelete(DeleteBehavior.Cascade);
             
             // Indexes for performance
