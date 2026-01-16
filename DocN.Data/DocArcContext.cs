@@ -192,13 +192,9 @@ public class DocArcContext : DbContext
             entity.Ignore(e => e.Tenant);
             entity.Property(e => e.TenantId).IsRequired(false);
             
-            // Configure the collection navigation property to IngestionSchedules
-            // This is the inverse of the relationship defined in IngestionSchedule configuration
-            entity.HasMany(e => e.IngestionSchedules)
-                .WithOne(schedule => schedule.Connector)
-                .HasForeignKey(schedule => schedule.ConnectorId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .IsRequired();
+            // Ignore the IngestionSchedules collection to avoid EF Core mapping issues
+            // The relationship can be navigated from IngestionSchedule.Connector instead
+            entity.Ignore(e => e.IngestionSchedules);
             
             // Indexes for performance
             entity.HasIndex(e => e.OwnerId);
@@ -220,8 +216,13 @@ public class DocArcContext : DbContext
             entity.Property(e => e.OwnerId).HasMaxLength(450).IsRequired(false);
             entity.Property(e => e.Description).HasMaxLength(1000).IsRequired(false);
             
-            // Relationship with DocumentConnector is configured on the DocumentConnector side
-            // to avoid duplicate configuration and ensure proper collection mapping
+            // Relationship with DocumentConnector - configured from IngestionSchedule side only
+            // DocumentConnector.IngestionSchedules is ignored to avoid mapping issues
+            entity.HasOne(e => e.Connector)
+                .WithMany()  // No inverse navigation property
+                .HasForeignKey(e => e.ConnectorId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
             
             // Indexes for performance
             entity.HasIndex(e => e.ConnectorId);
