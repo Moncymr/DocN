@@ -93,7 +93,7 @@ public class ConnectorService : IConnectorService
             connector.UpdatedAt = DateTime.UtcNow;
             // Ensure navigation properties are null to prevent EF from trying to track them
             connector.Tenant = null!;
-            // Don't set IngestionSchedules - let EF handle the collection initialization
+            connector.IngestionSchedules = null!; // Prevent EF from tracking the collection
             
             _context.DocumentConnectors.Add(connector);
             await _context.SaveChangesAsync();
