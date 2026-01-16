@@ -107,9 +107,8 @@ public class ConnectorService : IConnectorService
                 UpdatedAt = DateTime.UtcNow
             };
             
-            // Explicitly ensure navigation properties are not tracked
-            newConnector.Tenant = null;
-            newConnector.IngestionSchedules = null;
+            // Navigation properties (Tenant, IngestionSchedules) are ignored in EF Core configuration
+            // so we don't need to set them to null
             
             _context.DocumentConnectors.Add(newConnector);
             await _context.SaveChangesAsync();

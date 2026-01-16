@@ -75,7 +75,17 @@ public class DocArcContext : DbContext
             entity.Property(e => e.OwnerId).IsRequired(false);
             
             // Multi-tenant support
+            // TenantId is a foreign key but Tenant entity is in ApplicationDbContext
+            // Ignore the navigation property to avoid cross-context relationship issues
+            entity.Ignore(e => e.Tenant);
+            entity.Ignore(e => e.Owner);  // ApplicationUser is also in ApplicationDbContext
             entity.Property(e => e.TenantId).IsRequired(false);
+            
+            // Ignore cross-context collection navigation properties
+            // These entities (DocumentShare, DocumentGroupShare, DocumentTag) are in ApplicationDbContext
+            entity.Ignore(e => e.Shares);
+            entity.Ignore(e => e.GroupShares);
+            entity.Ignore(e => e.Tags);
         });
 
         // DocumentChunk configuration
@@ -177,12 +187,14 @@ public class DocArcContext : DbContext
             entity.Property(e => e.OwnerId).HasMaxLength(450).IsRequired(false);
             entity.Property(e => e.Description).HasMaxLength(1000).IsRequired(false);
             
-            // Relationship with Tenant (optional)
-            entity.HasOne(e => e.Tenant)
-                .WithMany()
-                .HasForeignKey(e => e.TenantId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Restrict);
+            // TenantId is a foreign key but Tenant entity is in ApplicationDbContext
+            // Ignore the navigation property to avoid cross-context relationship issues
+            entity.Ignore(e => e.Tenant);
+            entity.Property(e => e.TenantId).IsRequired(false);
+            
+            // Ignore the IngestionSchedules collection to avoid EF Core mapping issues
+            // The relationship can be navigated from IngestionSchedule.Connector instead
+            entity.Ignore(e => e.IngestionSchedules);
             
             // Indexes for performance
             entity.HasIndex(e => e.OwnerId);
@@ -204,11 +216,13 @@ public class DocArcContext : DbContext
             entity.Property(e => e.OwnerId).HasMaxLength(450).IsRequired(false);
             entity.Property(e => e.Description).HasMaxLength(1000).IsRequired(false);
             
-            // Relationship with DocumentConnector
+            // Relationship with DocumentConnector - configured from IngestionSchedule side only
+            // DocumentConnector.IngestionSchedules is ignored to avoid mapping issues
             entity.HasOne(e => e.Connector)
-                .WithMany(c => c.IngestionSchedules)
+                .WithMany()  // No inverse navigation property
                 .HasForeignKey(e => e.ConnectorId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
             
             // Indexes for performance
             entity.HasIndex(e => e.ConnectorId);
@@ -230,7 +244,8 @@ public class DocArcContext : DbContext
             entity.HasOne(e => e.IngestionSchedule)
                 .WithMany(s => s.IngestionLogs)
                 .HasForeignKey(e => e.IngestionScheduleId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
             
             // Indexes for performance
             entity.HasIndex(e => e.IngestionScheduleId);
